@@ -1,0 +1,12 @@
+package:
+  name: pyhessio
+  version: 0.2
+
+source:
+  git_url: https://github.com/jacquemier/pyhessio
+  git_branch: master
+
+build:
+  number: 1
+  binary_relocation: True
+  detect_binary_files_with_prefix: True

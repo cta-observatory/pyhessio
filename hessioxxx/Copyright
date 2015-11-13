@@ -1,0 +1,28 @@
+The files in this distribution are (unless otherwise noted in the files):
+
+Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 
+              2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 
+              2012, 2013, 2014, 2015 Konrad Bernloehr. 
+
+Most source code is provided under the terms of the GNU General Public License,
+version 3 or newer (at your option, GPL3+ for short). Some source code (in 
+particular all of the code used in the eventio/hessio library or to be linked 
+with CORSIKA) is provided  under  the terms of the GNU Lesser General Public 
+License, version 2.1 or newer (LGPL2.1+).
+Data and configuration files are provided under the terms of the
+Creative Commons Attribution-ShareAlike 4.0 International license 
+(cc-by-sa-4.0), unless otherwise noted.
+Some parts are provided under different terms; see notes in the files.
+
+This distribution (and updates to it) may be obtained free of
+charge from the author (e-mail: Konrad.Bernloehr@mpi-hd.mpg.de) or from
+the web site http://www.mpi-hd.mpg.de/hfm/~bernlohr/sim_telarray/ 
+(or from other web sites).
+Files not explicitly provided under terms of the LGPL or GPL or cc-by-sa 
+(or other open source terms, if specified in the files)
+must not be redistributed separately and all files must be accompanied by
+the relevant copyright notices (this file here, unless there are specific
+copyright notices in the files). Modifications to data and configuration
+files not provided under cc-by-sa or other open source terms must be 
+distributed as separate patches to the original files or under names 
+different from the original files, and the files must be marked as modified.
