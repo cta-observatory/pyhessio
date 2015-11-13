@@ -12,7 +12,7 @@ NAME = 'pyhessio'
 VERSION = '0.2'
 AUTHOR = 'cta developers'
 AUTHOR_EMAIL = 'jean.jacquemier@lapp.in2p3.fr'
-URL = 'https://github.com/jacquemier/pyhessio'
+URL = 'https://github.com/cta-observatory/pyhessio'
 DESCRIPTION = 'CTA Python wrapper for hessio event format that is used in output of simtel_array ..'
 LICENSE = 'BSD3'
 

@@ -12,7 +12,7 @@ This package is composed of two libraries::
  -pyhessio : libhessio Python wrapper
 
 
-* Code: https://github.com/jacquemier/pyhessio
+* Code: https://github.com/cta-observatory/pyhessio
 * Docs: 
 
 ====================
@@ -47,6 +47,6 @@ After installing anaconda and setting your PATH, run the following to update the
 
 Next you need to check out the ~pyhessio~ module build it and install it::
 
-    git clone https://github.com/jacquemier/pyhessio
+    git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
     conda install --use-local pyhessio
