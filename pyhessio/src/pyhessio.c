@@ -149,6 +149,7 @@ close_file ()
       fileclose (iobuf->input_file);
       iobuf->input_file = NULL;
       reset_io_block (iobuf);
+      free_io_buffer(iobuf);
     }
   if (iobuf->output_file != NULL)
     fileclose (iobuf->output_file);
