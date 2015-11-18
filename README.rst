@@ -2,22 +2,22 @@
 pyhessioxxx
 ===========
 
-CTA Python wrapper for hessio event format that is used in output of simtel_array..
+CTA Python wrapper for hessio event format that is used in output of simtel_array.
+
+* Code: https://github.com/cta-observatory/pyhessio 
 
 This is a temporaly solution for testing ctapipe with real CTA MC data.
 It should not be used once CTA data format DL0 will be accpeted and implemented.
 
-This package is composed of two libraries::
- -libhessio: Part of sim_telarray program : https://www.mpi-hd.mpg.de/hfm/~bernlohr/sim_telarray
- -pyhessio : libhessio Python wrapper
+This package is composed of two libraries:
+
+* libhessio: Part of sim_telarray program : https://www.mpi-hd.mpg.de/hfm/~bernlohr/sim_telarray
+* pyhessio : libhessio Python wrapper
 
 
-* Code: https://github.com/cta-observatory/pyhessio
-* Docs: 
-
-====================
-Quick Start for Devs
-====================
+===========
+Quick Start
+===========
 
 Anaconda
 --------
