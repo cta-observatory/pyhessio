@@ -1,6 +1,6 @@
-=======
+===========
 pyhessioxxx
-=======
+===========
 
 CTA Python wrapper for hessio event format that is used in output of simtel_array..
 
@@ -19,6 +19,8 @@ This package is composed of two libraries::
 Quick Start for Devs
 ====================
 
+Anaconda
+--------
 First install Anaconda python distribution for Python3.4
 http://continuum.io/downloads#py34
 
@@ -45,16 +47,25 @@ After installing anaconda and setting your PATH, run the following to update the
 
     conda update --all
 
+CMake
+-----
 You need to install CMake to allow anaconda to build C libhessio library
+
 https://cmake.org
 
+build and install
+-----------------
 Next you need to check out the ~pyhessio~ module build it and install it::
 
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
     conda install --use-local pyhessio
 
-Note For macosx: cmake does not work with anaconda on macosx. 
+
+Note For MacOSX:
+````````````````
+CMake does not work with anaconda on MacOSX. 
+
 You need to run cmake manually::
 
     cd pyhessio
@@ -65,3 +76,4 @@ You need to run cmake manually::
     sudo make install
     cd ..
     python setup.py install
+
