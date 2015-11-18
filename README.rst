@@ -45,6 +45,9 @@ After installing anaconda and setting your PATH, run the following to update the
 
     conda update --all
 
+You need to install CMake to allow anaconda to build C libhessio library
+https://cmake.org
+
 Next you need to check out the ~pyhessio~ module build it and install it::
 
     git clone https://github.com/cta-observatory/pyhessio
