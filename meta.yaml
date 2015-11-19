@@ -4,9 +4,19 @@ package:
 
 source:
   git_url: https://github.com/cta-observatory/pyhessio
-  git_branch: master
+  git_branch: test
 
 build:
   number: 1
   binary_relocation: True
   detect_binary_files_with_prefix: True
+
+
+requirements:
+  build:
+    - cmake
+
+requirements:
+  run:
+    - python >=3
+    - numpy
