@@ -10,13 +10,3 @@ build:
   number: 1
   binary_relocation: True
   detect_binary_files_with_prefix: True
-
-
-requirements:
-  build:
-    - cmake
-
-requirements:
-  run:
-    - python >=3
-    - numpy
