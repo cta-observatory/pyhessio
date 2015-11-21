@@ -20,6 +20,7 @@ int get_pedestal (int telescope_id, double *pedestal);
 int get_calibration (int telescope_id, double *calib);
 int get_global_event_count (void);
 int get_mirror_area (int telescope_id, double *mirror_area);
+int get_focal_length(int telescope_id, double* result);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
 int get_num_samples (int telescope_id);
@@ -728,6 +729,23 @@ get_mirror_area (int telescope_id, double *result)
       return 0;
     }
   return -1.;
+}
+
+//----------------------------------------------------------------
+// Returns the focal length of optics [m]
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+int
+get_focal_length(int telescope_id, double* result)
+{
+  if (hsdata != NULL && result != NULL)
+    {
+      int itel = get_telescope_index(telescope_id);
+      if (itel == TEL_INDEX_NOT_VALID) return TEL_INDEX_NOT_VALID;
+      *result = hsdata->camera_set[itel].flen;
+      return 0;
+    }
+  return -1;
 }
 
 //-----------------------------------------------------

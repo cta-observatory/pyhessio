@@ -9,7 +9,7 @@ __all__ = ['move_to_next_event','file_open','close_file',
            'get_num_teldata','get_num_channel','get_num_pixels',
            'get_num_samples','get_adc_sample','get_adc_sum',
            'get_pedestal','get_calibration','get_pixel_position',
-           'get_pixel_timing_timval','get_mirror_area',
+           'get_pixel_timing_timval','get_mirror_area', 'get_focal_length',
            'get_pixel_timing_num_times_types',
            'get_pixel_timing_threshold','get_pixel_timing_peak_global',
            'get_mc_event_xcore', 'get_mc_event_ycore' ,'get_mc_shower_energy',
@@ -40,6 +40,8 @@ lib.get_pedestal.restype=ctypes.c_int
 lib.get_global_event_count.restype = ctypes.c_int
 lib.get_mirror_area.argtypes = [ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
 lib.get_mirror_area.restype = ctypes.c_int
+lib.get_focal_length.argtypes = [ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
+lib.get_focal_length.restype = ctypes.c_int
 lib.get_num_channel.argtypes = [ctypes.c_int]
 lib.get_num_channel.restype = ctypes.c_int
 lib.get_num_pixels.argtypes = [ctypes.c_int]
@@ -243,6 +245,33 @@ def get_mirror_area(telescope_id):
     elif result == TEL_INDEX_NOT_VALID:
         raise(HessioTelescopeIndexError("no telescope wth id " + str(telescope_id)))
     raise(HessioGeneralError("hsdata->camera_set[itel].mirror_area not available"))
+
+def get_focal_length(telescope_id):
+    """
+    Returns
+    -------
+    focal length of optics [m]
+    
+    Parameters
+    ----------
+    telescope_id: int
+    
+    Raises
+    ------
+    HessioGeneralError
+    if hsdata->camera_set[itel].flen not available
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    
+    data = np.zeros(1,dtype=np.double)
+    result = lib.get_focal_length(telescope_id,data)
+    if result == 0:
+        return data[0]
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id))) 
+    raise(HessioGeneralError("hsdata->camera_set[itel].flen not available"))
 
 def get_telescope_with_data_list():
     """
