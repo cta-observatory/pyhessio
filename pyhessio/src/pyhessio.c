@@ -40,6 +40,8 @@ double get_mc_event_ycore (void);
 double get_mc_shower_energy (void);
 double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
+int get_mc_shower_primary_id(void);
+double get_mc_shower_h_first_int(void);
 uint8_t get_adc_known (int telescope_id, int channel, int pixel_id);
 double get_ref_shape (int telescope_id, int channel, int fshape);
 double get_ref_step (int telescope_id);
@@ -447,6 +449,34 @@ get_adc_known (int telescope_id, int channel, int pixel_id)
 	}
     }
   return -1;
+}
+
+//----------------------------------------------------------------
+// Returns shower primary ID
+// 0 (gamma), 1(e-), 2(mu-), 100*A+Z for nucleons and nuclei,
+// negative for antimatter.
+//----------------------------------------------------------------
+int
+get_mc_shower_primary_id()
+{
+  if ( hsdata != NULL)
+    {
+      return hsdata->mc_shower.primary_id;
+    }
+  return -1;
+}
+
+//----------------------------------------------------------------
+// Returns shower height of first interaction a.s.l. [m]
+//----------------------------------------------------------------
+double
+get_mc_shower_h_first_int()
+{
+  if ( hsdata != NULL)
+    {
+      return hsdata->mc_shower.h_first_int;
+    }
+  return -0.;
 }
 
 //----------------------------------------------------------------

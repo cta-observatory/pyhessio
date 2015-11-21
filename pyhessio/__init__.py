@@ -12,6 +12,7 @@ __all__ = ['move_to_next_event','file_open','close_file',
            'get_pixel_timing_timval','get_mirror_area', 'get_focal_length',
            'get_pixel_timing_num_times_types',
            'get_pixel_timing_threshold','get_pixel_timing_peak_global',
+           'get_mc_shower_primary_id','get_mc_shower_h_first_int',
            'get_mc_event_xcore', 'get_mc_event_ycore' ,'get_mc_shower_energy',
            'get_mc_shower_azimuth' ,'get_mc_shower_altitude','get_adc_known',
            'get_ref_shape' ,'get_ref_step','get_time_slice',
@@ -72,6 +73,8 @@ lib.get_mc_event_ycore.restype = ctypes.c_double
 lib.get_mc_shower_energy.restype = ctypes.c_double
 lib.get_mc_shower_azimuth.restype = ctypes.c_double
 lib.get_mc_shower_altitude.restype = ctypes.c_double
+lib.get_mc_shower_primary_id.restype = ctypes.c_int
+lib.get_mc_shower_h_first_int.restype = ctypes.c_double
 lib.get_adc_known.restype = ctypes.c_int
 lib.get_adc_known.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int]
 lib.get_ref_shape.restype = ctypes.c_double
@@ -757,6 +760,24 @@ def get_mc_shower_altitude():
     shower altitude [rad]
     """
     return  lib.get_mc_shower_altitude()
+
+def get_mc_shower_primary_id():
+    """
+    Returns
+    ------- 
+    shower primary ID
+    0 (gamma), 1(e-), 2(mu-), 100*A+Z for nucleons and nuclei,
+    negative for antimatter.
+    """
+    return  lib.get_mc_shower_primary_id()
+
+def get_mc_shower_h_first_int():
+    """
+    Returns
+    ------- 
+    shower height of first interaction a.s.l. [m]
+    """
+    return  lib.get_mc_shower_h_first_int()
 
 def get_adc_known(telescope_id, channel, pixel_id):
     """
