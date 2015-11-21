@@ -5,7 +5,7 @@ import ctypes
 __all__ = ['move_to_next_event','file_open','close_file',
            'get_global_event_count','get_run_number',
            'get_num_telescope','get_telescope_with_data_list',
-           'get_teldata_list',
+           'get_teldata_list', 'get_telescope_position',
            'get_num_teldata','get_num_channel','get_num_pixels',
            'get_num_samples','get_adc_sample','get_adc_sum',
            'get_pedestal','get_calibration','get_pixel_position',
@@ -66,6 +66,8 @@ lib.get_pixel_timing_timval.restype=ctypes.c_int
 lib.get_run_number.restype = ctypes.c_int
 lib.get_telescope_with_data_list.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
 lib.get_telescope_with_data_list.restype = ctypes.c_int
+lib.get_telescope_position.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
+lib.get_telescope_position.restype=ctypes.c_int
 lib.move_to_next_event.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int)]
 lib.move_to_next_event.restype = ctypes.c_int
 lib.get_mc_event_xcore.restype = ctypes.c_double
@@ -312,6 +314,38 @@ def get_teldata_list():
         return array
     else:
         raise(HessioGeneralError("hsdata->event.num_teldata is not available"))
+
+def get_telescope_position(telescope_id):
+    """
+    Returns
+    -------
+    Telescope position for a telescope id.
+      x is counted from array reference position towards North, 
+      y towards West,
+      z upwards.
+
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+    HessioGeneralError
+    if telescope position not available for this telescope
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    pos = np.zeros(3,dtype=np.double)
+    
+    result = lib.get_telescope_position(telescope_id,pos)
+    if result == 0:
+        return pos
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    else:
+        raise(HessioGeneralError("no telescope position for telescope "
+                              + str(telescope_id)))
 
 
 def get_num_teldata():
@@ -688,7 +722,7 @@ def get_pixel_position(telescope_id):
     """
     Returns
     -------
-    pixels position for a telecsope id
+    pixels position for a telescope id
 
     Parameters
     ----------

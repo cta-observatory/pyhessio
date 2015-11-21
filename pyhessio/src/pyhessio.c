@@ -33,6 +33,7 @@ int get_pixel_timing_timval (int telescope_id, float *data);
 int get_pixel_timine_peak_global (int telescope_id, float *peak);
 int get_run_number (void);
 int get_telescope_with_data_list (int *list);
+int get_telescope_position (int telescope_id, double *pos);
 int get_telescope_index (int telescope_id);
 int move_to_next_event (int *event_id);
 double get_mc_event_xcore (void);
@@ -200,7 +201,7 @@ get_num_teldata (void)
 }
 
 //-------------------------------------------
-// Set list of IDs of telescopes with data
+// Get list of IDs of telescopes with data
 //-------------------------------------------
 int
 get_telescope_with_data_list (int *list)
@@ -218,6 +219,29 @@ get_telescope_with_data_list (int *list)
   return -1;
 }
 
+//----------------------------------------------------------------
+// Returns x,y,z positions of the telescopes [m].
+//   x is counted from array reference position towards North, 
+//   y towards West,
+//   z upwards.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// -1 if hsdata == NULL
+//----------------------------------------------------------------
+int
+get_telescope_position (int telescope_id, double *pos)
+{
+  if (hsdata != NULL)
+    {
+      int itel = get_telescope_index (telescope_id);
+      if (itel == TEL_INDEX_NOT_VALID)
+        return TEL_INDEX_NOT_VALID;
+      int loop = 0;
+      for (loop = 0; loop < 3; ++loop)  // loop over coordinates
+          *pos++ = hsdata->run_header.tel_pos[itel][loop];
+      return 0;
+    }
+  return -1;
+}
 
 //-------------------------------------------
 // Get number of triggered telescope.
@@ -455,6 +479,7 @@ get_adc_known (int telescope_id, int channel, int pixel_id)
 // Returns shower primary ID
 // 0 (gamma), 1(e-), 2(mu-), 100*A+Z for nucleons and nuclei,
 // negative for antimatter.
+// Returns -1 if data is not accessible
 //----------------------------------------------------------------
 int
 get_mc_shower_primary_id()
