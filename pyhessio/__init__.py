@@ -14,6 +14,7 @@ __all__ = ['move_to_next_event','move_to_next_mc_event','file_open','close_file'
            'get_pixel_timing_threshold','get_pixel_timing_peak_global',
            'get_mc_shower_primary_id','get_mc_shower_h_first_int',
            'get_mc_event_xcore', 'get_mc_event_ycore' ,'get_mc_shower_energy',
+           'get_mc_event_offset_fov',
            'get_mc_shower_azimuth' ,'get_mc_shower_altitude','get_adc_known',
            'get_ref_shape' ,'get_ref_step','get_time_slice',
            'get_ref_shapes',  'get_nrefshape' ,'get_lrefshape',
@@ -75,6 +76,8 @@ lib.move_to_next_mc_event.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int)]
 lib.move_to_next_mc_event.restype = ctypes.c_int
 lib.get_mc_event_xcore.restype = ctypes.c_double
 lib.get_mc_event_ycore.restype = ctypes.c_double
+lib.get_mc_event_offset_fov.argtypes = [np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
+lib.get_mc_event_offset_fov.restype = ctypes.c_int
 lib.get_mc_shower_energy.restype = ctypes.c_double
 lib.get_mc_shower_azimuth.restype = ctypes.c_double
 lib.get_mc_shower_altitude.restype = ctypes.c_double
@@ -804,6 +807,28 @@ def get_mc_event_ycore():
     y -> W
     """
     return  lib.get_mc_event_ycore()
+
+def get_mc_event_offset_fov():
+    """
+    Returns
+    -------
+    offset of pointing direction in camera f.o.v.
+    divided by focal length, i.e. converted to radians:
+      [0] = Camera x (downwards in normal pointing, i.e. increasing Alt)
+      [1] = Camera y -> Az.
+
+    Raises
+    ------
+    HessioGeneralError
+    if information is not available
+    """
+    offset = np.zeros(2,dtype=np.double)
+    
+    result = lib.get_mc_event_offset_fov(offset)
+    if result == 0:
+        return offset
+    else:
+        raise(HessioGeneralError("hsdata is not available"))
 
 def get_mc_shower_energy():
     """

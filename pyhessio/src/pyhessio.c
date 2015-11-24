@@ -40,6 +40,7 @@ int move_to_next_event (int *event_id);
 int move_to_next_mc_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
+int get_mc_event_offset_fov (double *off);
 double get_mc_shower_energy (void);
 double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
@@ -599,6 +600,26 @@ get_mc_event_ycore ()
       return hsdata->mc_event.ycore;
     }
   return -0.;
+}
+
+//----------------------------------------------------------------
+// Returns the offset of pointing direction in camera f.o.v.
+// divided by focal length, i.e. converted to radians:
+//   [0] = Camera x (downwards in normal pointing, i.e. increasing Alt)
+//   [1] = Camera y -> Az.
+// -1 if hsdata == NULL
+//----------------------------------------------------------------
+int
+get_mc_event_offset_fov (double *off)
+{
+  if (hsdata != NULL)
+    {
+      int loop = 0;
+      for (loop = 0; loop < 2; ++loop)  // loop over coordinates
+        *off++ = hsdata->run_header.offset_fov[loop];
+      return 0;
+    }
+  return -1;
 }
 
 //-------------------------------------------
