@@ -115,9 +115,9 @@ file_open (const char *filename)
 	    return -1;
 	  }
 
-    fflush (stdout);
-    fprintf (stderr, "%s\n", filename);
-    printf ("\nInput file '%s' has been opened.\n", filename);
+    // fflush (stdout);
+    // fprintf (stderr, "%s\n", filename);
+    // printf ("\nInput file '%s' has been opened.\n", filename);
     file_is_opened = 1;
   }
   return 0;
@@ -996,7 +996,7 @@ fill_hsdata (int *event_id)	//,int *header_readed)
 	  Warning ("Reading run header failed.");
 	  exit (1);
 	}
-      fprintf (stderr, "\nStarting run %d\n", (hsdata)->run_header.run);
+      // fprintf (stderr, "\nStarting run %d\n", (hsdata)->run_header.run);
       for (itel = 0; itel <= (hsdata)->run_header.ntel; itel++)
 	{
 
