@@ -2,7 +2,7 @@ import numpy as np
 import os
 import ctypes
 
-__all__ = ['move_to_next_event','file_open','close_file',
+__all__ = ['move_to_next_event','move_to_next_mc_event','file_open','close_file',
            'get_global_event_count','get_run_number',
            'get_num_telescope','get_telescope_with_data_list',
            'get_teldata_list', 'get_telescope_position',
@@ -71,6 +71,8 @@ lib.get_telescope_position.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.
 lib.get_telescope_position.restype=ctypes.c_int
 lib.move_to_next_event.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int)]
 lib.move_to_next_event.restype = ctypes.c_int
+lib.move_to_next_mc_event.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int)]
+lib.move_to_next_mc_event.restype = ctypes.c_int
 lib.get_mc_event_xcore.restype = ctypes.c_double
 lib.get_mc_event_ycore.restype = ctypes.c_double
 lib.get_mc_shower_energy.restype = ctypes.c_double
@@ -149,6 +151,31 @@ def move_to_next_event(limit=0):
         if res != -1:
             yield res, result[0]
             evt_num = evt_num + 1
+
+def move_to_next_mc_event(limit=0):
+    """
+    Read data form input file
+    and fill corresponding container
+    Data can be then access with
+    other available functions in
+    this module.
+    This iterator scans all the simulated events,
+    not only the triggered ones.
+    By default all events are computed
+
+    Parameters
+    ----------
+    limit: int,optional
+        limit allows to limit the number of event generated
+    """
+    result = np.zeros(1, dtype=np.int32)
+    res = 0
+    sim_evt_num = 0
+    while res >= 0 and (limit == 0 or sim_evt_num < limit):
+        res = lib.move_to_next_mc_event(result)
+        if res != -1:
+            yield res, result[0]
+            sim_evt_num = sim_evt_num + 1
 
 def file_open(filename):
     """

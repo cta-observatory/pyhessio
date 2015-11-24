@@ -37,6 +37,7 @@ int get_telescope_with_data_list (int *list);
 int get_telescope_position (int telescope_id, double *pos);
 int get_telescope_index (int telescope_id);
 int move_to_next_event (int *event_id);
+int move_to_next_mc_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
 double get_mc_shower_energy (void);
@@ -141,6 +142,30 @@ move_to_next_event (int *event_id)
 	  close_file ();
 	  return -1;
 	}
+    }
+  return get_run_number ();
+}
+
+//----------------------------------
+//Read input file and fill hsdata
+// and item_header global var
+//Scan all simulated events
+//----------------------------------
+int
+move_to_next_mc_event (int *event_id)
+{
+  if (!file_is_opened)
+    return -1;
+
+  int rc = 0;
+  while (rc != IO_TYPE_HESS_MC_EVENT)
+    {
+      rc = fill_hsdata (event_id);
+      if (rc < 0)
+        {
+          close_file ();
+          return -1;
+        }
     }
   return get_run_number ();
 }
@@ -1145,7 +1170,7 @@ fill_hsdata (int *event_id)	//,int *header_readed)
       /* =================================================== */
     case IO_TYPE_HESS_MC_EVENT:
       rc = read_hess_mc_event (iobuf, &(hsdata)->mc_event);
-
+      *event_id = item_header.ident;
       break;
       /* =================================================== */
     case IO_TYPE_MC_TELARRAY:
