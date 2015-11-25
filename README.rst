@@ -60,8 +60,6 @@ Next you need to check out the ~pyhessio~ module build it and install it::
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
     conda install --use-local pyhessio
-
-For developer::
     python setup.py develop
 
 Note For MacOSX:
