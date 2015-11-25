@@ -61,9 +61,7 @@ Next you need to check out the ~pyhessio~ module build it and install it::
     conda build pyhessio
     conda install --use-local pyhessio
 
-For developer
------------------
-::
+For developer::
     python setup.py develop
 
 Note For MacOSX:
