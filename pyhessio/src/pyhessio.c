@@ -13,6 +13,7 @@
 
 void close_file (void);
 int file_open (const char *filename);
+void free_hsdata(void);
 int fill_hsdata (int *event_id);
 int get_adc_sample (int telescope_id, int channel, uint16_t * data);
 int get_adc_sum (int telescope_id, int channel, uint32_t * data);
@@ -87,34 +88,34 @@ int
 file_open (const char *filename)
 {
   if (filename)
-    {
-      if (file_is_opened)
-	{
-	  close_file ();
-	}
-
-      /* Check assumed limits with the ones compiled into the library. */
-      H_CHECK_MAX();
-
-      if ((iobuf = allocate_io_buffer (1000000L)) == NULL)
-	{
-	  Error ("Cannot allocate I/O buffer");
-	  exit (1);
-	}
-      iobuf->max_length = 100000000L;
-
-      if ((iobuf->input_file = fileopen (filename, READ_BINARY)) == NULL)
-	{
-	  perror (filename);
-	  Error ("Cannot open input file.");
-	  return -1;
-	}
-
-      fflush (stdout);
-      fprintf (stderr, "%s\n", filename);
-      printf ("\nInput file '%s' has been opened.\n", filename);
-      file_is_opened = 1;
+  {
+    if (file_is_opened)
+	  {
+	    close_file ();
     }
+
+    /* Check assumed limits with the ones compiled into the library. */
+    H_CHECK_MAX();
+
+    if ((iobuf = allocate_io_buffer (1000000L)) == NULL)
+	  {
+	    Error ("Cannot allocate I/O buffer");
+	    exit (1);
+	  }
+    iobuf->max_length = 100000000L;
+
+    if ((iobuf->input_file = fileopen (filename, READ_BINARY)) == NULL)
+	  {
+	    perror (filename);
+	    Error ("Cannot open input file.");
+	    return -1;
+	  }
+
+    fflush (stdout);
+    fprintf (stderr, "%s\n", filename);
+    printf ("\nInput file '%s' has been opened.\n", filename);
+    file_is_opened = 1;
+  }
   return 0;
 }
 
@@ -149,12 +150,13 @@ close_file ()
 {
 
   if (iobuf->input_file != NULL && iobuf->input_file != stdin)
-    {
-      fileclose (iobuf->input_file);
-      iobuf->input_file = NULL;
-      reset_io_block (iobuf);
-      free_io_buffer(iobuf);
-    }
+  {
+    fileclose (iobuf->input_file);
+    iobuf->input_file = NULL;
+    reset_io_block (iobuf);
+    free_io_buffer(iobuf);
+    free_hsdata();
+  }
   if (iobuf->output_file != NULL)
     fileclose (iobuf->output_file);
 }
@@ -954,35 +956,10 @@ fill_hsdata (int *event_id)	//,int *header_readed)
 
       /* Structures might be allocated from previous run */
       if (hsdata != NULL)
-	{
-	  /* Free memory allocated inside ... */
-	  for (itel = 0; itel < hsdata->run_header.ntel; itel++)
 	    {
-	      if (hsdata->event.teldata[itel].raw != NULL)
-		{
-		  free (hsdata->event.teldata[itel].raw);
-		  hsdata->event.teldata[itel].raw = NULL;
-		}
-	      if (hsdata->event.teldata[itel].pixtm != NULL)
-		{
-		  free (hsdata->event.teldata[itel].pixtm);
-		  hsdata->event.teldata[itel].pixtm = NULL;
-		}
-	      if (hsdata->event.teldata[itel].img != NULL)
-		{
-		  free (hsdata->event.teldata[itel].img);
-		  hsdata->event.teldata[itel].img = NULL;
-		}
-	      if (hsdata->event.teldata[itel].pixcal != NULL)
-		{
-		  free (hsdata->event.teldata[itel].pixcal);
-		  hsdata->event.teldata[itel].pixcal = NULL;
-		}
+	      /* Free memory allocated inside ... */
+	      free_hsdata();
 	    }
-	  /* Free main structure */
-	  free (hsdata);
-	  hsdata = NULL;
-	}
 
 
       hsdata = (AllHessData *) calloc (1, sizeof (AllHessData));
@@ -1242,3 +1219,44 @@ fill_hsdata (int *event_id)	//,int *header_readed)
   /* What did we actually get? */
   return (int) item_header.type;
 }
+
+
+//-----------------------------------
+// Free hsdata structure
+//-----------------------------------
+void free_hsdata(void)
+{
+      int itel=0;
+    /* Structures might be allocated from previous run */
+      if ( hsdata != NULL )
+      {
+        /* Free memory allocated inside ... */
+        for (itel=0; itel<hsdata->run_header.ntel; itel++)
+        {
+          if ( hsdata->event.teldata[itel].raw != NULL )
+          {
+            free(hsdata->event.teldata[itel].raw);
+            hsdata->event.teldata[itel].raw = NULL;
+          }
+          if ( hsdata->event.teldata[itel].pixtm != NULL )
+          {
+            free(hsdata->event.teldata[itel].pixtm);
+            hsdata->event.teldata[itel].pixtm = NULL;
+          }
+          if ( hsdata->event.teldata[itel].img != NULL )
+          {
+            free(hsdata->event.teldata[itel].img);
+            hsdata->event.teldata[itel].img = NULL;
+          }
+          if ( hsdata->event.teldata[itel].pixcal != NULL )
+          {
+            free(hsdata->event.teldata[itel].pixcal);
+            hsdata->event.teldata[itel].pixcal = NULL;
+          }
+        }
+        /* Free main structure */
+        free(hsdata);
+        hsdata = NULL;
+      }
+}
+
