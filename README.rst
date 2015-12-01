@@ -54,21 +54,6 @@ You need to install CMake to build C libhessio library
 https://cmake.org
 
 
-Note For :
-````````````````
-CMake does not work with anaconda on MacOSX. 
-
-You need to run cmake manually::
-
-    cd pyhessio
-    mkdir build
-    cd build
-    cmake ..
-    make
-    sudo make install
-    cd ..
-    python setup.py install
-
 build and install
 -----------------
 Installation thanks to anaconda:
@@ -94,5 +79,3 @@ Note: Use this procedure if you do not have an local installation of anaconda or
     cd ..
     python setup.py install --user --hessio_prefix=/home1/jacquem/.local/lib
     python setup.py develop
-
-
