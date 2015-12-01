@@ -49,20 +49,12 @@ After installing anaconda and setting your PATH, run the following to update the
 
 CMake
 -----
-You need to install CMake to allow anaconda to build C libhessio library
+You need to install CMake to build C libhessio library
 
 https://cmake.org
 
-build and install
------------------
-Next you need to check out the ~pyhessio~ module build it and install it::
 
-    git clone https://github.com/cta-observatory/pyhessio
-    conda build pyhessio
-    conda install --use-local pyhessio
-    python setup.py develop
-
-Note For MacOSX:
+Note For :
 ````````````````
 CMake does not work with anaconda on MacOSX. 
 
@@ -76,4 +68,31 @@ You need to run cmake manually::
     sudo make install
     cd ..
     python setup.py install
+
+build and install
+-----------------
+Installation thanks to anaconda:
+________________________________
+Note: if you do not used a local installation of Anaconda, you need root access on your system::
+
+    git clone https://github.com/cta-observatory/pyhessio
+    conda build pyhessio
+    conda install --use-local pyhessio
+    cd pyhessio
+    python setup.py develop
+
+Local installation without anaconda:
+____________________________________
+
+Note: Use this procedure if you do not have an local installation of anaconda or no root access on your system::
+
+    cd pyhessio
+    mkdir build_cmake
+    cd build_cmake
+    cmake .. -DCMAKE_INSTALL_PREFIX=/home1/jacquem/.local
+    make install
+    cd ..
+    python setup.py install --user --hessio_prefix=/home1/jacquem/.local/lib
+    python setup.py develop
+
 
