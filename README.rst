@@ -71,6 +71,7 @@ ____________________________________
 
 Note: Use this procedure if you do not have an local installation of anaconda or no root access on your system::
 
+    git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
     mkdir build_cmake
     cd build_cmake
