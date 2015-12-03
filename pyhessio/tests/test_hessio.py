@@ -12,6 +12,7 @@ except ImportError as err:
 def test_hessio():
     """
     v move_to_next_event(limit=0):
+    v move_to_next_mc_event(limit=0):
     v file_open(filename):
     close_file():
     v get_global_event_count():
@@ -35,6 +36,10 @@ def test_hessio():
     v get_mirror_number(telescope_id)
     v get_optical_foclen(telescope_id)
     v get_telescope_ids()
+    v get_mc_shower_primary_id()
+    v get_mc_shower_h_first_int()
+    v get_telescope_position(telescope_id)
+    v get_mc_event_offset_fov()
     """
     tel_id = 47
     channel = 0
@@ -47,8 +52,9 @@ def test_hessio():
     
     # test reading file
     assert file_open("/home/jacquem/workspace/data/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0 
-    #assert file_open("/afs/ifh.de/user/z/zornju/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0  
-    
+    #assert file_open("/afs/ifh.de/user/z/zornju/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0
+    #assert file_open("/home/michele/Software/pyhessioxxx/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel") == 0 
+
     #for run_id, event_id in move_to_next_event(limit = 1):
         
     run_id, event_id = next(move_to_next_event())
@@ -113,7 +119,7 @@ def test_hessio():
     
     
     
-    #get_num_sampple
+    #get_num_sample
     nb_sample = get_num_samples(tel_id) 
     assert nb_sample == 25
     try: 
@@ -147,9 +153,6 @@ def test_hessio():
         get_pixel_position(0)
         assert()
     except HessioTelescopeIndexError: pass
-        
-        
-        
     
     assert(np.array_equal(get_telescope_with_data_list() , [38, 47]) == True)
 
@@ -203,8 +206,20 @@ def test_hessio():
         assert()
     except HessioTelescopeIndexError: pass
 
+    # Telescope position
+    tel_x, tel_y, tel_z = get_telescope_position(tel_id)
+    assert(float( tel_x ) == float(1223.800048828125))
+    assert(float( tel_y ) == float(704.0999755859375))
+    assert(float( tel_z ) == float(5.0))
+    try:
+        get_telescope_position(-1)
+        assert()
+    except HessioTelescopeIndexError: pass
 
-       
+    mc_offset_x, mc_offset_y = get_mc_event_offset_fov()
+    assert( mc_offset_x == 0)
+    assert( mc_offset_y == 0)
+
     """
     xcode 1129.6055908203125
     ycode 547.77001953125
@@ -229,7 +244,10 @@ def test_hessio():
     assert(float(get_mc_shower_energy()) == float(.3820943236351013))
     assert(float(get_mc_shower_azimuth()) == float(6.283185005187988))
     assert(float(get_mc_shower_altitude()) == float( 1.2217304706573486))
-    
+
+    assert(get_mc_shower_primary_id() == 0)
+    assert(float(get_mc_shower_h_first_int()) == float(17846.654296875))
+
     assert(get_adc_known(38,0,1000)== 1 )
 
     assert(float(get_ref_shape(38,0,2)) == float(.0269622802734375))
@@ -283,6 +301,28 @@ lref_shape 80
 
     close_file()
     
-        
+    assert file_open("/home/jacquem/workspace/data/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0 
+    #assert file_open("/home/michele/Software/pyhessioxxx/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel") == 0 
+    
+    # Testing move_to_next_mc_event iterator
+    run_id, event_id = next(move_to_next_mc_event())
+    
+    assert run_id == 31964
+    assert event_id == 100 # Different from before
+
+    # Configuration is the same
+    assert len(get_telescope_ids()) == 126
+    assert get_telescope_ids()[100] == 101
+    
+    # now we don't have any telescope data
+    assert(get_num_teldata() == 0)
+
+    # but we have simulation data
+    assert(get_mc_shower_primary_id() == 0)
+    assert(float(get_mc_event_xcore()) == float(-591.63360595703125))
+    assert(float(get_mc_event_ycore()) == float(1080.77392578125))
+    
+    close_file()
+
 if __name__ == "__main__":
     test_hessio()
