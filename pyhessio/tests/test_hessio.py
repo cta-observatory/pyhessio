@@ -32,6 +32,9 @@ def test_hessio():
     v get_pixel_timing_num_times_types(telescope_id)
     v get_pixel_timing_threshold(telescope_id)
     v get_pixel_timing_peak_global(telescope_id)
+    v get_mirror_number(telescope_id)
+    v get_optical_foclen(telescope_id)
+    v get_telescope_ids()
     """
     tel_id = 47
     channel = 0
@@ -41,10 +44,11 @@ def test_hessio():
         print("DEBUG", get_num_pixels(1))
         assert()
     except HessioGeneralError: pass 
-  
+    
     # test reading file
-    assert file_open("/home/jacquem/workspace/data/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0 
-
+    #assert file_open("/home/jacquem/workspace/data/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0 
+    assert file_open("/afs/ifh.de/user/z/zornju/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0  
+    
     #for run_id, event_id in move_to_next_event(limit = 1):
         
     run_id, event_id = next(move_to_next_event())
@@ -56,6 +60,8 @@ def test_hessio():
     assert get_global_event_count() == 408
     assert get_num_telescope() == 126
     assert get_num_teldata() == 2
+    assert len(get_telescope_ids()) == 126
+    assert get_telescope_ids()[100] == 101
     
     #get_num_channel
     assert get_num_channel(tel_id) == 1
@@ -151,6 +157,20 @@ def test_hessio():
     assert(get_mirror_area(tel_id) ==  14.562566757202148)
     try:
         get_mirror_area(-1)
+        assert()
+    except HessioTelescopeIndexError: pass
+    
+    #get_mirror_number
+    assert(get_mirror_number(tel_id) == 2)
+    try:
+        get_mirror_number(-1)
+        assert()
+    except HessioTelescopeIndexError: pass
+
+    # get_optical_foclen
+    assert(float(get_optical_foclen(tel_id)) == float(2.1500000953674316))
+    try:
+        get_optical_foclen(-1)
         assert()
     except HessioTelescopeIndexError: pass
     
