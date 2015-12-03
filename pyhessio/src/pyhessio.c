@@ -56,6 +56,9 @@ int get_num_tel_trig (void);
 int get_ref_shapes (int telescope_id, int channel, double *ref_shapes);
 int get_nrefshape (int telescope_id);
 int get_lrefshape (int telescope_id);
+int get_mirror_number(int telescope_id);
+double get_optical_foclen(int telescope_id);
+int get_telescope_ids(int* list);
 
 static AllHessData *hsdata = NULL;
 static IO_ITEM_HEADER item_header;
@@ -1260,3 +1263,52 @@ void free_hsdata(void)
       }
 }
 
+//----------------------------------------------------------------
+// Returns total number of mirror tiles.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+int get_mirror_number(int telescope_id)
+{
+  if ( hsdata != NULL )
+  {
+  int itel = get_telescope_index(telescope_id);
+    if (itel == TEL_INDEX_NOT_VALID) return TEL_INDEX_NOT_VALID;
+   return hsdata->camera_set[itel].num_mirrors;
+  }
+  return -1.;
+}
+
+//----------------------------------------------------------------
+// Returns focal length of optics [m].
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+
+double get_optical_foclen(int telescope_id)
+{
+  if ( hsdata != NULL )
+    {
+      int itel = get_telescope_index(telescope_id);
+      if (itel == TEL_INDEX_NOT_VALID) return TEL_INDEX_NOT_VALID;
+      return hsdata->camera_set[itel].flen;
+    }
+  return -1.;
+}
+
+//-----------------------------------
+// Returns IDs of used telescope in the run
+//-----------------------------------
+
+int get_telescope_ids(int* list)
+{
+  if ( hsdata != NULL)
+    {
+      int num_tel = get_num_telescope();
+      int loop=0;
+      for (loop=0; loop < num_tel; loop++)
+	{
+	  *list++ =hsdata->run_header.tel_id[loop];
+    }
+      return 0;
+    }
+  return -1;
+}

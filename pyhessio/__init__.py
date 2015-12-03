@@ -19,6 +19,7 @@ __all__ = ['move_to_next_event','file_open','close_file',
            'get_ref_shapes',  'get_nrefshape' ,'get_lrefshape',
            'get_tel_event_gps_time' ,'get_tel_event_gps_time','get_central_event_teltrg_list',
            'get_num_tel_trig' ,'get_central_event_gps_time',
+           'get_mirror_number', 'get_optical_foclen', 'get_telescope_ids',
            'HessioChannelIndexError', 'HessioTelescopeIndexError','HessioGeneralError']
 
 
@@ -97,6 +98,12 @@ lib.get_central_event_gps_time.restype = ctypes.c_int
 lib.get_central_event_gps_time.argtypes =  [np.ctypeslib.ndpointer(ctypes.c_long, flags="C_CONTIGUOUS"), np.ctypeslib.ndpointer(ctypes.c_long, flags="C_CONTIGUOUS")]
 lib.get_central_event_teltrg_list.restype = ctypes.c_int
 lib.get_central_event_teltrg_list.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_mirror_number.restype = ctypes.c_int
+lib.get_mirror_number.argtypes = [ctypes.c_int]
+lib.get_optical_foclen.argtypes = [ctypes.c_int]
+lib.get_optical_foclen.restype = ctypes.c_double
+lib.get_telescope_ids.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_telescope_ids.restype = ctypes.c_int
 
 
 
@@ -967,4 +974,78 @@ def get_central_event_teltrg_list():
     else:
         raise(HessioGeneralError("hsdata is not available"))
 
+def get_mirror_number(telescope_id):
+    
+    """
+    Returns
+    -------
+    total number of mirror tiles of a telescope
+
+    Parameters
+    ----------
+    telescope_id: int
+    
+    Raises
+    ------
+    HessioGeneralError
+    if hsdata->camera_set[itel].num_mirrors not available
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+
+    result = lib.get_mirror_number(telescope_id)
+    if result >= 0 : return result
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope wth id " + str(telescope_id))) 
+    else:
+        raise(HessioGeneralError("hsdata->camera_set[itel].num_mirrors not available"))
+
+
+def get_optical_foclen(telescope_id):
+    
+    """
+    Returns
+    -------
+    focal length ofoptics of a telescope [m]
+
+    Parameters
+    ----------
+    telescope_id: int
+    
+    Raises
+    ------
+    HessioGeneralError
+    if hsdata->camera_set[itel].flen not available
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+
+    result = lib.get_optical_foclen(telescope_id)
+    if result >=0 : return result
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope wth id " + str(telescope_id))) 
+    else:
+        raise(HessioGeneralError("hsdata->camera_set[itel].flen not available"))
+
+
+def get_telescope_ids():
+    """
+    Returns
+    -------
+    list of IDs of telescopes used in the run
+
+    Raises
+    ------
+    HessioGeneralError
+    if information is not available
+    """
+    num_tel = get_num_telescope()
+    if num_tel >=0:
+        array = np.zeros(num_tel,dtype=np.int32)
+        lib.get_telescope_ids(array)
+        return array
+    else:
+        raise(HessioGeneralError("hsdata->run_header.tel_id is not available"))
 
