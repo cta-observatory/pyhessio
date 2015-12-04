@@ -21,7 +21,6 @@ int get_pedestal (int telescope_id, double *pedestal);
 int get_calibration (int telescope_id, double *calib);
 int get_global_event_count (void);
 int get_mirror_area (int telescope_id, double *mirror_area);
-int get_focal_length(int telescope_id, double* result);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
 int get_num_samples (int telescope_id);
@@ -37,8 +36,10 @@ int get_telescope_with_data_list (int *list);
 int get_telescope_position (int telescope_id, double *pos);
 int get_telescope_index (int telescope_id);
 int move_to_next_event (int *event_id);
+int move_to_next_mc_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
+int get_mc_event_offset_fov (double *off);
 double get_mc_shower_energy (void);
 double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
@@ -114,9 +115,9 @@ file_open (const char *filename)
 	    return -1;
 	  }
 
-    fflush (stdout);
-    fprintf (stderr, "%s\n", filename);
-    printf ("\nInput file '%s' has been opened.\n", filename);
+    // fflush (stdout);
+    // fprintf (stderr, "%s\n", filename);
+    // printf ("\nInput file '%s' has been opened.\n", filename);
     file_is_opened = 1;
   }
   return 0;
@@ -141,6 +142,30 @@ move_to_next_event (int *event_id)
 	  close_file ();
 	  return -1;
 	}
+    }
+  return get_run_number ();
+}
+
+//----------------------------------
+//Read input file and fill hsdata
+// and item_header global var
+//Scan all simulated events
+//----------------------------------
+int
+move_to_next_mc_event (int *event_id)
+{
+  if (!file_is_opened)
+    return -1;
+
+  int rc = 0;
+  while (rc != IO_TYPE_HESS_MC_EVENT)
+    {
+      rc = fill_hsdata (event_id);
+      if (rc < 0)
+        {
+          close_file ();
+          return -1;
+        }
     }
   return get_run_number ();
 }
@@ -576,6 +601,26 @@ get_mc_event_ycore ()
   return -0.;
 }
 
+//----------------------------------------------------------------
+// Returns the offset of pointing direction in camera f.o.v.
+// divided by focal length, i.e. converted to radians:
+//   [0] = Camera x (downwards in normal pointing, i.e. increasing Alt)
+//   [1] = Camera y -> Az.
+// -1 if hsdata == NULL
+//----------------------------------------------------------------
+int
+get_mc_event_offset_fov (double *off)
+{
+  if (hsdata != NULL)
+    {
+      int loop = 0;
+      for (loop = 0; loop < 2; ++loop)  // loop over coordinates
+        *off++ = hsdata->run_header.offset_fov[loop];
+      return 0;
+    }
+  return -1;
+}
+
 //-------------------------------------------
 // Returns  PixelTiming.timval[H_MAX_PIX][H_MAX_PIX_TIMES]
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
@@ -791,23 +836,6 @@ get_mirror_area (int telescope_id, double *result)
   return -1.;
 }
 
-//----------------------------------------------------------------
-// Returns the focal length of optics [m]
-// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
-//----------------------------------------------------------------
-int
-get_focal_length(int telescope_id, double* result)
-{
-  if (hsdata != NULL && result != NULL)
-    {
-      int itel = get_telescope_index(telescope_id);
-      if (itel == TEL_INDEX_NOT_VALID) return TEL_INDEX_NOT_VALID;
-      *result = hsdata->camera_set[itel].flen;
-      return 0;
-    }
-  return -1;
-}
-
 //-----------------------------------------------------
 // Returns the number of samples (time slices) recorded
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
@@ -971,7 +999,7 @@ fill_hsdata (int *event_id)	//,int *header_readed)
 	  Warning ("Reading run header failed.");
 	  exit (1);
 	}
-      fprintf (stderr, "\nStarting run %d\n", (hsdata)->run_header.run);
+      // fprintf (stderr, "\nStarting run %d\n", (hsdata)->run_header.run);
       for (itel = 0; itel <= (hsdata)->run_header.ntel; itel++)
 	{
 
@@ -1145,7 +1173,7 @@ fill_hsdata (int *event_id)	//,int *header_readed)
       /* =================================================== */
     case IO_TYPE_HESS_MC_EVENT:
       rc = read_hess_mc_event (iobuf, &(hsdata)->mc_event);
-
+      *event_id = item_header.ident;
       break;
       /* =================================================== */
     case IO_TYPE_MC_TELARRAY:
