@@ -31,7 +31,7 @@ else:
 
 
 NAME = 'pyhessio'
-VERSION = '0.2'
+VERSION = '0.3.0'
 AUTHOR = 'cta developers'
 AUTHOR_EMAIL = 'jean.jacquemier@lapp.in2p3.fr'
 URL = 'https://github.com/cta-observatory/pyhessio'
