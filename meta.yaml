@@ -1,6 +1,6 @@
 package:
   name: pyhessio
-  version: 0.2
+  version: 0.3.0
 
 source:
   git_url: https://github.com/cta-observatory/pyhessio
