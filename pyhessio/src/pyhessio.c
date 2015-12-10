@@ -974,8 +974,7 @@ fill_hsdata (int *event_id)	//,int *header_readed)
     {
       fprintf (stderr, "Trying to read event data before run header.\n");
       fprintf (stderr, "Skipping this data block.\n");
-      return -1;
-
+      return (int) item_header.type;
     }
 
 
