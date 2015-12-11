@@ -14,6 +14,11 @@ This package is composed of two libraries:
 * libhessio: Part of sim_telarray program : https://www.mpi-hd.mpg.de/hfm/~bernlohr/sim_telarray
 * pyhessio : libhessio Python wrapper
 
+* .. image:: http://img.shields.io/travis/cta-observatory/pyhessio.svg?branch=add_travis
+    :target: https://travis-ci.org/cta-observatory/pyhessio
+    :alt: Test Status
+ 
+
 
 ===========
 Quick Start
