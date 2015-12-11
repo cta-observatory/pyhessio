@@ -70,6 +70,7 @@ before_install:
     - conda build .
     - conda install --use-local pyhessio
     - python setup.py develop
+    - ls -l pyhessio 
 
 
 install:
