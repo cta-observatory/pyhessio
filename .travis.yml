@@ -1,0 +1,88 @@
+language: python
+
+python:
+    - 3.4
+    # This is just for "egg_info".  All other builds are explicitly given in the matrix
+env:
+    global:
+        # The following versions are the 'default' for tests, unless
+        # overidden underneath. They are defined here in order to save having
+        # to repeat them for all configurations.
+        - NUMPY_VERSION=1.9
+        - CONDA_INSTALL='conda install --yes'
+        - PIP_INSTALL='pip install'
+        - INSTALL_OPTIONAL=true
+    matrix:
+        - SETUP_CMD='egg_info'
+
+matrix:
+    include:
+
+        # Do a coverage test in Python 3.
+        - python: 3.4
+          env: SETUP_CMD='test --coverage'
+
+        # Check for sphinx doc build warnings - we do this first because it
+        # may run for a long time
+        - python: 3.4
+          env: SETUP_CMD='build_sphinx -w'
+
+        # Try with optional dependencies disabled
+        - python: 3.4
+          env: SETUP_CMD='test' INSTALL_OPTIONAL=false
+
+        # Try all python versions with the latest numpy
+        - python: 3.4
+          env: SETUP_CMD='test'
+
+before_install:
+
+    # UPDATE APT-GET LISTINGS
+    - sudo apt-get update
+
+    # Use utf8 encoding. Should be default, but this is insurance against future changes
+    - export PYTHONIOENCODING=UTF8
+
+    # Install miniconda following instructions at http://conda.pydata.org/docs/travis.html
+    - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+        wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
+      else
+        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+      fi
+    - bash miniconda.sh -b -p $HOME/miniconda
+    - export PATH="$HOME/miniconda/bin:$PATH"
+    - hash -r
+    - conda config --set always_yes yes --set changeps1 no
+    - conda update -q conda
+    # Useful for debugging any issues with conda
+    - conda info -a
+
+    # DOCUMENTATION DEPENDENCIES
+    - if [[ $SETUP_CMD == build_sphinx* ]]; then sudo apt-get install graphviz texlive-latex-extra dvipng; fi
+
+    # Make sure that interactive matplotlib backends work
+    - export DISPLAY=:99.0
+    - sh -e /etc/init.d/xvfb start
+
+
+install:
+
+    # CONDA
+    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
+    - source activate test
+
+    # CORE DEPENDENCIES
+    - if [[ $SETUP_CMD != egg_info ]]; then $CONDA_INSTALL numpy=$NUMPY_VERSION pytest pip ; fi
+    - if [[ $SETUP_CMD != egg_info ]]; then $PIP_INSTALL pytest-xdist; fi
+
+    # DOCUMENTATION DEPENDENCIES
+    - if [[ $SETUP_CMD == build_sphinx* ]]; then $CONDA_INSTALL Sphinx matplotlib; fi
+
+    # COVERAGE DEPENDENCIES
+    - if [[ $SETUP_CMD == 'test --coverage' ]]; then $PIP_INSTALL coverage coveralls; fi
+
+script:
+   - python setup.py $SETUP_CMD
+
+after_success:
+     - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls --rcfile='pyhessio/tests/coveragerc'; fi
