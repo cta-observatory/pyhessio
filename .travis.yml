@@ -39,6 +39,8 @@ before_install:
 
     # UPDATE APT-GET LISTINGS
     - sudo apt-get update
+    - sudo apt-get install conda-build
+
 
     # Use utf8 encoding. Should be default, but this is insurance against future changes
     - export PYTHONIOENCODING=UTF8
