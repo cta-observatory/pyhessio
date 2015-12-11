@@ -65,7 +65,7 @@ before_install:
     - sh -e /etc/init.d/xvfb start
 
     # Create hessio lib anc cpyhessio library in local
-    - python setup develop
+    - python setup.py develop
 
 
 install:
