@@ -12,28 +12,28 @@ env:
         - CONDA_INSTALL='conda install --yes'
         - PIP_INSTALL='pip install'
         - INSTALL_OPTIONAL=true
-    matrix:
-        - SETUP_CMD='egg_info'
+    #matrix:
+        #- SETUP_CMD='egg_info'
 
-matrix:
-    include:
+#matrix:
+    #include:
 
         # Do a coverage test in Python 3.
-        - python: 3.4
-          env: SETUP_CMD='test --coverage'
+        #- python: 3.4
+        #  env: SETUP_CMD='test --coverage'
 
         # Check for sphinx doc build warnings - we do this first because it
         # may run for a long time
-        - python: 3.4
-          env: SETUP_CMD='build_sphinx -w'
+        #- python: 3.4
+        #  env: SETUP_CMD='build_sphinx -w'
 
         # Try with optional dependencies disabled
-        - python: 3.4
-          env: SETUP_CMD='test' INSTALL_OPTIONAL=false
+        #- python: 3.4
+        #  env: SETUP_CMD='test' INSTALL_OPTIONAL=false
 
         # Try all python versions with the latest numpy
-        - python: 3.4
-          env: SETUP_CMD='test'
+        #- python: 3.4
+        #  env: SETUP_CMD='test'
 
 before_install:
 
@@ -64,6 +64,9 @@ before_install:
     - export DISPLAY=:99.0
     - sh -e /etc/init.d/xvfb start
 
+    # Create hessio lib anc cpyhessio library in local
+    - python setup develop
+
 
 install:
 
@@ -82,7 +85,8 @@ install:
     - if [[ $SETUP_CMD == 'test --coverage' ]]; then $PIP_INSTALL coverage coveralls; fi
 
 script:
-   - python setup.py $SETUP_CMD
+   #- python setup.py $SETUP_CMD
+   - py.test
 
 after_success:
      - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls --rcfile='pyhessio/tests/coveragerc'; fi
