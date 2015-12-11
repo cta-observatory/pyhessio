@@ -65,6 +65,8 @@ before_install:
     - sh -e /etc/init.d/xvfb start
 
     # Create hessio lib anc cpyhessio library in local
+    - conda build .
+    - conda install --use-local pyhessio
     - python setup.py develop
 
 
