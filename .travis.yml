@@ -88,10 +88,11 @@ install:
     - conda build .
     - conda install --use-local pyhessio
     - python setup.py develop
-    - ls -l pyhessio 
 
 script:
    #- python setup.py $SETUP_CMD
+   - git submodule init
+   - git submodule update
    - py.test
 
 after_success:
