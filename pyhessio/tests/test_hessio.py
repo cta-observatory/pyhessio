@@ -51,12 +51,8 @@ def test_hessio():
     except HessioGeneralError: pass 
     
     # test reading file
-    assert file_open("/home/jacquem/workspace/data/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0 
-    #assert file_open("/afs/ifh.de/user/z/zornju/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0
-    #assert file_open("/home/michele/Software/pyhessioxxx/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel") == 0 
+    assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0 
 
-    #for run_id, event_id in move_to_next_event(limit = 1):
-        
     run_id, event_id = next(move_to_next_event())
 
     assert run_id == 31964
