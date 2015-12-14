@@ -297,8 +297,7 @@ lref_shape 80
 
     close_file()
     
-    assert file_open("/home/jacquem/workspace/data/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel.gz") == 0 
-    #assert file_open("/home/michele/Software/pyhessioxxx/gamma_20deg_0deg_run31964___cta-prod2_desert-1640m-Aar.simtel") == 0 
+    assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0 
     
     # Testing move_to_next_mc_event iterator
     run_id, event_id = next(move_to_next_mc_event())
