@@ -66,11 +66,6 @@ before_install:
     - export DISPLAY=:99.0
     - sh -e /etc/init.d/xvfb start
 
-    # Create hessio lib anc cpyhessio library in local
-    - conda build .
-    - conda install --use-local pyhessio
-    - python setup.py develop
-    - ls -l pyhessio 
 
 
 install:
@@ -88,6 +83,12 @@ install:
 
     # COVERAGE DEPENDENCIES
     - if [[ $SETUP_CMD == 'test --coverage' ]]; then $PIP_INSTALL coverage coveralls; fi
+
+    # Create hessio lib anc cpyhessio library in local
+    - conda build .
+    - conda install --use-local pyhessio
+    - python setup.py develop
+    - ls -l pyhessio 
 
 script:
    #- python setup.py $SETUP_CMD
