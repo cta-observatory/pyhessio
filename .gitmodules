@@ -1,0 +1,3 @@
+[submodule "pyhessio-extra"]
+	path = pyhessio-extra
+	url = https://github.com/cta-observatory/pyhessio-extra.git
