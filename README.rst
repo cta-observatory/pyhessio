@@ -14,7 +14,7 @@ This package is composed of two libraries:
 * libhessio: Part of sim_telarray program : https://www.mpi-hd.mpg.de/hfm/~bernlohr/sim_telarray
 * pyhessio : libhessio Python wrapper
 
-* .. image:: http://img.shields.io/travis/cta-observatory/pyhessio.svg?branch=add_travis
+* .. image:: http://img.shields.io/travis/cta-observatory/pyhessio.svg?branch=master
     :target: https://travis-ci.org/cta-observatory/pyhessio
     :alt: Test Status
  
@@ -63,7 +63,7 @@ build and install
 -----------------
 Installation thanks to anaconda:
 ________________________________
-Note: if you do not used a local installation of Anaconda, you need root access on your system::
+Note: if you do not used a local installation of Anaconda, you need root access on your system ::
 
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
@@ -71,10 +71,10 @@ Note: if you do not used a local installation of Anaconda, you need root access 
     cd pyhessio
     python setup.py develop
 
-Local installation without anaconda:
-____________________________________
+Local installation without anaconda
+___________________________________
 
-Note: Use this procedure if you do not have an local installation of anaconda or no root access on your system::
+Note: Use this procedure if you do not have an local installation of anaconda or no root access on your system ::
 
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
@@ -85,3 +85,14 @@ Note: Use this procedure if you do not have an local installation of anaconda or
     cd ..
     python setup.py install --user --hessio_prefix=/home1/jacquem/.local/lib
     python setup.py develop
+
+Datasets
+____________________________________
+
+To keep the ``pyhessio`` code repo small, we have decided to put the
+example files used for unit tests in a separate
+repo: https://github.com/cta-observatory/pyhessio-extra ::
+
+    git submodule init
+    git submodule update
+
