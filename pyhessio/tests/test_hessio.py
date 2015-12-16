@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from pyhessio import HessioChannelIndexError
+from ctapipe.utils.datasets import get_path
 
 try:
     from pyhessio import *
@@ -27,7 +28,9 @@ def test_hessio():
     v get_adc_sum(telescope_id,channel):
     v get_data_for_calibration(telescope_id):
     v get_pixel_position(telescope_id):
-    v get_telescope_with_data_list
+    v get_pixel_shape(telescope_id)
+    v get_pixel_area(telescope_id)
+    v get_telescope_with_data_list()
     v get_pixel_timing_timval(telescope_id)
     v get_mirror_area(telescope_id)
     v get_pixel_timing_num_times_types(telescope_id)
@@ -51,7 +54,9 @@ def test_hessio():
     except HessioGeneralError: pass 
     
     # test reading file
-    assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0 
+    #assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
+    filename = get_path("gamma_test.simtel.gz")
+    assert file_open(filename) == 0 
 
     run_id, event_id = next(move_to_next_event())
 
@@ -151,6 +156,30 @@ def test_hessio():
     except HessioTelescopeIndexError: pass
     
     assert(np.array_equal(get_telescope_with_data_list() , [38, 47]) == True)
+    
+    #get_pixel_shape
+    shape = get_pixel_shape(tel_id)
+    assert shape[0] == -1.0
+    assert len(shape) == 2048
+    try: 
+        get_pixel_shape(0)
+        assert()
+    except HessioTelescopeIndexError: pass
+        
+    #get_pixel_area
+    p_area = get_pixel_area(tel_id)
+    assert p_area[0] == 3.3640000765444711e-05
+    try:
+        get_pixel_area(0)
+        assert()
+    except HessioTelescopeIndexError: pass
+    
+    #get_camera_rotation_angle
+    assert(float(get_camera_rotation_angle(tel_id)) == 0.0)
+    try:
+        get_camera_rotation_angle(-1)
+        assert()
+    except HessioTelescopeIndexError: pass
 
     #get_mirror_area
     assert(get_mirror_area(tel_id) ==  14.562566757202148)
@@ -297,7 +326,8 @@ lref_shape 80
 
     close_file()
     
-    assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0 
+    #assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
+    assert file_open(filename) == 0 
     
     # Testing move_to_next_mc_event iterator
     run_id, event_id = next(move_to_next_mc_event())

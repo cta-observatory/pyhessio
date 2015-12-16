@@ -9,8 +9,8 @@ __all__ = ['move_to_next_event','move_to_next_mc_event','file_open','close_file'
            'get_num_teldata','get_num_channel','get_num_pixels',
            'get_num_samples','get_adc_sample','get_adc_sum',
            'get_pedestal','get_calibration','get_pixel_position',
-           'get_pixel_timing_timval','get_mirror_area',
-           'get_pixel_timing_num_times_types',
+           'get_pixel_timing_timval','get_pixel_shape','get_pixel_area',
+           'get_mirror_area','get_pixel_timing_num_times_types',
            'get_pixel_timing_threshold','get_pixel_timing_peak_global',
            'get_mc_shower_primary_id','get_mc_shower_h_first_int',
            'get_mc_event_xcore', 'get_mc_event_ycore' ,'get_mc_shower_energy',
@@ -18,8 +18,9 @@ __all__ = ['move_to_next_event','move_to_next_mc_event','file_open','close_file'
            'get_mc_shower_azimuth' ,'get_mc_shower_altitude','get_adc_known',
            'get_ref_shape' ,'get_ref_step','get_time_slice',
            'get_ref_shapes',  'get_nrefshape' ,'get_lrefshape',
-           'get_tel_event_gps_time' ,'get_tel_event_gps_time','get_central_event_teltrg_list',
-           'get_num_tel_trig' ,'get_central_event_gps_time',
+           'get_tel_event_gps_time' ,'get_tel_event_gps_time',
+           'get_central_event_teltrg_list','get_num_tel_trig',
+           'get_central_event_gps_time','get_camera_rotation_angle',
            'get_mirror_number', 'get_optical_foclen', 'get_telescope_ids',
            'HessioChannelIndexError', 'HessioTelescopeIndexError','HessioGeneralError']
 
@@ -64,6 +65,10 @@ lib.get_pixel_timing_threshold.argtypes = [ctypes.c_int,np.ctypeslib.ndpointer(c
 lib.get_pixel_timing_threshold.restype = ctypes.c_int
 lib.get_pixel_timing_timval.argtypes = [ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS")]
 lib.get_pixel_timing_timval.restype=ctypes.c_int
+lib.get_pixel_shape.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
+lib.get_pixel_shape.restype=ctypes.c_int
+lib.get_pixel_area.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
+lib.get_pixel_area.restype=ctypes.c_int
 lib.get_run_number.restype = ctypes.c_int
 lib.get_telescope_with_data_list.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
 lib.get_telescope_with_data_list.restype = ctypes.c_int
@@ -102,6 +107,8 @@ lib.get_central_event_gps_time.restype = ctypes.c_int
 lib.get_central_event_gps_time.argtypes =  [np.ctypeslib.ndpointer(ctypes.c_long, flags="C_CONTIGUOUS"), np.ctypeslib.ndpointer(ctypes.c_long, flags="C_CONTIGUOUS")]
 lib.get_central_event_teltrg_list.restype = ctypes.c_int
 lib.get_central_event_teltrg_list.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_camera_rotation_angle.argtypes = [ctypes.c_int]
+lib.get_camera_rotation_angle.restype = ctypes.c_double
 lib.get_mirror_number.restype = ctypes.c_int
 lib.get_mirror_number.argtypes = [ctypes.c_int]
 lib.get_optical_foclen.argtypes = [ctypes.c_int]
@@ -759,7 +766,67 @@ def get_pixel_position(telescope_id):
         raise(HessioGeneralError("no pixel position for telescope "
                               + str(telescope_id)))
 
+def get_pixel_shape(telescope_id):
+    """
+    Returns
+    -------
+    pixels shape for a telescope id
 
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+    HessioGeneralError
+    if pixel shape not available for this telescope
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    npix = get_num_pixels(telescope_id)
+
+    shape = np.zeros(npix,dtype=np.double)
+
+    result = lib.get_pixel_shape(telescope_id,shape)
+    if result == 0:
+        return shape
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    else:
+        raise(HessioGeneralError("no pixel position for telescope "
+                              + str(telescope_id)))
+
+def get_pixel_area(telescope_id):
+    """
+    Returns
+    -------
+    pixels area for a telescope id
+
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+    HessioGeneralError
+    if pixel area not available for this telescope
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    npix = get_num_pixels(telescope_id)
+
+    area = np.zeros(npix,dtype=np.double)
+
+    result = lib.get_pixel_area(telescope_id,area)
+    if result == 0:
+        return area
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    else:
+        raise(HessioGeneralError("no pixel position for telescope "
+                              + str(telescope_id)))
 
 def get_mc_event_xcore():
     """
@@ -995,6 +1062,33 @@ def get_central_event_teltrg_list():
         return array
     else:
         raise(HessioGeneralError("hsdata is not available"))
+        
+def get_camera_rotation_angle(telescope_id):
+    """
+    Returns
+    -------
+    rotation angle of the camera of a given telescope (counter-clock-wise from
+    back side for prime focus camera)
+
+    Parameters
+    ----------
+    telescope_id: int
+    
+    Raises
+    ------
+    HessioGeneralError
+    if hsdata->camera_set[itel].cam_rot not available
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    
+    result = lib.get_camera_rotation_angle(telescope_id)
+    if result >=0 : return result
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id))) 
+    else:
+        raise(HessioGeneralError("hsdata->camera_set[itel].cam_rot not available"))
 
 def get_mirror_number(telescope_id):
     
