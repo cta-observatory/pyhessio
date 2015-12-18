@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 from pyhessio import HessioChannelIndexError
-from ctapipe.utils.datasets import get_path
 
 try:
     from pyhessio import *
@@ -54,9 +53,7 @@ def test_hessio():
     except HessioGeneralError: pass 
     
     # test reading file
-    #assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
-    filename = get_path("gamma_test.simtel.gz")
-    assert file_open(filename) == 0 
+    assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
 
     run_id, event_id = next(move_to_next_event())
 
@@ -326,8 +323,7 @@ lref_shape 80
 
     close_file()
     
-    #assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
-    assert file_open(filename) == 0 
+    assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
     
     # Testing move_to_next_mc_event iterator
     run_id, event_id = next(move_to_next_mc_event())
