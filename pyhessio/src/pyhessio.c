@@ -29,6 +29,8 @@ int get_pixel_position (int telescope_id, double *xpos, double *ypos);
 int get_pixel_timing_threshold (int telescope_id, int *result);
 int get_pixel_timing_timval (int telescope_id, float *data);
 int get_pixel_timine_peak_global (int telescope_id, float *peak);
+int get_pixel_shape(int telescope_id, double *pixel_shape);
+int get_pixel_area(int telescope_id, double *pixel_area);
 int get_run_number (void);
 int get_telescope_with_data_list (int *list);
 int get_telescope_position (int telescope_id, double *pos);
@@ -56,6 +58,7 @@ int get_ref_shapes (int telescope_id, int channel, double *ref_shapes);
 int get_nrefshape (int telescope_id);
 int get_lrefshape (int telescope_id);
 int get_mirror_number(int telescope_id);
+double get_camera_rotation_angle(int telescope_id);
 double get_optical_foclen(int telescope_id);
 int get_telescope_ids(int* list);
 
@@ -632,6 +635,50 @@ int get_pixel_position (int telescope_id, double *xpos, double *ypos)
 	return -1;
 }
 //----------------------------------------------------------------
+// Returns the shape of the pixels (0: circ., 1,3: hex, 2: square, -1: unknown)
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// -1 if hsdata == NULL
+//---------------------------------------------------------------
+int get_pixel_shape (int telescope_id, double *pixel_shape)
+{
+        if (hsdata != NULL)
+		{
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+		return TEL_INDEX_NOT_VALID;
+		int ipix = 0.;
+		int num_pixels = hsdata->camera_set[itel].num_pixels;
+		for (ipix = 0.; ipix < num_pixels; ipix++)	// loop over pixels
+		{
+		*pixel_shape++ = hsdata->camera_set[itel].pixel_shape[ipix];
+		}
+		return 0;
+		}
+	return -1;
+}
+//----------------------------------------------------------------
+// Returns the area of the pixels ([m^2])
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// -1 if hsdata == NULL
+//---------------------------------------------------------------
+int get_pixel_area (int telescope_id, double *pixel_area)
+{
+        if (hsdata != NULL)
+		{
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+		return TEL_INDEX_NOT_VALID;
+		int ipix = 0.;
+		int num_pixels = hsdata->camera_set[itel].num_pixels;
+		for (ipix = 0.; ipix < num_pixels; ipix++)	// loop over pixels
+		{
+		*pixel_area++ = hsdata->camera_set[itel].area[ipix];
+		}
+		return 0;
+		}
+	return -1;
+}
+//----------------------------------------------------------------
 // Returns the number of pixels in the camera (as in configuration)
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
 //----------------------------------------------------------------
@@ -1052,6 +1099,20 @@ void free_hsdata(void)
 		free(hsdata);
 		hsdata = NULL;
 	}
+}
+
+//-----------------------------------
+// Returns Camera rotation angle (counter-clock-wise from back side for prime focus camera)
+//-----------------------------------
+
+double get_camera_rotation_angle(int telescope_id)
+{
+	if ( hsdata != NULL ){
+		int itel = get_telescope_index(telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID) return TEL_INDEX_NOT_VALID;
+		return hsdata->camera_set[itel].cam_rot;
+		}
+	return -1.;
 }
 
 //----------------------------------------------------------------
