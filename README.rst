@@ -52,13 +52,6 @@ After installing anaconda and setting your PATH, run the following to update the
 
     conda update --all
 
-CMake
------
-You need to install CMake to build C libhessio library
-
-https://cmake.org
-
-
 build and install
 -----------------
 Installation thanks to anaconda:
@@ -69,7 +62,6 @@ Note: if you do not used a local installation of Anaconda, you need root access 
     conda build pyhessio
     conda install --use-local pyhessio
     cd pyhessio
-    python setup.py develop
 
 Local installation without anaconda
 ___________________________________
@@ -78,13 +70,7 @@ Note: Use this procedure if you do not have an local installation of anaconda or
 
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
-    mkdir build_cmake
-    cd build_cmake
-    cmake .. -DCMAKE_INSTALL_PREFIX=/home1/jacquem/.local
-    make install
-    cd ..
-    python setup.py install --user --hessio_prefix=/home1/jacquem/.local/lib
-    python setup.py develop
+    python setup.py install 
 
 Datasets
 ____________________________________
