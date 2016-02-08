@@ -1,37 +1,32 @@
 from setuptools import setup, Extension
 import sys
 
-hessio_prefix=None
-
-# Search for hessio_prefix for local install
-if any("hessio_prefix" in s for s in sys.argv):
-  hessio_prefix = [s for s in sys.argv if 'hessio_prefix' in s][0]
-  sys.argv.remove(hessio_prefix)
-  hessio_prefix = hessio_prefix.split('=')[1]
-
-  pyhessio_module = Extension(
-      'pyhessio.pyhessioc',
-      sources=['pyhessio/src/pyhessio.c'],
-      include_dirs = ['hessioxxx/include',  '.'],
-      libraries=['hessio'],
-      library_dirs=[hessio_prefix],
-      runtime_library_dirs=[hessio_prefix],
-      define_macros=[('CTA', None), ('CTA_MAX_SC', None)]
-  )
-
-# else standars installation
-else:
-  pyhessio_module = Extension(
-      'pyhessio.pyhessioc',
-      sources=['pyhessio/src/pyhessio.c'],
-      include_dirs = ['hessioxxx/include',  '.'],
-      libraries=['hessio'],
-      define_macros=[('CTA', None), ('CTA_MAX_SC', None)]
+pyhessio_module = Extension(
+    'pyhessio.pyhessioc',
+    sources=['pyhessio/src/pyhessio.c',
+              'hessioxxx/src/atmprof.c',
+              'hessioxxx/src/current.c',
+              'hessioxxx/src/dhsort.c',
+              'hessioxxx/src/eventio.c',
+              'hessioxxx/src/eventio_registry.c',
+              'hessioxxx/src/fileopen.c',
+              'hessioxxx/src/histogram.c',
+              'hessioxxx/src/hconfig.c',
+              'hessioxxx/src/moments.c',
+              'hessioxxx/src/io_histogram.c',
+              'hessioxxx/src/io_history.c',
+              'hessioxxx/src/io_simtel.c',
+              'hessioxxx/src/io_trgmask.c',
+              'hessioxxx/src/straux.c',
+              'hessioxxx/src/warning.c',
+              'hessioxxx/src/io_hess.c' ],
+    include_dirs = ['hessioxxx/include',  '.'],
+    define_macros=[('CTA', None), ('CTA_MAX_SC', None)]
   )
 
 
 NAME = 'pyhessio'
-VERSION = '0.4.0'
+VRSION = '0.5.0'
 AUTHOR = 'cta developers'
 AUTHOR_EMAIL = 'jean.jacquemier@lapp.in2p3.fr'
 URL = 'https://github.com/cta-observatory/pyhessio'
