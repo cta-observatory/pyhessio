@@ -87,13 +87,9 @@ install:
     # Create hessio lib anc cpyhessio library in local
     - conda build .
     - conda install --use-local pyhessio
-    - python setup.py develop
 
 script:
-   #- python setup.py $SETUP_CMD
-   - git submodule init
-   - git submodule update
-   - py.test
+    - py.test
 
 after_success:
      - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls --rcfile='pyhessio/tests/coveragerc'; fi
