@@ -87,6 +87,7 @@ install:
     # Create hessio lib anc cpyhessio library in local
     - conda build .
     - conda install --use-local pyhessio
+	- python setup.py develop
 
 script:
     - py.test
