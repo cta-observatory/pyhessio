@@ -20,22 +20,22 @@ Quick Start
 Users of the Anaconda python distribution should follow the instructions for Anaconda python distribution.
 
 Dependencies
------------- :: 
-
+------------
+:: 
     python 3 
     setuptools
     numpy
 
 build and install
------------------ ::
-
+----------------- 
+::
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
     python setup.py install 
 
 Installation thanks to anaconda  
-________________________________ ::
-
+________________________________ 
+::
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
     conda install --use-local pyhessio
