@@ -22,7 +22,7 @@ Users of the Anaconda python distribution should follow the instructions for Ana
 Dependencies
 ------------
 
-    packages :: 
+packages :: 
 
     python 3 
     setuptools
@@ -31,7 +31,7 @@ Dependencies
 build and install
 ----------------- 
 
-    procedure ::
+procedure ::
 
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
@@ -40,7 +40,7 @@ build and install
 Installation thanks to anaconda  
 ________________________________ 
 
-    procedure ::
+procedure ::
 
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
