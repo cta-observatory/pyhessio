@@ -30,6 +30,8 @@ Dependencies
 build and install
 ----------------- 
 
+Installation without anaconda  
+________________________________ 
 ::
 
     git clone https://github.com/cta-observatory/pyhessio
@@ -56,3 +58,9 @@ repo: https://github.com/cta-observatory/pyhessio-extra ::
     git submodule init
     git submodule update
 
+For pyhessio  developers
+________________________
+
+::
+
+    python setup.py develop
