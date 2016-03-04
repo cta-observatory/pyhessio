@@ -1,13 +1,12 @@
 ===========
-pyhessioxxx
-===========
+pyhessio
+========
 
 CTA Python wrapper for hessio event format that is used in output of simtel_array.
 
 * Code: https://github.com/cta-observatory/pyhessio 
 
 This is a temporaly solution for testing ctapipe with real CTA MC data.
-It should not be used once CTA data format DL0 will be accpeted and implemented.
 
 * .. image:: http://img.shields.io/travis/cta-observatory/pyhessio.svg?branch=master
     :target: https://travis-ci.org/cta-observatory/pyhessio
@@ -22,16 +21,16 @@ Users of the Anaconda python distribution should follow the instructions for Ana
 Dependencies
 ------------
 
-packages :: 
+:: 
 
-    python 3 
+    python3 
     setuptools
     numpy
 
 build and install
 ----------------- 
 
-procedure ::
+::
 
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
@@ -40,7 +39,7 @@ procedure ::
 Installation thanks to anaconda  
 ________________________________ 
 
-procedure ::
+::
 
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
