@@ -21,21 +21,24 @@ Users of the Anaconda python distribution should follow the instructions for Ana
 
 Dependencies
 ------------
-    :: 
+    packages :: 
+
     python 3 
     setuptools
     numpy
 
 build and install
 ----------------- 
-    ::
+    procedure ::
+
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
     python setup.py install 
 
 Installation thanks to anaconda  
 ________________________________ 
-    ::
+    procedure::
+
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
     conda install --use-local pyhessio
