@@ -33,20 +33,20 @@ build and install
 Installation without anaconda  
 ________________________________ 
 ::
-
     git clone https://github.com/cta-observatory/pyhessio
     cd pyhessio
     python setup.py install 
 
-Installation thanks to anaconda  
+Installation for an anaconda env 
 ________________________________ 
 
 ::
 
+    conda create -n cta python=3.4
+    source activate cta
     git clone https://github.com/cta-observatory/pyhessio
     conda build pyhessio
     conda install --use-local pyhessio
-    cd pyhessio
 
 Datasets
 ____________________________________
