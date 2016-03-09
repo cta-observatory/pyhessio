@@ -32,10 +32,12 @@ build and install
 
 Installation without anaconda  
 ________________________________ 
-::
-    git clone https://github.com/cta-observatory/pyhessio
-    cd pyhessio
-    python setup.py install 
+
+::  
+  
+    git clone https://github.com/cta-observatory/pyhessio  
+    cd pyhessio  
+    python setup.py install   
 
 Installation for an anaconda env 
 ________________________________ 
