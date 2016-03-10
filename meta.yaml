@@ -8,7 +8,7 @@ source:
 
 build:
   number: 1
-  string: py34
+  string: py3
   binary_relocation: True
   detect_binary_files_with_prefix: True
 
