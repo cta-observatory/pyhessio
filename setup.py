@@ -50,7 +50,6 @@ setup(
     'Programming Language :: C',
     'Programming Language :: Cython',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: Implementation :: CPython',
     'Topic :: Scientific/Engineering :: Astronomy',
     'Development Status :: 3 - Alpha',
