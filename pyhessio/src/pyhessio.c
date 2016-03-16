@@ -841,6 +841,10 @@ int fill_hsdata (int *event_id)	//,int *header_readed)
 				free_hsdata();
 			}
 			hsdata = (AllHessData *) calloc (1, sizeof (AllHessData));
+			if (hsdata == NULL) {
+			        Warning ("Memory Allocation Failed. Please free up RAM");
+				exit (1);
+			}
 			if ((rc = read_hess_runheader (iobuf, &(hsdata)->run_header)) < 0){
 				Warning ("Reading run header failed.");
 				exit (1);

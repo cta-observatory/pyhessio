@@ -1,0 +1,6 @@
+
+*.o
+
+*.so
+
+build/lib.macosx-10.5-x86_64-3.5/pyhessio/__init__.py
