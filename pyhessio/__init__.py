@@ -14,7 +14,7 @@ __all__ = ['move_to_next_event','move_to_next_mc_event','file_open','close_file'
            'get_pixel_timing_threshold','get_pixel_timing_peak_global',
            'get_mc_shower_primary_id','get_mc_shower_h_first_int',
            'get_mc_event_xcore', 'get_mc_event_ycore' ,'get_mc_shower_energy',
-           'get_mc_event_offset_fov',
+           'get_mc_event_offset_fov','get_mc_number_photon_electron',
            'get_mc_shower_azimuth' ,'get_mc_shower_altitude','get_adc_known',
            'get_ref_shape' ,'get_ref_step','get_time_slice',
            'get_ref_shapes',  'get_nrefshape' ,'get_lrefshape',
@@ -82,6 +82,8 @@ lib.get_mc_event_xcore.restype = ctypes.c_double
 lib.get_mc_event_ycore.restype = ctypes.c_double
 lib.get_mc_event_offset_fov.argtypes = [np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
 lib.get_mc_event_offset_fov.restype = ctypes.c_int
+lib.get_mc_number_photon_electron.argtypes = [ctypes.c_int,ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_mc_number_photon_electron.restype = ctypes.c_int
 lib.get_mc_shower_energy.restype = ctypes.c_double
 lib.get_mc_shower_azimuth.restype = ctypes.c_double
 lib.get_mc_shower_altitude.restype = ctypes.c_double
@@ -119,6 +121,7 @@ lib.get_telescope_ids.restype = ctypes.c_int
 
 
 TEL_INDEX_NOT_VALID  =-2
+PIXEL_INDEX_NOT_VALID =-3
 
 
 class HessioError(Exception):
@@ -883,6 +886,27 @@ def get_mc_event_offset_fov():
     else:
         raise(HessioGeneralError("hsdata is not available"))
 
+def get_mc_number_photon_electron(telescope_id, pixel_id):
+    """
+    Returns
+    -------
+    numbers of photon electron
+    Raises
+    ------
+    HessioTelescopeIndexError
+    HessioPixelIndexError
+    or HessioGeneralError if hsdata is not available
+    if information is not available or if telscioe_id or pixel_id are wrong
+    """
+    pe = np.zeros(1,dtype=np.int32)
+    result = lib.get_mc_number_photon_electron(telescope_id,pixel_id,pe)
+    if result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    elif result == PIXEL_INDEX_NOT_VALID:
+        raise(HessioPixelIndexError("no pixel with id " + str(pixel_id)))
+    elif result < 0:
+        raise(HessioGeneralError("numbers of photon electron not available"))
+    return pe
 
 def get_mc_shower_energy():
     """

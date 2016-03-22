@@ -37,21 +37,23 @@ def test_hessio():
     v get_pixel_timing_peak_global(telescope_id)
     v get_mirror_number(telescope_id)
     v get_optical_foclen(telescope_id)
+    v get_mc_number_photon_electron(tel_id, pixel_id)
     v get_telescope_ids()
     v get_mc_shower_primary_id()
+    v get_mc_number_photon_eletron()
     v get_mc_shower_h_first_int()
     v get_telescope_position(telescope_id)
     v get_mc_event_offset_fov()
     """
     tel_id = 47
     channel = 0
-    
-    # test exception by usging getter before read the first event 
-    try: 
+
+    # test exception by usging getter before read the first event
+    try:
         print("DEBUG", get_num_pixels(1))
         assert()
-    except HessioGeneralError: pass 
-    
+    except HessioGeneralError: pass
+
     # test reading file
     assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
 
@@ -66,14 +68,14 @@ def test_hessio():
     assert get_num_teldata() == 2
     assert len(get_telescope_ids()) == 126
     assert get_telescope_ids()[100] == 101
-    
+
     #get_num_channel
     assert get_num_channel(tel_id) == 1
-    try: 
+    try:
         get_num_channel(-1)
         assert()
     except HessioTelescopeIndexError: pass
-    try: 
+    try:
         get_num_channel(1)
         assert()
     except HessioGeneralError: pass
@@ -86,25 +88,25 @@ def test_hessio():
         get_num_pixels(4000)
         assert()
     except HessioTelescopeIndexError: pass
-    
+
     #get_adc_sample
     data_ch = get_adc_sample(tel_id, channel)
     assert np.array_equal(data_ch[10:11],[[22,20,21,24,22,19,22,27,22,21,20,22,21,20,19,22,23,20,22,20,20,23,20,20,22]]) == True
-    
+
     try:
         get_adc_sample(-1, 0)
         assert()
     except HessioTelescopeIndexError: pass
-    
+
     try:
         data_ch = get_adc_sample(47, 5)
         assert()
-    except HessioChannelIndexError: pass 
-    
+    except HessioChannelIndexError: pass
+
     #get_adc_sum
     data_ch_sum = get_adc_sum(tel_id,channel)
     assert  np.array_equal(data_ch_sum[0:10], [451, 550,505,465,519,467,505,496,501,478]) == True
-    
+
     try:
         data_ch_sum = get_adc_sum(-1,channel)
         assert()
@@ -114,27 +116,27 @@ def test_hessio():
         data_ch_sum = get_adc_sum(47,2)
         assert()
     except HessioChannelIndexError: pass
-    
-    
-    
+
+
+
     #get_num_sample
-    nb_sample = get_num_samples(tel_id) 
+    nb_sample = get_num_samples(tel_id)
     assert nb_sample == 25
-    try: 
-        get_num_samples(70000) 
+    try:
+        get_num_samples(70000)
         assert()
     except HessioTelescopeIndexError:pass
-        
-        
-    #get_calibration 
+
+
+    #get_calibration
     calibration = get_calibration(tel_id)
     assert calibration[0][2] ==  0.086124487221240997
     try :
         get_calibration(0)
         assert()
     except HessioTelescopeIndexError: pass
-        
-    #get_pedestal 
+
+    #get_pedestal
     pedestal = get_pedestal(tel_id)
     assert pedestal[0][0] == 457.36550903320312
     try :
@@ -147,22 +149,22 @@ def test_hessio():
     pos_x,pos_y = get_pixel_position(tel_id)
     assert pos_x[2] == -0.085799999535083771
     assert pos_y[2] == -0.14880000054836273
-    try: 
+    try:
         get_pixel_position(0)
         assert()
     except HessioTelescopeIndexError: pass
-    
+
     assert(np.array_equal(get_telescope_with_data_list() , [38, 47]) == True)
-    
+
     #get_pixel_shape
     shape = get_pixel_shape(tel_id)
     assert shape[0] == -1.0
     assert len(shape) == 2048
-    try: 
+    try:
         get_pixel_shape(0)
         assert()
     except HessioTelescopeIndexError: pass
-        
+
     #get_pixel_area
     p_area = get_pixel_area(tel_id)
     assert p_area[0] == 3.3640000765444711e-05
@@ -170,7 +172,7 @@ def test_hessio():
         get_pixel_area(0)
         assert()
     except HessioTelescopeIndexError: pass
-    
+
     #get_camera_rotation_angle
     assert(float(get_camera_rotation_angle(tel_id)) == 0.0)
     try:
@@ -184,7 +186,7 @@ def test_hessio():
         get_mirror_area(-1)
         assert()
     except HessioTelescopeIndexError: pass
-    
+
     #get_mirror_number
     assert(get_mirror_number(tel_id) == 2)
     try:
@@ -198,7 +200,7 @@ def test_hessio():
         get_optical_foclen(-1)
         assert()
     except HessioTelescopeIndexError: pass
-    
+
     # get_pixel_timing_num_times_types
     assert(get_pixel_timing_num_times_types(tel_id) == 7)
     try:
@@ -207,14 +209,14 @@ def test_hessio():
     except HessioTelescopeIndexError: pass
     assert(get_pixel_timing_num_times_types(1) == 0)
 
-    
+
     #get_pixel_threashold
     assert(get_pixel_timing_threshold(tel_id)== -6)
     try:
         get_pixel_timing_threshold(-1)
         assert()
     except  HessioTelescopeIndexError: pass
-    
+
     #get_pixel_timing_peak_global
     assert(float(get_pixel_timing_peak_global(tel_id)) == float(9.740449905395508))
     try:
@@ -242,6 +244,9 @@ def test_hessio():
     assert( mc_offset_x == 0)
     assert( mc_offset_y == 0)
 
+    assert(get_mc_number_photon_electron(1,1) == 0)
+
+
     """
     xcode 1129.6055908203125
     ycode 547.77001953125
@@ -259,11 +264,12 @@ def test_hessio():
     teltrig_list [38 47]
 
     """
-        
-        
+
+
     assert(float(get_mc_event_xcore()) == float(1129.6055908203125))
     assert(float(get_mc_event_ycore()) == float(547.77001953125))
     assert(float(get_mc_shower_energy()) == float(.3820943236351013))
+    assert(get_mc_number_photon_electron(1,1) == 0)
     assert(float(get_mc_shower_azimuth()) == float(6.283185005187988))
     assert(float(get_mc_shower_altitude()) == float( 1.2217304706573486))
 
@@ -279,16 +285,16 @@ def test_hessio():
     seconds, nanoseconds = get_tel_event_gps_time(38)
     assert(seconds == 0)
     assert(nanoseconds == 0)
-    
+
     seconds, nanoseconds = get_central_event_gps_time()
     assert(seconds == 1408549473)
-    assert(nanoseconds ==35597000) 
+    assert(nanoseconds ==35597000)
 
     num_tel_trig = get_num_tel_trig()
     assert(num_tel_trig == 2 )
-    
+
     assert(np.array_equal(get_central_event_teltrg_list() ,[38, 47]) == True)
-    
+
     """
     size 80 ref_shapes [  1.37252808e-02   1.89666748e-02   2.69622803e-02   3.62854004e-02
    4.95605469e-02   6.60400391e-02   8.57543945e-02   1.12304688e-01
@@ -314,7 +320,7 @@ nrefshapes 1
 lref_shape 80
 
     """
-    
+
     ref_shapes = get_ref_shapes(38,0)
     assert(float(ref_shapes[0]) == float(0.01372528076171875))
     assert(float(ref_shapes[79]) == float(0.0009870529174804688))
@@ -322,19 +328,19 @@ lref_shape 80
     assert(get_lrefshape(38) == 80)
 
     close_file()
-    
+
     assert file_open("pyhessio-extra/datasets/gamma_test.simtel.gz") == 0
-    
+
     # Testing move_to_next_mc_event iterator
     run_id, event_id = next(move_to_next_mc_event())
-    
+
     assert run_id == 31964
     assert event_id == 100 # Different from before
 
     # Configuration is the same
     assert len(get_telescope_ids()) == 126
     assert get_telescope_ids()[100] == 101
-    
+
     # now we don't have any telescope data
     assert(get_num_teldata() == 0)
 
@@ -342,7 +348,7 @@ lref_shape 80
     assert(get_mc_shower_primary_id() == 0)
     assert(float(get_mc_event_xcore()) == float(-591.63360595703125))
     assert(float(get_mc_event_ycore()) == float(1080.77392578125))
-    
+
     close_file()
 
 if __name__ == "__main__":
