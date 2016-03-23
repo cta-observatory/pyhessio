@@ -706,6 +706,7 @@ def get_calibration(telescope_id):
     npix = get_num_pixels(telescope_id)
 
     ngain =  get_num_channel(telescope_id)
+    ngain = 2
     calibration = np.zeros(ngain*npix,dtype=np.double)
 
     result = lib.get_calibration(telescope_id,calibration)
