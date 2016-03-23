@@ -2,7 +2,8 @@ import numpy as np
 import os
 import ctypes
 
-__all__ = ['move_to_next_event','move_to_next_mc_event','file_open','close_file',
+__all__ = ['move_to_next_event','move_to_next_mc_event',
+           'file_open','file_close', 'close_file',
            'get_global_event_count','get_run_number',
            'get_num_telescope','get_telescope_with_data_list',
            'get_teldata_list', 'get_telescope_position',
@@ -206,12 +207,17 @@ def file_open(filename):
     return lib.file_open(b_filename)
 
 
-def close_file():
+def file_close():
     """
     Close opened iobuf
     """
     lib.close_file()
 
+def close_file():
+    """
+    Close opened iobuf
+    """
+    lib.close_file()
 
 def get_global_event_count():
     """
