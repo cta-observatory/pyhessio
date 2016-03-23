@@ -584,24 +584,22 @@ int get_calibration (int telescope_id, double *calib)
 //----------------------------------------------------------------
 {
 	if (hsdata != NULL)
-		{
+	{
 		int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
 		return TEL_INDEX_NOT_VALID;
 		LasCalData calibration = hsdata->tel_lascal[itel];
 		unsigned int num_gain = calibration.num_gains;
 		unsigned int num_pixels = hsdata->camera_set[itel].num_pixels;
-		unsigned int ipix = 0.;
-		for (ipix = 0.; ipix < num_pixels; ipix++)	// loop over pixels
-		{
 		unsigned int igain = 0;
-		for (igain = 0; igain < num_gain; igain++)
-			{
-			*calib++ = calibration.calib[igain][ipix];
-			}			// end loop gain
-		}			// end of   loop over pixels
+		for (igain = 0; igain < num_gain; igain++) {
+			unsigned int ipix = 0.;
+			for (ipix = 0.; ipix < num_pixels; ipix++) {	// loop over pixels
+				*calib++ = calibration.calib[igain][ipix];
+			}// end loop pixels
+		}// end of   loop over gains
 		return 0;
-		}
+	}
 	return -1;
 }
 //----------------------------------------------------------------
