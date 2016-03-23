@@ -94,6 +94,7 @@ int file_open (const char *filename){
 		}
 		/* Check assumed limits with the ones compiled into the library. */
 		H_CHECK_MAX();
+
 		if ((iobuf = allocate_io_buffer (1000000L)) == NULL){
 			Error ("Cannot allocate I/O buffer");
 			exit (1);
@@ -119,7 +120,7 @@ int move_to_next_event (int *event_id){
 	while (rc != IO_TYPE_HESS_EVENT){
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
-			close_file ();
+			//close_file ();
 			return -1;
 		}
 	}
@@ -146,15 +147,18 @@ int move_to_next_mc_event (int *event_id){
 //  Cleanly close iobuf
 //----------------------------------
 void close_file (){
-	if (iobuf->input_file != NULL && iobuf->input_file != stdin)
+	if (iobuf->input_file != NULL && iobuf->input_file != stdin && file_is_opened)
 	{
 		fileclose (iobuf->input_file);
+		if (hsdata != NULL) free_hsdata();
 		iobuf->input_file = NULL;
 		reset_io_block (iobuf);
 		free_io_buffer(iobuf);
-		free_hsdata();
+		file_is_opened = 0;
 	}
 	if (iobuf->output_file != NULL) fileclose (iobuf->output_file);
+	iobuf = NULL;
+
 }
 //------------------------------------------
 //  return run number from last readed event
