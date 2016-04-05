@@ -28,8 +28,8 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    1997 to 2010
- *  @date    @verbatim CVS $Date: 2014/02/20 10:53:06 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.15 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/03/08 16:07:50 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.16 $ @endverbatim
  */
 /* ========================================================= */
 
@@ -239,10 +239,10 @@ int print_camera_layout (IO_BUFFER *iobuf);
 
 int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, 
       int npe, int pixels, int flags, int *pe_counts, int *tstart, 
-      double *t, double *a);
+      double *t, double *a, int *photon_counts);
 int read_photo_electrons (IO_BUFFER *iobuf, int max_pixel,
       int max_pe, int *array, int *tel, int *npe, int *pixels, int *flags, 
-      int *pe_counts, int *tstart, double *t, double *a);
+      int *pe_counts, int *tstart, double *t, double *a, int *photon_counts);
 int print_photo_electrons (IO_BUFFER *iobuf);
 
 int write_shower_extra_parameters (IO_BUFFER *iobuf,

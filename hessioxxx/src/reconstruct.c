@@ -1,6 +1,6 @@
 /* ============================================================================
 
-Copyright (C) 2003, 2009, 2011  Konrad Bernloehr
+Copyright (C) 2003, 2009, 2011, 2015  Konrad Bernloehr
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /** @file reconstruct.c
  *  @short Second moments type image analysis.
  *
- *  @date    @verbatim CVS $Revision: 1.58 $ @endverbatim
- *  @version @verbatim CVS $Date: 2015/05/27 11:36:48 $ @endverbatim
+ *  @date    @verbatim CVS $Revision: 1.60 $ @endverbatim
+ *  @version @verbatim CVS $Date: 2015/12/15 13:07:22 $ @endverbatim
  */
 
 #include "initial.h"      /* This file includes others as required. */
@@ -38,14 +38,68 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     distribution and the electronic noise added to the signals. Default value is for HESS. */
 #define CALIB_SCALE 0.92
 
-#define H_MAX_NB1 8
-#define H_MAX_NB2 24
-static int neighbours1[H_MAX_TEL][H_MAX_PIX][H_MAX_NB1]; 
-//static int neighbours2[H_MAX_TEL][H_MAX_PIX][H_MAX_NB2];
-static int nnb1[H_MAX_TEL][H_MAX_PIX];
-//static int nnb2[H_MAX_TEL][H_MAX_PIX];
-static int has_nblist[H_MAX_TEL];
 static int px_shape_type[H_MAX_TEL];
+
+#define H_MAX_NB 50
+
+struct camera_nb_list
+{
+   int npix;           ///< Number of pixels in camera.
+   int nbsize;         ///< Number of neighbours in list (elements in nblist).
+   int *pix_num_nb;    ///< Number of neighbours for each pixel.
+   int *pix_first_nb;  ///< Where in list is the first of the neighbours for each pixel.
+   int *nblist;        ///< The actual packed list of all neighbours for all pixels.
+};
+
+static struct camera_nb_list nb_lists[H_MAX_TEL][3]; ///< To be filled with up to 3 neighbour lists for each telescope.
+static struct camera_nb_list ext_list[H_MAX_TEL];    ///< Optional extension lists beyond image cleaning.
+
+int allocate_nb_list(int itel, int npix, int shape_type, int nnbs, int *nbs);
+int deallocate_nb_list(int itel);
+
+int deallocate_nb_list(int itel)
+{
+   int k;
+   if ( itel < 0 || itel >= H_MAX_TEL )
+      return -1;
+   if ( ext_list[itel].nblist != NULL )
+   {
+      free(ext_list[itel].nblist);
+      ext_list[itel].nblist = NULL;
+   }
+   if ( ext_list[itel].pix_num_nb != NULL )
+   {
+      free(ext_list[itel].pix_num_nb);
+      ext_list[itel].pix_num_nb = NULL;
+   }
+   if ( ext_list[itel].pix_first_nb != NULL )
+   {
+      free(ext_list[itel].pix_first_nb);
+      ext_list[itel].pix_first_nb = NULL;
+   }
+   ext_list[itel].nbsize = ext_list[itel].npix = 0;
+   for ( k=0; k<3; k++ )
+   {
+      if ( nb_lists[itel][k].nblist != NULL )
+      {
+         free(nb_lists[itel][k].nblist);
+         nb_lists[itel][k].nblist = NULL;
+      }
+      if ( nb_lists[itel][k].pix_num_nb != NULL )
+      {
+         free(nb_lists[itel][k].pix_num_nb);
+         nb_lists[itel][k].pix_num_nb = NULL;
+      }
+      if ( nb_lists[itel][k].pix_first_nb != NULL )
+      {
+         free(nb_lists[itel][k].pix_first_nb);
+         nb_lists[itel][k].pix_first_nb = NULL;
+      }
+      nb_lists[itel][k].nbsize = nb_lists[itel][k].npix = 0;
+   }
+   
+   return 0;
+}
 
 static int image_list[H_MAX_TEL][H_MAX_PIX];
 static int image_numpix[H_MAX_TEL];
@@ -85,6 +139,7 @@ int set_disabled_pixels(AllHessData *hsdata, int itel, double broken_pixels_frac
    double clip_radius = 0;
    int ttype;
    UserParameters *up;
+   any_disabled[itel] = 0;
 
    if ( hsdata == NULL || itel < 0 || itel >= H_MAX_TEL )
       return -1;
@@ -101,6 +156,7 @@ int set_disabled_pixels(AllHessData *hsdata, int itel, double broken_pixels_frac
       int nvd, ivd;
       pixel_disabled[itel][ipix] = 0;
 
+      /* Disable due to clipping the camera size from simulation to analysis */
       if ( clip_radius > 0. )
       {
          double xp = camset->xpix[ipix];
@@ -113,6 +169,7 @@ int set_disabled_pixels(AllHessData *hsdata, int itel, double broken_pixels_frac
          }
       }
       
+      /* Disable randomly broken pixels */
       if ( broken_pixels_fraction > 0. )
       {
          /* Would have preferred to use the same random number generator */
@@ -129,30 +186,72 @@ int set_disabled_pixels(AllHessData *hsdata, int itel, double broken_pixels_frac
          }
       }
 
+      /* Disable pixels that were simulated with HV off (or disabled in an earlier processing stage) */
       nvd = pixdis->num_HV_disabled;
       for ( ivd=0; ivd<nvd; ivd++ )
+      {
          if ( pixdis->HV_disabled[ivd] == ipix )
          {
             pixel_disabled[itel][ipix] = 1;
             any_disabled[itel] = 1;
          }
+      }
+   }
+
+   /* The combined set of disabled pixels is stored as HV disabled */
+   if ( any_disabled[itel] )
+   {
+      int nd = 0;
+      for ( ipix=0; ipix<npix; ipix++ )
+      {
+         if ( pixel_disabled[itel][ipix] )
+         {
+            pixdis->HV_disabled[nd] = ipix;
+            nd++;
+         }
+      }
+      pixdis->num_HV_disabled = nd;
    }
 
    return 0;
 }
 
-/* --------------------------- find_neighbours ---------------------------- */
+/* ------------------------ guess_pixel_shape --------------------------- */
+/**
+ *  Guess the common pixel shape type from relative positions of neighbours.
+ */
 
-/** Find the list of neighbours for each pixel. */
+static int guess_pixel_shape(CameraSettings *camset, int itel);
 
-static int find_neighbours(CameraSettings *camset, int itel);
-
-static int find_neighbours(CameraSettings *camset, int itel)
+static int guess_pixel_shape(CameraSettings *camset, int itel)
 {
    int npix = camset->num_pixels;
    int i, j;
    int stat_st[6] = {0, 0, 0, 0, 0, 0 };
    double asum = 0., dsum = 0., aod2 = 0.;
+   int px_shape = camset->pixel_shape[0];
+
+   /* If we know the shape and know that all pixels have the same shape, there is no guessing */
+   if ( camset->common_pixel_shape && px_shape >= 0 )
+      return px_shape;
+
+   for (i=1; i<npix; i++)
+   {
+      if ( camset->pixel_shape[i] != px_shape )
+      {
+         px_shape = -2;
+         break;
+      }
+   }
+   if ( px_shape >= 0 )
+      return px_shape;
+
+   if ( px_shape == -2 )
+   {
+      printf("Different pixel shapes in telescope ID  %d, need to guess.\n", camset->tel_id);
+   }
+
+   /* If shape type is unknown or differs, we apply some heuristics */
 
    for (i=0; i<npix; i++)
    {
@@ -160,9 +259,7 @@ static int find_neighbours(CameraSettings *camset, int itel)
          continue;
       asum += camset->area[i];
       dsum += camset->size[i];
-      for (j=0; j<H_MAX_NB1; j++)
-         neighbours1[itel][i][j] = -1;
-      nnb1[itel][i] = 0;
+
       for (j=0; j<i; j++)
       {
          double ds, dx, dy, d2, a;
@@ -175,10 +272,6 @@ static int find_neighbours(CameraSettings *camset, int itel)
          d2 = dx*dx + dy*dy;
          if ( d2 < 0.5*ds*ds ) 
          {
-            if ( nnb1[itel][i] < H_MAX_NB1 )
-               neighbours1[itel][i][nnb1[itel][i]++] = j;
-            if ( nnb1[itel][j] < H_MAX_NB1 )
-               neighbours1[itel][j][nnb1[itel][j]++] = i;
             a  = (180./M_PI) * atan2(dy,dx);
             if ( a < -1. )
                a += 180.;
@@ -198,7 +291,6 @@ static int find_neighbours(CameraSettings *camset, int itel)
          }
       }
    }
-   has_nblist[itel] = 1;
 
    asum /= (((double) npix)+1e-10);
    dsum /= (((double) npix)+1e-10);
@@ -207,7 +299,7 @@ static int find_neighbours(CameraSettings *camset, int itel)
    if ( stat_st[0] > 0 && stat_st[2] > 0 && 
         stat_st[1] == 0 && stat_st[3] == 0 )
    {
-      px_shape_type[itel] = 2; /* probably square pixels */
+      px_shape = 2; /* probably square pixels */
       if ( aod2 < 0.99 || aod2 > 1.01 )
       {
          fprintf(stderr,
@@ -218,12 +310,12 @@ static int find_neighbours(CameraSettings *camset, int itel)
    else /* most likely hexagonal, orientation? */
    {
       if ( 4*stat_st[2] < (stat_st[1] + stat_st[3]) )
-         px_shape_type[itel] = 1;
+         px_shape = 1;
       else if ( stat_st[2] > 0 && stat_st[0] == 0 )
-         px_shape_type[itel] = 3;
+         px_shape = 3;
       else
       {
-         px_shape_type[itel] = 0; /* Fall back to circular */
+         px_shape = 0; /* Fall back to circular */
          if ( aod2 < 0.99*M_PI/4. || aod2 > 1.01*M_PI/4. )
          {
             fprintf(stderr,
@@ -231,13 +323,13 @@ static int find_neighbours(CameraSettings *camset, int itel)
                camset->tel_id);
          }
       }
-      if ( px_shape_type[itel] != 0 )
+      if ( px_shape != 0 )
       {
          if ( aod2 < 0.99*sqrt(3.)/2. || aod2 > 1.01*sqrt(3.)/2. )
          {
             if ( aod2 >= 0.99*M_PI/4. && aod2 <= 1.01*M_PI/4. )
             {
-               px_shape_type[itel] = 0; // Round pixels on hexagonal pattern
+               px_shape = 0; // Round pixels on hexagonal pattern
             }
             else
                fprintf(stderr,
@@ -247,10 +339,217 @@ static int find_neighbours(CameraSettings *camset, int itel)
          }
       }
    }
-#if 0
-   fprintf(stderr,"Pixel shape type of telescope #%d seems to be %d (stat = %d, %d, %d, %d)\n",
-      itel, px_shape_type[itel], stat_st[0], stat_st[1], stat_st[2], stat_st[3]);
+   for (i=0; i<npix; i++)
+   {
+      if ( camset->pixel_shape[i] == -1 )
+         camset->pixel_shape[i] = px_shape;
+   }
+#ifdef DEBUG_PIXEL_NB
+   fprintf(stderr,"Pixel shape type of telescope #%d (ID %d) seems to be %d (stat = %d, %d, %d, %d)\n",
+      itel, camset->tel_id, px_shape, stat_st[0], stat_st[1], stat_st[2], stat_st[3]);
 #endif
+
+   return px_shape;
+}
+
+/* --------------------------- find_neighbours ---------------------------- */
+
+/** Find the list of neighbours for each pixel. */
+
+static int find_neighbours(CameraSettings *camset, int itel);
+
+static int find_neighbours(CameraSettings *camset, int itel)
+{
+   int nb[3][H_MAX_PIX][H_MAX_NB];  ///< Temporary neighbour lists for one telescope.
+   int xt[H_MAX_PIX][H_MAX_NB];
+   int nnb[3][H_MAX_PIX], nxt[H_MAX_PIX];
+   int ntot[3], ntxt;
+   double r2[3] = { 1.0, 0., 0. }, rxt2 = 0.;
+   int ttype = which_telescope_type(camset);
+   int i, j, k, n;
+   int npix = camset->num_pixels;
+   UserParameters *up = user_get_parameters(ttype);
+   px_shape_type[itel] = guess_pixel_shape(camset, itel);
+
+#ifndef DEBUG_PIXEL_NB
+ if ( verbosity > 0 )
+#endif
+      printf("Start of neighbour pixel finding for telescope ID %d\n",camset->tel_id);
+
+   for ( k=0; k<3; k++ )
+   {
+      if ( nb_lists[itel][k].nblist != NULL || nb_lists[itel][k].pix_num_nb != NULL || 
+           nb_lists[itel][k].pix_first_nb != NULL )
+      {
+         fprintf(stderr,"Invalid pixel neighbour list initialization for telescope ID %d\n", 
+            camset->tel_id);
+         return -1;
+      }
+   }
+   if ( ext_list[itel].nblist != NULL || ext_list[itel].pix_num_nb != NULL ||
+        ext_list[itel].pix_first_nb != NULL )
+   {
+      fprintf(stderr,"Invalid pixel neighbour extension list initialization for telescope ID %d\n", 
+         camset->tel_id);
+      return -1;
+   }
+
+   for ( k=0; k<3; k++ )
+   {
+      ntot[k] = 0;
+      for ( i=0; i<npix; i++ )
+         nnb[k][i] = 0;
+   }
+   for ( i=0; i<npix; i++ )
+      nxt[i] = 0;
+
+   for ( k=0; k<3; k++ )
+      r2[k] = up->d.r_nb[k] * up->d.r_nb[k];
+   rxt2 = up->d.r_ne * up->d.r_ne;
+   if ( r2[0] <= 0. ) /* Apply shape-type dependent default neighbour limit (first neighbour only). */
+   {
+      /* The default radius used to be sqrt(2.) times pixel diameter without extra margin for gaps. */
+      /* New defaults include diagonal neighbours for square pixels */
+      /* but do normally not extend across module gaps (also did not before). */
+      if ( px_shape_type[itel] == 2 )
+         r2[0] = 1.6*1.6; /* Sqrt(2.) plus some margin for gaps, includes diagonal neighbours. */
+      else
+         r2[0] = 1.2*1.2; /* With 20% margin for gaps: effectively as old defaults. */
+   }
+
+   /* Detect neighbours, up to some maximum, not packed yet. */
+   for (i=0; i<npix; i++)
+   {
+      if ( pixel_disabled[itel][i] )
+         continue;
+      for (j=0; j<i; j++)
+      {
+         double ds, dx, dy, d2;
+         if ( pixel_disabled[itel][j] )
+            continue;
+         ds = 0.5*(camset->size[i] + camset->size[j]);
+         dx = camset->xpix[i] - camset->xpix[j];
+         dy = camset->ypix[i] - camset->ypix[j];
+         d2 = dx*dx + dy*dy;
+         /* Immediate neighbours */
+         if ( d2 < r2[0]*(ds*ds) )
+         {
+            if ( nnb[0][i] < H_MAX_NB )
+               nb[0][i][nnb[0][i]++] = j;
+            if ( nnb[0][j] < H_MAX_NB )
+               nb[0][j][nnb[0][j]++] = i;
+         }
+         /* Further neighbours only on request (not used with classical 2-level cleaning) */
+         else if ( d2 < r2[1]*(ds*ds) )
+         {
+            if ( nnb[1][i] < H_MAX_NB )
+               nb[1][i][nnb[1][i]++] = j;
+            if ( nnb[1][j] < H_MAX_NB )
+               nb[1][j][nnb[1][j]++] = i;
+         }
+         /* There can be a third set of even more distant neighbours. */
+         else if ( d2 < r2[2]*(ds*ds) )
+         {
+            if ( nnb[2][i] < H_MAX_NB )
+               nb[2][i][nnb[2][i]++] = j;
+            if ( nnb[2][j] < H_MAX_NB )
+               nb[2][j][nnb[2][j]++] = i;
+         }
+         /* The extension list beyond image cleaning is independent of the neighbours for the cleaning itself. */
+         if ( d2 < rxt2*(ds*ds) )
+         {
+            if ( nxt[i] < H_MAX_NB )
+               xt[i][nxt[i]++] = j;
+            if ( nxt[j] < H_MAX_NB )
+               xt[j][nxt[j]++] = i;
+         }
+      }
+   }
+
+#ifdef DEBUG_PIXEL_NB
+   for (i=0; i<npix; i++)
+   {
+      printf("Pixel %d has %d direct neighbours, %d in second set, %d in third set, %d in extension list.\n",
+         i, nnb[0][i], nnb[1][i], nnb[2][i], nxt[i]);
+   }
+#endif
+
+   /* Set up packed neighbour list */
+   for ( k=0; k<3; k++ )
+   {
+      ntot[k] = 0;
+      for ( i=0; i<npix; i++ )
+         ntot[k] += nnb[k][i];
+      if ( ntot[k] > 0 )
+      {
+#ifndef DEBUG_PIXEL_NB
+         if ( verbosity > 1 )
+#endif
+         printf("Neighbour pixel list %d in telescope ID %d has size %d from %d pixels.\n",
+            k, camset->tel_id, ntot[k], npix);
+         if ( (nb_lists[itel][k].nblist = calloc(ntot[k],sizeof(int))) == NULL ||
+              (nb_lists[itel][k].pix_num_nb = calloc(npix,sizeof(int))) == NULL ||
+              (nb_lists[itel][k].pix_first_nb = calloc(npix,sizeof(int))) == NULL )
+         {
+            fprintf(stderr,"Allocation of neighbour list %d failed for telescope ID %d\n", k, camset->tel_id);
+            return -1;
+         }
+         nb_lists[itel][k].npix = npix;
+         nb_lists[itel][k].nbsize = ntot[k];
+         n = 0;
+         for ( i=0; i<npix; i++ )
+         {
+            nb_lists[itel][k].pix_first_nb[i] = n;
+            nb_lists[itel][k].pix_num_nb[i] = nnb[k][i];
+            /* Fill packed list of neighbours */
+            for ( j=0; j<nnb[k][i]; j++ )
+               nb_lists[itel][k].nblist[n+j] = nb[k][i][j];
+            n += nnb[k][i];
+         }
+      }
+      else
+      {
+         nb_lists[itel][k].npix = npix;
+         nb_lists[itel][k].nbsize = 0;
+      }
+   }
+   /* Set up packed extension list */
+   ntxt = 0;
+   for ( i=0; i<npix; i++ )
+      ntxt += nxt[i];
+   if ( ntxt > 0 )
+   {
+#ifndef DEBUG_PIXEL_NB
+      if ( verbosity > 1 )
+#endif
+      printf("Extension pixel list in telescope ID %d has size %d from %d pixels.\n",
+         camset->tel_id, ntxt, npix);
+      if ( (ext_list[itel].nblist = calloc(ntxt,sizeof(int))) == NULL ||
+           (ext_list[itel].pix_num_nb = calloc(npix,sizeof(int))) == NULL ||
+           (ext_list[itel].pix_first_nb = calloc(npix,sizeof(int))) == NULL )
+      {
+         fprintf(stderr,"Allocation of neighbour extension list failed for telescope ID %d\n", camset->tel_id);
+         return -1;
+      }
+      ext_list[itel].npix = npix;
+      ext_list[itel].nbsize = ntxt;
+      n = 0;
+      for ( i=0; i<npix; i++ )
+      {
+         ext_list[itel].pix_first_nb[i] = n;
+         ext_list[itel].pix_num_nb[i] = nxt[i];
+         /* Fill packed list of neighbours */
+         for ( j=0; j<nxt[i]; j++ )
+            ext_list[itel].nblist[n+j] = xt[i][j];
+         n += nxt[i];
+      }
+   }
+   else
+   {
+      ext_list[itel].npix = npix;
+      ext_list[itel].nbsize = 0;
+   }
+
    return 0;
 }
 
@@ -284,7 +583,8 @@ int store_camera_radius(CameraSettings *camset, int itel)
    camera_radius_max[itel] = rmx / camset->flen;
    camera_radius_eff[itel] = 1.5 * sr / (double) actpix / camset->flen;
    
-   printf("CT%d with %d pixels (%d active) has effective radius %5.3f deg, max. radius %5.3f deg.\n",
+   if ( verbosity > 0 )
+      printf("CT%d with %d pixels (%d active) has effective radius %5.3f deg, max. radius %5.3f deg.\n",
    	camset->tel_id, npix, actpix,
    	camera_radius_eff[itel]*(180./M_PI),
    	camera_radius_max[itel]*(180./M_PI) );
@@ -1219,6 +1519,7 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
    AdcData *raw;
    TelMoniData *moni;
    int peakpos = -1, start = 0, peakpos_hg=-1;
+   struct camera_nb_list *nbl;
 
    if ( hsdata == NULL || itel < 0 || itel >= H_MAX_TEL )
       return -1;
@@ -1238,8 +1539,14 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
    }
 
    /* For this integration scheme we need the list of neighbours early on */
-   if ( !has_nblist[itel] )
+   if ( nb_lists[itel][0].nblist == NULL )
+   {
       find_neighbours(&hsdata->camera_set[itel],itel);
+   }
+   
+   if ( nb_lists[itel][0].nbsize <= 0 )
+      return -1;
+   nbl = &nb_lists[itel][0];
 
    for (ipix=0; ipix<raw->num_pixels; ipix++)
    {
@@ -1251,9 +1558,9 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
          continue;
       for (isamp=0; isamp<raw->num_samples; isamp++ )
          nb_samples[isamp] = 0;
-      for ( inb=0; inb<nnb1[itel][ipix]; inb++ )
+      for ( inb=0; inb<nbl->pix_num_nb[ipix]; inb++ )
       {
-         int ipix_nb = neighbours1[itel][ipix][inb];
+         int ipix_nb = nbl->nblist[nbl->pix_first_nb[ipix]+inb];
          /* For zero-suppressed sample mode data ALSO check relevant bit of the neighbour */
          if ( (raw->zero_sup_mode & 0x20) != 0 && (raw->significant[ipix_nb] & 0x020) == 0 )
             continue;
@@ -1409,6 +1716,10 @@ static int pixel_integration(AllHessData *hsdata, int itel, struct user_paramete
 
 static int pixel_integration(AllHessData *hsdata, int itel, struct user_parameters *up)
 {
+#ifdef DEBUG_PIXEL_NB
+printf("Pixel integration for telescope #%d\n",itel);
+#endif
+
    if ( hsdata == NULL || up == NULL )
       return -1;
    if ( integration_correction[itel][0] == 0. )
@@ -1470,6 +1781,7 @@ static int clean_image_tailcut(AllHessData *hsdata, int itel,
    int npix;
    int i;
    TelEvent *teldata = NULL;
+   struct camera_nb_list *nbl = NULL;
 
    if ( hsdata == NULL || itel < 0 || itel >= H_MAX_TEL )
       return -1;
@@ -1481,6 +1793,14 @@ static int clean_image_tailcut(AllHessData *hsdata, int itel,
       return -1;
    if ( !teldata->raw->known )
       return -1;
+
+   if ( nb_lists[itel][0].nblist == NULL )
+   {
+      find_neighbours(&hsdata->camera_set[itel],itel);
+   }
+   if ( nb_lists[itel][0].nbsize <= 0 )
+      return -1;
+   nbl = &nb_lists[itel][0];
 
    for (i=0; i<npix; i++)
    {
@@ -1500,8 +1820,8 @@ static int clean_image_tailcut(AllHessData *hsdata, int itel,
       if ( pass_high[i] )
       {
          int j;
-         for (j=0; j<nnb1[itel][i]; j++)
-            if ( pass_low[neighbours1[itel][i][j]] )
+         for (j=0; j<nbl->pix_num_nb[i]; j++)
+            if ( pass_low[nbl->nblist[nbl->pix_first_nb[i]+j]] )
 	    {
                image_list[itel][image_numpix[itel]] = i;
                teldata->image_pixels.pixel_list[image_numpix[itel]] = i;
@@ -1512,8 +1832,8 @@ static int clean_image_tailcut(AllHessData *hsdata, int itel,
       else if ( pass_low[i] )
       {
          int j;
-         for (j=0; j<nnb1[itel][i]; j++)
-            if ( pass_high[neighbours1[itel][i][j]] )
+         for (j=0; j<nbl->pix_num_nb[i]; j++)
+            if ( pass_high[nbl->nblist[nbl->pix_first_nb[i]+j]] )
 	    {
                image_list[itel][image_numpix[itel]] = i;
                teldata->image_pixels.pixel_list[image_numpix[itel]] = i;
@@ -2019,8 +2339,10 @@ static int image_reconstruct(AllHessData *hsdata, int itel, int cut_id,
    if ( itel < 0 || itel >= H_MAX_TEL )
       return -1;
 
-   if ( !has_nblist[itel] )
+   if ( nb_lists[itel][0].nblist == NULL )
+   {
       find_neighbours(&hsdata->camera_set[itel],itel);
+   }
 
    teldata = &hsdata->event.teldata[itel];
    if ( teldata->num_image_sets < 2 )
@@ -2092,7 +2414,7 @@ static int shower_reconstruct (AllHessData *hsdata, const double *min_amp_tel,
    double xtel[H_MAX_TEL], ytel[H_MAX_TEL], ztel[H_MAX_TEL];
    double az[H_MAX_TEL], alt[H_MAX_TEL], flen[H_MAX_TEL], cam_rot[H_MAX_TEL];
    double ref_az, ref_alt;
-   double shower_az, shower_alt, xcore, ycore, var_dir, var_core;
+   double shower_az=0., shower_alt=0., xcore=0., ycore=0., var_dir=0., var_core=0.;
    int flag = 0, ntel = 0, itel, rc, ntrg=0;
    int list[H_MAX_TEL];
    static int iprint = 0;
@@ -2213,6 +2535,13 @@ static int shower_reconstruct (AllHessData *hsdata, const double *min_amp_tel,
          shower->err_core1 = shower->err_core2 = sqrt(var_core/(ntel-2.)/2.);
          shower->err_core3 = 0.;
       }
+      else
+      {
+         shower->err_dir1 = shower->err_dir2 = 0.;
+         shower->err_dir3 = 0.;
+         shower->err_core1 = shower->err_core2 = 0.,
+         shower->err_core3 = 0.;
+      }
 
 if ( verbosity > 0 )
  printf("### Shower reconstruction with %d telescopes: Az=%lf deg, Alt=%lf deg, xc=%lf m, yc=%lf m\n",
@@ -2312,6 +2641,10 @@ int reconstruct (AllHessData *hsdata, int reco_flag,
         tcl == NULL || tch == NULL ||
         lref == NULL || minfrac == NULL )
       return -1;
+
+#ifdef DEBUG_PIXEL_NB
+printf("Reconstruct data\n");
+#endif
 
    /* Note: cut_id must be in the range 0 to 255 */
    cut_id = 1; /* Unspecified classical two-level tailcut */

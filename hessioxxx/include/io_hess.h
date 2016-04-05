@@ -30,8 +30,8 @@
  *  @author  Konrad Bernl&ouml;hr 
  *  @date initial version: July 2000
  *
- *  @date    @verbatim CVS $Date: 2015/07/13 14:17:38 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.92 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/03/08 16:07:50 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.97 $ @endverbatim
  */
 
 /* ================================================================ */
@@ -198,8 +198,8 @@ extern "C" {
 #  define H_MAX_TEL 568
 #  ifdef CTA_PROD3_MERGE
 #   define H_MAX_PIX 2368
-#   define H_MAX_SECTORS 23310 /* Needed for ASTRI with 5NN */
 #  endif
+#  define H_MAX_SECTORS 23310 /* Needed for ASTRI with 5NN (7770 with 4NN) */
 # elif CTA_KIND == 4     /* CTA_SC: fewer telescopes but more pixels */
 #  define H_MAX_TEL 61
 #  if defined(CTA_SC)
@@ -257,7 +257,7 @@ extern "C" {
 #  endif
 # elif CTA_KIND == 9 /* CTA_PROD3_SC preliminary */
 #  ifdef CTA_PROD3_DEMO
-#   define H_MAX_TEL 125
+#   define H_MAX_TEL 126
 #  else
 #   define H_MAX_TEL 70
 #  endif
@@ -267,6 +267,13 @@ extern "C" {
 #  endif
 #  define H_MAX_SECTORS 53508 /* Needed for latest SCT configuration */
 # endif
+
+#ifndef H_MAX_TRG_PER_SECTOR
+# define H_MAX_TRG_PER_SECTOR 1
+#endif
+#ifndef H_MAX_SECTORS
+# define H_MAX_SECTORS (H_MAX_PIX*H_MAX_TRG_PER_SECTOR)
+#endif
 
 #ifdef CTA_MINI
 # undef H_MAX_TEL
@@ -369,7 +376,7 @@ extern "C" {
 #ifdef H_SAVE_MEMORY
 # if defined(CTA_PROD2) || defined(CTA_SC) || defined(CTA_PROD2_SC) || \
    defined(CTA_PROD3) || defined(CTA_PROD3_SC) || defined(CTA_MAX_SC) || defined(CTA_MAX)
-#  define H_MAX_SLICES     80   /**< Maximum number of time slices handled. */
+#  define H_MAX_SLICES     96   /**< Maximum number of time slices handled. */
 # else
 #  define H_MAX_SLICES     40   /**< Maximum number of time slices handled. */
 # endif
@@ -383,6 +390,28 @@ extern "C" {
 #define H_MAX_D_TEMP     8
 #define H_MAX_C_TEMP     10
 #define H_MAX_FSHAPE     1000  /**< Max. number of (sub-) samples of reference pulse shapes. */
+
+/** Compile-time override of the most relevant limits: */
+#ifdef MAXIMUM_TELESCOPES
+# undef H_MAX_TEL
+# define H_MAX_TEL MAXIMUM_TELESCOPES
+#endif
+#ifdef MAXIMUM_PIXELS
+# undef H_MAX_PIX
+# define H_MAX_PIX MAXIMUM_PIXELS
+#endif
+#ifdef MAXIMUM_SECTORS
+# undef H_MAX_SECTORS
+# define H_MAX_SECTORS MAXIMUM_SECTORS
+#endif
+#ifdef MAXIMUM_DRAWERS
+# undef H_MAX_DRAWERS
+# define H_MAX_DRAWERS MAXIMUM_DRAWERS
+#endif
+#ifdef MAXIMUM_SLICES
+# undef H_MAX_SLICES
+# define H_MAX_SLICES MAXIMUM_SLICES
+#endif
 
 /** Macro expanding into a function call checking if user function */
 /** is taking the same maximum array sizes as the library. */
@@ -1044,6 +1073,10 @@ struct hess_mc_pe_list
    int npe;                ///< The number of all photo-electrons in the telescope.
    int pixels;             ///< The number of pixels in the camera.
    int flags;              ///< Bit 0: with amplitudes, bit 1: includes NSB.
+#ifdef STORE_PIX_PHOTONS
+   int photon_count[H_MAX_PIX]; ///< The numbers of photons arriving at each pixel.
+                                ///< For efficiency reasons not filled in normal simulations.
+#endif
    int pe_count[H_MAX_PIX];///< The numbers of p.e. at each pixel.
    int itstart[H_MAX_PIX]; ///< The start index for each pixel in the sequential atimes vector.
    double *atimes;         ///< The list of start times of all photo-eletrons.

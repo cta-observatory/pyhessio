@@ -61,6 +61,7 @@ Options:
    -s              (Show data explained)
    -S              (Show data explained, including raw data)
    --history (-h)  (Show contents of history data block)
+   --clean-history (Drop previous history data blocks)
    -i              (Ignore unknown data block types)
    -u              (Call user-defined analysis function)
    --global-peak   (For image analysis use amplitude sums around global peak
@@ -111,6 +112,8 @@ Options:
    --only-high-gain (Use only high-gain channel and ignore low gain.)
    --only-low-gain (Use only low-gain channel and ignore high gain.)
    --max-events    (Stop after having processed this many events.)
+   --pure-raw      (Discard any sub-items of TelescopeEvent which are not raw data.)
+   --no-mc-data    (Discard MC shower and MC event data.)
    --broken-pixels-fraction (Add random broken/dead pixels on run-by-run basis.)
    --dead-time-fraction (Set telescopes randomly as dead from prior triggers.)
    --integration-scheme n *(Set the integration scheme for sample-mode data.)
@@ -137,7 +140,15 @@ Options:
                    level 2 only for triggered events,
                    level 3 has many config/calib blocks only once, not per run.
                    Levels 10-13 include only selected gamma-like events.
+   --raw-level n   (Re-write original raw data or processed data, with possible
+                   reduction of other data according to level.)
+                   Level 0 has all data written as available.
+                   Level 1 has MC data only for triggerer events.
+                   Level 2 has no MC data (--no-mc-data).
+                   Level 3 has only raw data for telescopes and nothing else (--pure-raw).
+                   Level 4 also cleans past history data (--clean-history).
    --dst-file name (Name of output file for DST-type output.)
+   --output-file   (Synonym to --dst-file)
    --histogram-file name (Name of histogram file.)
    -f fname        (Get list of input file names from fname.)
 
@@ -148,8 +159,8 @@ Parameters followed by a '*' can be telescope-type-specific if preceded by a
  *
  *  @author Konrad Bernloehr
  *
- *  @date    @verbatim CVS $Date: 2015/04/30 09:47:11 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.114 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/03/17 18:09:16 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.125 $ @endverbatim
  */
 
 /** @defgroup read_hess_c The read_hess (aka read_simtel, read_cta) program */
@@ -176,6 +187,7 @@ Parameters followed by a '*' can be telescope-type-specific if preceded by a
 #include "rndm2.h"
 #endif
 #include <sys/time.h>
+#include <strings.h>
 
 struct basic_ntuple bnt;
 
@@ -228,12 +240,13 @@ static void init_rand(int is);
 static void init_rand(int is)
 {
    struct timeval tv;
-   struct timezone tz;
+//   struct timezone tz;
    unsigned long rnd_seed;
 
    if ( is == 0 ) /* random seed */
    {
-      gettimeofday(&tv,&tz);
+//      gettimeofday(&tv,&tz);
+      gettimeofday(&tv,NULL);
       rnd_seed = (tv.tv_sec%147483647)+2000*tv.tv_usec+getpid()*12345;
       // Even though we don't strictly need /dev/urandom, we still use it if available.
       FILE *frn = fopen("/dev/urandom","r");
@@ -474,6 +487,7 @@ static void syntax (char *program)
    printf("   -s              (Show data explained)\n");
    printf("   -S              (Show data explained, including raw data)\n");
    printf("   --history (-h)  (Show contents of history data block)\n");
+   printf("   --clean-history (Drop previous history data blocks)\n");
    printf("   -i              (Ignore unknown data block types)\n");
    printf("   -u              (Call user-defined analysis function)\n");
    printf("   --global-peak   (For image analysis use amplitude sums around global peak\n");
@@ -524,6 +538,8 @@ static void syntax (char *program)
    printf("   --only-high-gain (Use only high-gain channel and ignore low gain.)\n");
    printf("   --only-low-gain (Use only low-gain channel and ignore high gain.)\n");
    printf("   --max-events    (Stop after having processed this many events.)\n");
+   printf("   --pure-raw      (Discard any sub-items of TelescopeEvent which are not raw data.)\n");
+   printf("   --no-mc-data    (Discard MC shower and MC event data.)\n");
    printf("   --broken-pixels-fraction (Add random broken/dead pixels on run-by-run basis.)\n");
    printf("   --dead-time-fraction (Set telescopes randomly as dead from prior triggers.)\n");
    printf("   --integration-scheme n *(Set the integration scheme for sample-mode data.\n");
@@ -551,7 +567,16 @@ static void syntax (char *program)
    printf("                   level 2 only for triggered events,\n");
    printf("                   level 3 has many config/calib blocks only once, not per run.\n");
    printf("                   Levels 10-13 include only selected gamma-like events.\n");
+   printf("   --raw-level n   (Re-write original raw data or processed data, with possible\n");
+   printf("                   selection or reduction of other data according to level.)\n");
+   printf("                   Level 0 has all data written as available.\n");
+   printf("                   Level 1 has MC data only for triggerer events.\n");
+   printf("                   Level 2 has no MC data (--no-mc-data).\n");
+   printf("                   Level 3 has only raw data for telescopes and nothing else (--pure-raw).\n");
+   printf("                   Level 4 also cleans past history data (--clean-history).\n");
    printf("   --dst-file name (Name of output file for DST-type output.)\n");
+   printf("                   A DST file is needed for cleaning > 0 or DST level >= 0.\n");
+   printf("   --output-file   (Synonym to --dst-file)\n");
    printf("   --histogram-file name (Name of histogram file.)\n");
 #ifdef CHECK_MISSING_PE_LIST
    printf("   --check-missing-pe-list (Check if any p.e. lists are missing.)\n");
@@ -686,6 +711,7 @@ int main (int argc, char **argv)
    char *program = argv[0];
    char base_program[1024];
    int showdata = 0, showhistory = 0;
+   int clean_history = 0;
    int flag_amp_tm = 0;
    size_t num_only = 0, num_not = 0;
    FILE *ntuple_file = NULL;
@@ -696,6 +722,8 @@ int main (int argc, char **argv)
 #endif
 
    int only_telescope[H_MAX_TEL], not_telescope[H_MAX_TEL];
+   int pure_raw = 0;
+   int no_mc_data = 0;
 
    static double min_amp_tel[H_MAX_TEL];
    static double tailcut_low_tel[H_MAX_TEL];
@@ -767,14 +795,23 @@ int main (int argc, char **argv)
    signal(SIGTERM,stop_signal_function);
    interrupted = 0;
 
-   show_hessio_max();
+   /* First pass over command line for switching to quiet mode */
+   for ( iarg=1; iarg < argc; iarg++ )
+   {
+      if ( strcmp(argv[iarg],"-q") == 0 )
+         quiet = 1;
+      else if ( strcmp(argv[iarg],"-v") == 0 )
+         quiet = 0;
+   }
+   if ( ! quiet )
+      show_hessio_max();
    /* Check assumed limits with the ones compiled into the library. */
    H_CHECK_MAX();
 
    if ( argc < 2 )
       input_fname = "iact.out";
 
-   if ( (iobuf = allocate_io_buffer(1000000L)) == NULL )
+   if ( (iobuf = allocate_io_buffer(5000000L)) == NULL )
    {
       Error("Cannot allocate I/O buffer");
       exit(1);
@@ -936,6 +973,9 @@ int main (int argc, char **argv)
 #ifdef H_SAVE_MEMORY
          printf("   H_SAVE_MEMORY\n");
 #endif
+#ifdef STORE_PIX_PHOTONS
+         printf("   STORE_PIX_PHOTONS\n");
+#endif
 	 argc--;
 	 argv++;
 	 continue;
@@ -951,6 +991,13 @@ int main (int argc, char **argv)
       else if ( strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"--history") == 0 )
       {
        	 showhistory = 1;
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--clear-history") == 0 )
+      {
+       	 clean_history = 1;
 	 argc--;
 	 argv++;
 	 continue;
@@ -1048,6 +1095,22 @@ int main (int argc, char **argv)
       else if ( strcmp(argv[1],"--dst-level") == 0 && argc > 2 )
       {
        	 dst_level = atoi(argv[2]);
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--raw-level") == 0 && argc > 2 )
+      {
+       	 int lvl = atoi(argv[2]);
+         dst_level = 100;
+         if ( lvl >= 1 )
+            dst_level = 101;
+         if ( lvl >= 2 )
+            no_mc_data = 1;
+         if ( lvl >= 3 )
+            pure_raw = 1;
+         if ( lvl >= 4 )
+            clean_history = 1;
 	 argc -= 2;
 	 argv += 2;
 	 continue;
@@ -1184,6 +1247,14 @@ int main (int argc, char **argv)
             exit(1);
 	 }
          user_set_nb_radius(rnb);
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--ext-radius") == 0 && argc > 2 )
+      {  // Type-specific parameter (set immediately)
+         double rxt = atof(argv[2]);
+         user_set_nxt_radius(rxt);
 	 argc -= 2;
 	 argv += 2;
 	 continue;
@@ -1417,6 +1488,20 @@ int main (int argc, char **argv)
          dead_time_fraction = atof(argv[2]);
 	 argc -= 2;
 	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--pure-raw") == 0 )
+      {
+       	 pure_raw = 1;
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--no-mc-data") == 0 )
+      {
+       	 no_mc_data = 1;
+	 argc--;
+	 argv++;
 	 continue;
       }
       else if ( ( strcmp(argv[1],"--only-telescope") == 0 ||
@@ -1877,11 +1962,25 @@ int main (int argc, char **argv)
       showhistory = 1;
 
    if ( dst_fname == NULL )
-     dst_level = -1;
+   {
+      if ( dst_level >= 0 )
+         fprintf(stderr,"\nDST level reset due to missing DST/output file name.\n\n");
+      if ( cleaning > 0 )
+         fprintf(stderr,"\nCleaning option reset due to missing DST/output file name.\n\n");
+      dst_level = -1;
+      cleaning = 0;
+   }
    else if ( (dst_level >= 0 || cleaning > 0) && iobuf->output_file == NULL )
    {
       iobuf->output_file = fileopen(dst_fname,"w");
-      if ( (dst_level%10) >= 2 )
+      if ( iobuf->output_file == NULL )
+      {
+         perror(dst_fname);
+         exit(1);
+      }
+      else
+         printf("DST output file opened: %s\n", dst_fname);
+      if ( (dst_level%10) >= 2 && dst_level < 100 )
       {
          double xl = -0.5, xh = 6.5;
          int nx = 7;
@@ -2134,26 +2233,52 @@ int main (int argc, char **argv)
            item_header.type < IO_TYPE_HESS_RUNHEADER + 200 &&
            item_header.type != IO_TYPE_HESS_XTRGMASK )
       {
-         fprintf(stderr,"Trying to read event data before run header.\n");
-         fprintf(stderr,"Skipping this data block.\n");
+         if ( item_header.type == IO_TYPE_HESS_MCRUNHEADER )
+         {
+            MCRunHeader tmp_mc_run_header;
+            rc = read_hess_mcrunheader(iobuf,&tmp_mc_run_header);
+	    if ( verbose || rc != 0 )
+               printf("read_hess_mcrunheader(), rc = %d\n",rc);
+            if ( showdata )
+               print_hess_mcrunheader(iobuf);
+	       
+            if ( user_ana )
+	       user_set_spectrum(plidx - tmp_mc_run_header.spectral_index);
+            fprintf(stderr,"Stray MC run header block before run header (possible in merged files)\n"
+                 "is basically ignored. There should be more such blocks later-on.\n");
+         }
+         else
+         {
+            fprintf(stderr,"Trying to read data block of type %ld before run header.\n", item_header.type);
+            fprintf(stderr,"Skipping this data block.\n");
+         }
          continue;
       }
       
+      if ( clean_history && (int) item_header.type == 70 )
+         continue;
       if ( cleaning > 0 || (dst_level >= 0 && dst_level <= 3) ||
-           (dst_level >= 10 && dst_level <= 13) ) /* DST-type data extraction */
+           (dst_level >= 10 && dst_level <= 13) || dst_level >= 100 ) /* DST-type data extraction */
       {
-         if ( dst_level == 0 || dst_level == 1 ) /* Everything copied verbatim except event data */
+         if ( dst_level == 0 || dst_level == 1 || dst_level == 100 ) /* Everything copied verbatim except event data */
          {
             if ( (int) item_header.type != IO_TYPE_HESS_EVENT &&
                  (int) item_header.type != IO_TYPE_MC_TELARRAY )
-               if ( write_io_block(iobuf) )
+            {
+               if ( no_mc_data && 
+                    ( (int) item_header.type == IO_TYPE_HESS_MC_EVENT ||
+                      (int) item_header.type == IO_TYPE_HESS_MC_SHOWER ||
+                      (int) item_header.type != IO_TYPE_HESS_MC_PE_SUM ) )
+                  ; /* Don't write these block types if asking for no mc data */
+               else if ( write_io_block(iobuf) )
                {
                   fprintf(stderr,"Writing DST output failed on item type %lu, id %ld.\n",
                      item_header.type, item_header.ident);
                   exit(1);
                }
+            }
          }
-         else if ( (dst_level%10) >= 2 || dst_level == 11 || dst_level == 10 ) /* MC data only for triggered/selected events */
+         else if ( (dst_level%10) >= 2 || dst_level == 11 || dst_level == 10 || dst_level >= 101 ) /* MC data only for triggered/selected events */
          {
             if ( (int) item_header.type != IO_TYPE_HESS_EVENT &&
                  (int) item_header.type != IO_TYPE_HESS_MC_EVENT &&
@@ -2272,12 +2397,23 @@ int main (int argc, char **argv)
             if ( !quiet )
                printf("Reading simulated data for %d telescope(s)\n",hsdata->run_header.ntel);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_runheader(), rc = %d\n",rc);
+               printf("read_hess_runheader(), rc = %d (run %d)\n",rc,hsdata->run_header.run);
             fprintf(stderr,"\nStarting run %d\n",hsdata->run_header.run);
             if ( showdata )
                print_hess_runheader(iobuf);
             if ( user_ana )
                do_user_ana(hsdata,item_header.type,0);
+            
+            /* Initialize MC data structures in case file contains no MC data */
+            
+            hsdata->mc_shower.shower_num = -1;
+            hsdata->mc_shower.primary_id = 0;
+            hsdata->mc_shower.energy = 0.;
+            hsdata->mc_event.event = hsdata->mc_event.shower_num = -1;
+            hsdata->mc_event.xcore = hsdata->mc_event.ycore = 0.;
+            hsdata->mc_event.aweight = 0.;
+
+            /* Allocate dynamic sub-structures and set up telescope ID in all sub-structures */
 
             for (itel=0; itel<hsdata->run_header.ntel; itel++)
             {
@@ -2420,7 +2556,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_camsettings(iobuf,&hsdata->camera_set[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_camsettings(), rc = %d\n",rc);
+               printf("read_hess_camsettings(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             if ( showdata )
                print_hess_camsettings(iobuf);
             if ( reco_flag > 0 )
@@ -2437,26 +2573,26 @@ int main (int argc, char **argv)
             }
             if ( num_only > 0 )
             {
-               for (itel=0; itel<hsdata->run_header.ntel; itel++)
+               size_t jtel, keep_known = 0;
+               for (jtel=0; jtel<num_only; jtel++)
                {
-                  size_t jtel, keep_known = 0;
-                  for (jtel=0; jtel<num_only; jtel++)
-                     if ( hsdata->run_header.tel_id[itel] == only_telescope[jtel] )
-                        keep_known = 1;
-                  if ( !keep_known )
-                     hsdata->camera_set[itel].num_mirrors = -1;
+                  if ( hsdata->run_header.tel_id[itel] == only_telescope[jtel] )
+                     keep_known = 1;
                }
+               if ( !keep_known )
+                  hsdata->camera_set[itel].num_mirrors = -1;
             }
             if ( num_not > 0 )
             {
-               for (itel=0; itel<hsdata->run_header.ntel; itel++)
+               size_t jtel;
+               for (jtel=0; jtel<num_not; jtel++)
                {
-                  size_t jtel;
-                  for (jtel=0; jtel<num_not; jtel++)
-                     if ( hsdata->run_header.tel_id[itel] == not_telescope[jtel] )
-                        hsdata->camera_set[itel].num_mirrors = -1;
+                  if ( hsdata->run_header.tel_id[itel] == not_telescope[jtel] )
+                     hsdata->camera_set[itel].num_mirrors = -2;
                }
             }
+            if ( user_ana )
+               do_user_ana(hsdata,item_header.type,0);
             break;
 
          /* =================================================== */
@@ -2472,7 +2608,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_camorgan(iobuf,&hsdata->camera_org[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_camorgan(), rc = %d\n",rc);
+               printf("read_hess_camorgan(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             if ( showdata )
                print_hess_camorgan(iobuf);
             break;
@@ -2490,7 +2626,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_pixelset(iobuf,&hsdata->pixel_set[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_pixelset(), rc = %d\n",rc);
+               printf("read_hess_pixelset(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             if ( showdata )
                print_hess_pixelset(iobuf);
             break;
@@ -2508,7 +2644,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_pixeldis(iobuf,&hsdata->pixel_disabled[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_pixeldis(), rc = %d\n",rc);
+               printf("read_hess_pixeldis(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
                printf("\nPixel disabling block for telescope ID %d ...\n", tel_id);
@@ -2528,7 +2664,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_camsoftset(iobuf,&hsdata->cam_soft_set[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_camsoftset(), rc = %d\n",rc);
+               printf("read_hess_camsoftset(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
                printf("\nCamera software settings for telescope ID %d ...\n", tel_id);
@@ -2547,7 +2683,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_pointingcor(iobuf,&hsdata->point_cor[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_pointingco(), rc = %d\n",rc);
+               printf("read_hess_pointingco(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
                printf("\nPointing correction for telescope ID %d ...\n", tel_id);
@@ -2566,7 +2702,7 @@ int main (int argc, char **argv)
             }
             rc = read_hess_trackset(iobuf,&hsdata->tracking_set[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_trackset(), rc = %d\n",rc);
+               printf("read_hess_trackset(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
                printf("\nTracking settings for telescope ID %d ...\n", tel_id);
@@ -2876,35 +3012,39 @@ int main (int argc, char **argv)
 	          hesscam_ps_plot(ps_fname, hsdata, itel, -1, flag_amp_tm, last_clip_amp);
             if ( (dst_level >= 0 && dst_level <= 3) ||
                  (dst_level >= 10 && dst_level <= 13 && user_ana && 
-                    (last_event_selected = user_selected_event()) != 0 ) )
+                    (last_event_selected = user_selected_event()) != 0 ) ||
+                  dst_level >= 100 )
             {
-               if ( mc_shower_stored == 0 && dst_level > 1 )
+               if ( dst_level != 100 && !no_mc_data )
                {
-                  if ( write_hess_mc_shower(iobuf,&hsdata->mc_shower) < 0 )
+                  if ( mc_shower_stored == 0 && dst_level > 1 )
                   {
-                     fprintf(stderr,"Delayed writing of MC shower data failed.\n");
-                     exit(1);
+                     if ( write_hess_mc_shower(iobuf,&hsdata->mc_shower) < 0 )
+                     {
+                        fprintf(stderr,"Delayed writing of MC shower data failed.\n");
+                        exit(1);
+                     }
+                     mc_shower_stored = 1;
                   }
-                  mc_shower_stored = 1;
-               }
-               if ( mc_event_stored == 0 && dst_level > 1  )
-               {
-                  if ( write_hess_mc_event(iobuf,&hsdata->mc_event) < 0 )
+                  if ( mc_event_stored == 0 && dst_level > 1  )
                   {
-                     fprintf(stderr,"Delayed writing of MC event data failed.\n");
-                     exit(1);
+                     if ( write_hess_mc_event(iobuf,&hsdata->mc_event) < 0 )
+                     {
+                        fprintf(stderr,"Delayed writing of MC event data failed.\n");
+                        exit(1);
+                     }
+                     mc_event_stored = 1;
                   }
-                  mc_event_stored = 1;
-               }
-               if ( mc_pe_sum_stored == 0 && (dst_level%10) == 2 &&
-                    last_mc_pe_sum_id == item_header.ident )
-               {
-                  if ( write_hess_mc_pe_sum(iobuf,&hsdata->mc_event.mc_pesum) < 0 )
+                  if ( mc_pe_sum_stored == 0 && (dst_level%10) == 2 &&
+                       last_mc_pe_sum_id == item_header.ident )
                   {
-                     fprintf(stderr,"Delayed writing of MC p.e. sum data failed.\n");
-                     exit(1);
+                     if ( write_hess_mc_pe_sum(iobuf,&hsdata->mc_event.mc_pesum) < 0 )
+                     {
+                        fprintf(stderr,"Delayed writing of MC p.e. sum data failed.\n");
+                        exit(1);
+                     }
+                     mc_pe_sum_stored = 1;
                   }
-                  mc_pe_sum_stored = 1;
                }
 
                if ( dst_level >= 0 )
@@ -2914,6 +3054,23 @@ int main (int argc, char **argv)
                      TelEvent *te = &hsdata->event.teldata[itel];
                      if ( te->known && te->raw != NULL && te->raw->known )
                      {
+                        /* Apply "pure raw data" cleaning only where raw data is actually available */
+                        if ( pure_raw )
+                        {
+                           int j;
+                           if ( te->pixtm != NULL )
+                              te->pixtm->known = 0;
+                           if ( te->pixcal != NULL )
+                              te->pixcal->known = 0;
+                           if ( te->img != NULL )
+                           {
+                              for ( j=0; j<te->num_image_sets; j++ )
+                                 te->img[j].known = 0;
+                              te->num_image_sets = 0;
+                           }
+                           /* We keep the list of triggered pixels but discard image selected pixels */
+                           te->image_pixels.pixels = 0;
+                        }
                         /* Calibrated pixel intensities requested to be stored */
                         if ( do_calibrate && te->pixcal != NULL )
                         {
@@ -2927,10 +3084,12 @@ int main (int argc, char **argv)
                            if ( only_calibrated )
                               te->raw->known = 0;
                         }
-                        if ( dst_level != 0 && dst_level != 10 )
+                        if ( dst_level != 0 && dst_level != 10 && dst_level < 100 )
                            te->raw->known = 0;
                      }
                   }
+                  if ( pure_raw )
+                     hsdata->event.shower.known = 0;
                }
                if ( (dst_level%10) >= 2 )
                {
@@ -2951,7 +3110,7 @@ int main (int argc, char **argv)
                }
                if ( dst_level == 0 )
                   rc = write_hess_event(iobuf,&hsdata->event,-1 ^ RAWDATA_FLAG );
-               else if ( dst_level == 10 || cleaning > 0 )
+               else if ( dst_level == 10 || cleaning > 0 || dst_level >= 100 )
                   rc = write_hess_event(iobuf,&hsdata->event,-1);
                else
                   rc = write_hess_event(iobuf,&hsdata->event,
@@ -2993,7 +3152,8 @@ int main (int argc, char **argv)
                continue;
             rc = read_hess_mc_shower(iobuf,&hsdata->mc_shower);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_mc_shower(), rc = %d\n",rc);
+               printf("read_hess_mc_shower(), rc = %d (shower %d)\n",
+                  rc, hsdata->mc_shower.shower_num);
             if ( showdata )
                print_hess_mc_shower(iobuf);
             if ( user_ana )
@@ -3009,7 +3169,8 @@ int main (int argc, char **argv)
                continue;
             rc = read_hess_mc_event(iobuf,&hsdata->mc_event);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_mc_event(), rc = %d\n",rc);
+               printf("read_hess_mc_event(), rc = %d (event %d, shower %d)\n",
+                  rc, hsdata->mc_event.event, hsdata->mc_event.shower_num);
             if ( showdata )
                print_hess_mc_event(iobuf);
             if ( user_ana )
@@ -3161,7 +3322,8 @@ int main (int argc, char **argv)
             }
             rc = read_hess_tel_monitor(iobuf,&hsdata->tel_moni[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_tel_monitor(), rc = %d\n",rc);
+               printf("read_hess_tel_monitor(), rc = %d (tel. ID=%d, itel=%d)\n",
+                  rc, tel_id, itel);
             if ( showdata )
                print_hess_tel_monitor(iobuf);
             break;
@@ -3179,7 +3341,8 @@ int main (int argc, char **argv)
             }
             rc = read_hess_laser_calib(iobuf,&hsdata->tel_lascal[itel]);
 	    if ( verbose || rc != 0 )
-               printf("read_hess_laser_calib(), rc = %d\n",rc);
+               printf("read_hess_laser_calib(), rc = %d (tel. ID=%d, itel=%d)\n",
+                  rc, tel_id, itel);
             if ( showdata )
                print_hess_laser_calib(iobuf);
             /* Optionally add random pixel calibration error */
@@ -3299,6 +3462,64 @@ int main (int argc, char **argv)
             break;
 
          default:
+            /* Some data block types normally embedded in type 2010. Only showing contents. */
+            if ( item_header.type == 2009 )
+            {
+               if ( showdata )
+               {
+                  printf("Stand-alone central trigger data block:\n");
+                  print_hess_centralevent(iobuf);
+               }
+               rc = read_hess_centralevent(iobuf,&hsdata->event.central);
+	       if ( verbose || rc != 0 )
+                  printf("read_hess_centralevent(), rc = %d\n",rc);
+               continue;
+            }
+            else if ( item_header.type > 2000 && item_header.type < 10000 )
+            {
+               if ( item_header.type%1000 >= 100 && item_header.type%1000 <= 199 )
+               {
+                  int tid = (item_header.type - IO_TYPE_HESS_TRACKEVENT)%100 +
+                            100 * ((item_header.type - IO_TYPE_HESS_TRACKEVENT)/1000);
+                  if ( showdata )
+                  {
+                     printf("Stand-alone tracking data block for telescope %d:\n", tid);
+                     print_hess_trackevent(iobuf);
+                  }
+	          if ( (itel = find_tel_idx(tid)) < 0 || itel >= H_MAX_TEL )
+	          {
+	             fprintf(stderr,"Telescope number out of range for tracking data (telescope ID = %d)\n", tid);
+	             continue;
+	          }
+                  rc = read_hess_trackevent(iobuf,&hsdata->event.trackdata[itel]);
+	          if ( verbose || rc != 0 )
+                     printf("read_hess_trackevent(), rc = %d\n",rc);
+                  continue;
+               }
+               else if ( item_header.type%1000 >= 200 && item_header.type%1000 <= 299 )
+               {
+                  int tid = (item_header.type - IO_TYPE_HESS_TELEVENT)%100 +
+                            100 * ((item_header.type - IO_TYPE_HESS_TELEVENT)/1000);
+                  if ( showdata )
+                  {
+                     printf("Stand-alone telescope event data block for telescope %d:\n", tid);
+                     print_hess_televent(iobuf);
+                  }
+	          if ( (itel = find_tel_idx(tid)) < 0 || itel >= H_MAX_TEL )
+	          {
+	             fprintf(stderr,"Telescope number out of range for telescope event data (telescope ID = %d)\n", tid);
+	             continue;
+	          }
+                  rc = read_hess_televent(iobuf,&hsdata->event.teldata[itel],-1);
+	          if ( verbose || rc != 0 )
+                     printf("read_hess_televent(), rc = %d\n",rc);
+
+                  if ( ps_fname != NULL ) 
+	             if ( hsdata->event.teldata[itel].known )
+	                hesscam_ps_plot(ps_fname, hsdata, itel, -1, flag_amp_tm, 0.);
+                  continue;
+               }
+            }
             if ( !ignore )
                fprintf(stderr,"Ignoring unknown data block type %ld\n",item_header.type);
       }
@@ -3341,6 +3562,97 @@ int main (int argc, char **argv)
       fileclose(iobuf->output_file);
    if ( ntuple_file != NULL )
       fileclose(ntuple_file);
+
+   if ( iobuf2 != NULL )
+   {
+      free_io_buffer(iobuf2);
+      iobuf2 = NULL;
+   }
+   if ( iobuf != NULL )
+   {
+      free_io_buffer(iobuf);
+      iobuf = NULL;
+   }
+
+#ifdef TEST_MEMORY_LEAKS
+   /* Optionally free most of the allocated memory to make sure */
+   /* we have no leaks anywhere (using valgrind or such). */
+   /* It is not actually needed though. */
+
+   free_all_histograms();
+   histogram_hashing(0);
+
+   for (itel=0; itel<hsdata->run_header.ntel; itel++)
+   {
+      if ( hsdata->event.teldata[itel].raw != NULL )
+      {
+         free(hsdata->event.teldata[itel].raw);
+         hsdata->event.teldata[itel].raw = NULL;
+      }
+      if ( hsdata->event.teldata[itel].pixtm != NULL )
+      {
+         free(hsdata->event.teldata[itel].pixtm);
+         hsdata->event.teldata[itel].pixtm = NULL;
+      }
+      if ( hsdata->event.teldata[itel].pixcal != NULL )
+      {
+         free(hsdata->event.teldata[itel].pixcal);
+         hsdata->event.teldata[itel].pixcal = NULL;
+      }
+      if ( hsdata->event.teldata[itel].img != NULL )
+      {
+         free(hsdata->event.teldata[itel].img);
+         hsdata->event.teldata[itel].img = NULL;
+      }
+      
+      deallocate_nb_list(itel);
+   }
+   if ( hsdata->run_header.target != NULL )
+   {
+      free(hsdata->run_header.target);
+      hsdata->run_header.target = NULL;
+   }
+   if ( hsdata->run_header.observer != NULL )
+   {
+      free(hsdata->run_header.observer);
+      hsdata->run_header.observer = NULL;
+   }
+   {
+      int j;
+      for ( j=0; j<H_MAX_PROFILE; j++)
+      {
+         if ( hsdata->mc_shower.profile[j].content != NULL )
+         {
+            free(hsdata->mc_shower.profile[j].content);
+            hsdata->mc_shower.profile[j].content = NULL;
+         }
+      }
+   }
+   free(hsdata);
+   hsdata = NULL;
+
+   initpath("");
+   initexepath(NULL);
+
+   { /* Among the still allocated memory is a linked list of data files processed */
+      NextFile *this_file = &first_file;
+      for ( next_file = NULL; this_file != NULL; this_file = next_file )
+      {
+         if ( this_file->fname != NULL )
+         {
+            free(this_file->fname);
+            this_file->fname = NULL;
+         }
+         next_file = this_file->next;
+         this_file->next = NULL;
+         if ( this_file != &first_file )
+            free(this_file);
+      }
+   }
+   
+   /* At this point the only still allocated memory blocks should be the
+      command line history and the user analysis parameters. */ 
+#endif
 
    return 0;
 }

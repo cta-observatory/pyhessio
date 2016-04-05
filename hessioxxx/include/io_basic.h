@@ -24,8 +24,8 @@
     
     @author  Konrad Bernloehr
     @date    1991 to 2014
-    @date    @verbatim CVS $Date: 2014/08/04 13:05:28 $ @endverbatim
-    @version @verbatim CVS $Revision: 1.22 $ @endverbatim
+    @date    @verbatim CVS $Date: 2016/03/14 13:34:52 $ @endverbatim
+    @version @verbatim CVS $Revision: 1.25 $ @endverbatim
 
 
     Header file for structures and function prototypes for
@@ -142,7 +142,12 @@ typedef int (*IO_USER_FUNCTION) (unsigned char *, long, int);
 
 /* ------------------------ COPY_BYTES ------------------------- */
 
+/* Copy byte without or with switching byte orders. */
+/* Using the order of arguments as with memcpy: (to,from,nbytes) */
 #define COPY_BYTES(_target,_source,_num) memcpy(_target,_source,_num)
+/* For reverting byte orders every two bytes, use swab() but */
+/* beware that the order of arguments differs from memcpy. */
+#define COPY_BYTES_SWAB(_target,_source,_num) swab(_source,_target,_num)
 
 /* -------------------------- put_byte ------------------------- */
 /*
@@ -160,6 +165,7 @@ typedef int (*IO_USER_FUNCTION) (unsigned char *, long, int);
  */
 
 #define get_byte(p) (--(p)->r_remaining>=0? *(p)->data++ : -1)
+#define get_bytes(p,k) (((p)->r_remaining -= k) >=0 ? (*(p)->data+=k)-k : -1)
 
 
 /* ------------------ Function prototypes --------------------- */
@@ -193,6 +199,10 @@ int32_t get_scount32 (IO_BUFFER *iobuf);
 int16_t get_scount16 (IO_BUFFER *iobuf);
 void put_vector_of_int_scount (const int *vec, int num, IO_BUFFER *iobuf);
 void get_vector_of_int_scount (int *vec, int num, IO_BUFFER *iobuf);
+void put_vector_of_uint16_scount_differential (uint16_t *vec, int num, IO_BUFFER *iobuf);
+void get_vector_of_uint16_scount_differential (uint16_t *vec, int num, IO_BUFFER *iobuf);
+void put_vector_of_uint32_scount_differential (uint32_t *vec, int num, IO_BUFFER *iobuf);
+void get_vector_of_uint32_scount_differential (uint32_t *vec, int num, IO_BUFFER *iobuf);
 
 /* ... 16 bits integer data types ... */
 /* ... (native) ... */

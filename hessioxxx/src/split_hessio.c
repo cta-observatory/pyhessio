@@ -1,6 +1,6 @@
 /* ============================================================================
 
-Copyright (C) 2008, 2009, 2010  Konrad Bernloehr
+Copyright (C) 2014, 2016  Konrad Bernloehr
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,27 +17,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ============================================================================ */
 
-/** @file extract_hessio.c
+/** @file split_hessio.c
  *  @short Rip out data for each telescope into individual files.
  *
  *
 @verbatim
-Syntax: read_hess_nr [ options ] [ - | input_fname ... ]
+Syntax: split_hessio [ options ] [ - | input_fname ... ]
 Options:
-   -v              (More verbose output)
-   -q              (Much more quiet output)
-   -i              (Ignore unknown data block types)
+   -x              (Extract TelescopeEvent data from Event.)
+   -X              (Extract TelescopeEvent raw data (samples or sum).)
+   -i|--ignore     (Ignore unknown data block types.)
+   -q|--quiet      (More quiet on standard output.)
+   -v|--verbose    (More verbose on standard output.)
    --max-events n  (Skip remaining data after so many triggered events.)
-   --only-telescope id1[,id2-i3[,...]] (Select telescopes being used.)
-   --not-telescope id1[,id2-id3[,...]]
+   --pure-raw      (Discard any sub-items of TelescopeEvent which are not raw data.)
+   --clean-history (Drop previous history data blocks)
+   --output-path d (Create output files in given directory instead of current.)
+   --only-telescope[s] (Only data for the given telescopes IDs is written.)
+   --not-telescope[s]  (No data for the given telescopes IDs is written.)
 @endverbatim
  *
  *  @author  Konrad Bernloehr
- *  @date    @verbatim CVS $Date: 2014/09/02 15:54:33 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.2 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/03/18 11:49:45 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.7 $ @endverbatim
  */
 
-/** @defgroup read_hess_nr_c The read_hess_nr program */
+/** @defgroup split_hessio_c The split_hessio program */
 /** @{ */
 
 #include "initial.h"      /* This file includes others as required. */
@@ -102,7 +107,16 @@ static void syntax (char *program)
    printf("Options:\n");
    printf("   -x              (Extract TelescopeEvent data from Event.)\n");
    printf("   -X              (Extract TelescopeEvent raw data (samples or sum).)\n");
+   printf("   -i|--ignore     (Ignore unknown data block types.)\n");
+   printf("   -q|--quiet      (More quiet on standard output.)\n");
+   printf("   -v|--verbose    (More verbose on standard output.)\n");
    printf("   --max-events n  (Skip remaining data after so many triggered events.)\n");
+   printf("   --pure-raw      (Discard any sub-items of TelescopeEvent which are not raw data.)\n");
+   printf("   --clean-history (Drop previous history data blocks)\n");
+   printf("   --keep-compression (Keep same compression scheme as input file, .gz etc.)\n");
+   printf("   --output-path d (Create output files in given directory instead of current.)\n");
+   printf("   --only-telescope[s] (Only data for the given telescopes IDs is written.)\n");
+   printf("   --not-telescope[s]  (No data for the given telescopes IDs is written.)\n");
 
    exit(1);
 }
@@ -127,15 +141,18 @@ int main (int argc, char **argv)
    char *program = argv[0];
    size_t events = 0, max_events = 0;
    int iarg;
-   static FILE *f_teldata[H_MAX_TEL], *f_telaux[H_MAX_TEL];
-   static FILE *f_mc = NULL, *f_head = NULL, *f_tail = NULL;
+   static FILE *f_teldata[H_MAX_TEL], *f_telaux[H_MAX_TEL], *f_telaux2[H_MAX_TEL];
+   static FILE *f_mc = NULL, *f_head = NULL, *f_tail = NULL, *f_central = NULL;
    static int tel_used[H_MAX_TEL];
    size_t num_only = 0, num_not = 0;
    int only_telescope[H_MAX_TEL], not_telescope[H_MAX_TEL];
-   char input_fname_current[1024], tmp_fname[1600], tmp_fname_head[1200], tmp_fname_tail[300];
+   char input_fname_current[1024], tmp_fname[2600], tmp_fname_head[2200], tmp_fname_tail[300];
+   char output_path[1024];
    int active_tel[H_MAX_TEL];
    int num_active;
    int extract_televent = 0;
+   int pure_raw = 0, clean_history = 0;
+   int with_compression = 0;
 
    static AllHessData *hsdata;
    
@@ -155,27 +172,31 @@ int main (int argc, char **argv)
    /* Check assumed limits with the ones compiled into the library. */
    H_CHECK_MAX();
 
+   /* In case we write a DST file, we want to record how we did it. */
+   push_command_history(argc,argv);
+
    if ( argc < 2 )
       input_fname = "iact.out";
 
-   if ( (iobuf = allocate_io_buffer(1000000L)) == NULL )
+   if ( (iobuf = allocate_io_buffer(5000000L)) == NULL )
    {
       Error("Cannot allocate I/O buffer");
       exit(1);
    }
    iobuf->max_length = 100000000L;
+   output_path[0] = '\0';
 
    /* Command line options */
    while ( argc > 1 )
    {
-      if ( strcmp(argv[1],"-i") == 0 )
+      if ( strcmp(argv[1],"-i") == 0 || strcmp(argv[1],"--ignore") == 0 )
       {
        	 ignore = 1;
 	 argc--;
 	 argv++;
 	 continue;
       }
-      else if ( strcmp(argv[1],"-v") == 0 )
+      else if ( strcmp(argv[1],"-v") == 0 || strcmp(argv[1],"--verbose") == 0 )
       {
        	 verbose = 1;
          quiet = 0;
@@ -197,7 +218,7 @@ int main (int argc, char **argv)
 	 argv++;
 	 continue;
       }
-      else if ( strcmp(argv[1],"-q") == 0 )
+      else if ( strcmp(argv[1],"-q") == 0 || strcmp(argv[1],"--quiet") == 0 )
       {
        	 quiet = 1;
          verbose = 0;
@@ -279,11 +300,41 @@ int main (int argc, char **argv)
 	 argv += 2;
 	 continue;
       }
+      else if ( strcmp(argv[1],"--output-path") == 0 && argc > 2 )
+      {
+         size_t l = strlen(argv[2]);
+       	 strncpy(output_path,argv[2],sizeof(output_path)-2);
+         if ( l > 0 && argv[2][l-1] != '/' )
+            strcat(output_path,"/");
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
       else if ( strcmp(argv[1],"--max-events") == 0 && argc > 2 )
       {
        	 max_events = atol(argv[2]);
 	 argc -= 2;
 	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--pure-raw") == 0 )
+      {
+       	 pure_raw = 1;
+	 argc--;
+	 argv++;
+      }
+      else if ( strcmp(argv[1],"--clean-history") == 0 )
+      {
+       	 clean_history = 1;
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--keep-compression") == 0 )
+      {
+       	 with_compression = 1;
+	 argc--;
+	 argv++;
 	 continue;
       }
       else if ( strcmp(argv[1],"--help") == 0 )
@@ -329,21 +380,76 @@ int main (int argc, char **argv)
     fprintf(stderr,"%s\n",input_fname);
     printf("\nInput file '%s' has been opened.\n",input_fname);
     strncpy(input_fname_current, input_fname, sizeof(input_fname_current)-1);
-    strncpy(tmp_fname_head, input_fname, sizeof(tmp_fname_head));
     tmp_fname_tail[0] = '\0';
     {
-       char *s;
-       if ( (s = strstr(tmp_fname_head,".sim")) != NULL )
+       char *s, *t;
+       if ( (s = strrchr(input_fname,'/')) != NULL )
+          strncpy(tmp_fname_head, s+1, sizeof(tmp_fname_head));
+       else
+          strncpy(tmp_fname_head, input_fname, sizeof(tmp_fname_head));
+       if ( (t = strstr(tmp_fname_head,".sim")) != NULL )
        {
-          strncpy(tmp_fname_tail,s,sizeof(tmp_fname_tail)-1);
-          *s = '\0';
+          strncpy(tmp_fname_tail,t,sizeof(tmp_fname_tail)-1);
+          *t = '\0';
        }
     }
+    if ( !with_compression )
+    {
+       char *u = strchr(tmp_fname_tail+4,'.');
+       if ( u != NULL )
+       	  *u = '\0';
+    }
     input_fname = NULL;
+    if ( strlen(output_path)+strlen(tmp_fname_head)+30+strlen(tmp_fname_tail) >= sizeof(tmp_fname) )
+    {
+       fprintf(stderr,"%s: File name (including paths) gets too long.\n", input_fname);
+       continue;
+    }
+    
+    if ( f_head != NULL )
+    {
+       fileclose(f_head);
+       f_head = NULL;
+    }
+    if ( f_mc != NULL )
+    {
+       fileclose(f_mc);
+       f_mc = NULL;
+    }
+    if ( f_central != NULL )
+    {
+       fileclose(f_central);
+       f_central = NULL;
+    }
+    if ( f_tail != NULL )
+    {
+       fileclose(f_tail);
+       f_tail = NULL;
+    }
+    
+    for ( itel=0; itel<H_MAX_TEL; itel++ )
+    {
+       if ( f_telaux[itel] != NULL )
+       {
+          fileclose(f_telaux[itel]);
+          f_telaux[itel] = NULL;
+       }
+       if ( f_telaux2[itel] != NULL )
+       {
+          fileclose(f_telaux2[itel]);
+          f_telaux2[itel] = NULL;
+       }
+       if ( f_teldata[itel] != NULL )
+       {
+          fileclose(f_teldata[itel]);
+          f_teldata[itel] = NULL;
+       }
+    }
 
     if ( f_head == NULL )
     {
-       strcpy(tmp_fname,tmp_fname_head);
+       strcpy(tmp_fname,output_path);
+       strcat(tmp_fname,tmp_fname_head);
        strcat(tmp_fname,".headers");
        strcat(tmp_fname,tmp_fname_tail);
        if ( (f_head = fileopen(tmp_fname,"w")) == NULL )
@@ -351,10 +457,13 @@ int main (int argc, char **argv)
           perror(tmp_fname);
           exit(1);
        }
+       iobuf->output_file = f_head;
+       write_history(0,iobuf);  /* Save the command line history */
     }
     if ( f_tail == NULL )
     {
-       strcpy(tmp_fname,tmp_fname_head);
+       strcpy(tmp_fname,output_path);
+       strcat(tmp_fname,tmp_fname_head);
        strcat(tmp_fname,".tail");
        strcat(tmp_fname,tmp_fname_tail);
        if ( (f_tail = fileopen(tmp_fname,"w")) == NULL )
@@ -365,10 +474,23 @@ int main (int argc, char **argv)
     }
     if ( f_mc == NULL )
     {
-       strcpy(tmp_fname,tmp_fname_head);
+       strcpy(tmp_fname,output_path);
+       strcat(tmp_fname,tmp_fname_head);
        strcat(tmp_fname,".mc");
        strcat(tmp_fname,tmp_fname_tail);
        if ( (f_mc = fileopen(tmp_fname,"w")) == NULL )
+       {
+          perror(tmp_fname);
+          exit(1);
+       }
+    }
+    if ( f_central == NULL )
+    {
+       strcpy(tmp_fname,output_path);
+       strcat(tmp_fname,tmp_fname_head);
+       strcat(tmp_fname,".central");
+       strcat(tmp_fname,tmp_fname_tail);
+       if ( (f_central = fileopen(tmp_fname,"w")) == NULL )
        {
           perror(tmp_fname);
           exit(1);
@@ -412,7 +534,9 @@ int main (int argc, char **argv)
             nev = ntrg = 0;
  
             if ( (iobuf->output_file = f_head) != NULL )
-               write_io_block(iobuf);
+            {
+               write_io_block(iobuf);   /* Re-write the run header as is */
+            }
 
             /* Structures might be allocated from previous run */
             if ( hsdata != NULL )
@@ -480,7 +604,8 @@ int main (int argc, char **argv)
                   snprintf(exn,sizeof(exn),"%d",tel_id);
                   if ( f_teldata[itel] == NULL )
                   {
-                     strcpy(tmp_fname,tmp_fname_head);
+                     strcpy(tmp_fname,output_path);
+                     strcat(tmp_fname,tmp_fname_head);
                      strcat(tmp_fname,".teldata-");
                      strcat(tmp_fname,exn);
                      strcat(tmp_fname,tmp_fname_tail);
@@ -492,11 +617,25 @@ int main (int argc, char **argv)
                   }
                   if ( f_telaux[itel] == NULL )
                   {
-                     strcpy(tmp_fname,tmp_fname_head);
+                     strcpy(tmp_fname,output_path);
+                     strcat(tmp_fname,tmp_fname_head);
                      strcat(tmp_fname,".telaux-");
                      strcat(tmp_fname,exn);
                      strcat(tmp_fname,tmp_fname_tail);
                      if ( (f_telaux[itel] = fileopen(tmp_fname,"w")) == NULL )
+                     {
+                        perror(tmp_fname);
+                        exit(1);
+                     }
+                  }
+                  if ( f_telaux2[itel] == NULL )
+                  {
+                     strcpy(tmp_fname,output_path);
+                     strcat(tmp_fname,tmp_fname_head);
+                     strcat(tmp_fname,".telaux2-");
+                     strcat(tmp_fname,exn);
+                     strcat(tmp_fname,tmp_fname_tail);
+                     if ( (f_telaux2[itel] = fileopen(tmp_fname,"w")) == NULL )
                      {
                         perror(tmp_fname);
                         exit(1);
@@ -550,13 +689,13 @@ int main (int argc, char **argv)
 
          /* =================================================== */
 	 case IO_TYPE_MC_INPUTCFG:
-            if ( (iobuf->output_file = f_head) != NULL )
+            if ( (iobuf->output_file = f_mc) != NULL )
                write_io_block(iobuf);
             break;
 
          /* =================================================== */
          case 70: /* How sim_hessarray was run and how it was configured. */
-            if ( (iobuf->output_file = f_head) != NULL )
+            if ( !clean_history && (iobuf->output_file = f_head) != NULL )
                write_io_block(iobuf);
             break;
 
@@ -616,7 +755,7 @@ int main (int argc, char **argv)
                Warning(msg);
                exit(1);
             }
-            if ( (iobuf->output_file = f_telaux[itel]) != NULL )
+            if ( (iobuf->output_file = f_telaux2[itel]) != NULL )
                write_io_block(iobuf);
             break;
 
@@ -682,23 +821,47 @@ int main (int argc, char **argv)
                   active_tel[num_active++] = itel;
                   hsdata->event.teldata[itel].known = 0;
                   hsdata->event.trackdata[itel].raw_known = 0;
+                  if ( pure_raw )
+                  {
+                     int j;
+                     if ( hsdata->event.teldata[itel].pixtm != NULL )
+                        hsdata->event.teldata[itel].pixtm->known = 0;
+                     if ( hsdata->event.teldata[itel].pixcal != NULL )
+                        hsdata->event.teldata[itel].pixcal->known = 0;
+                     if ( hsdata->event.teldata[itel].img != NULL )
+                     {
+                        for ( j=0; j<hsdata->event.teldata[itel].num_image_sets; j++ )
+                           hsdata->event.teldata[itel].img[j].known = 0;
+                        hsdata->event.teldata[itel].num_image_sets = 0;
+                     }
+                     /* We keep the list of triggered pixels but discard image selected pixels */
+                     hsdata->event.teldata[itel].image_pixels.pixels = 0;
+                  }
                   /* If non-triggered telescopes record data (like HEGRA),
                      we may have to check the central trigger bit as well,
                      but ignore this for now. */
                   ntel_trg++;
                }
             }
+            if ( pure_raw )
+               hsdata->event.shower.known = 0;
 	    if ( hsdata->event.shower.known )
 	       hsdata->event.shower.num_trg = ntel_trg;
             if ( ntel_trg < min_tel_trg )
                continue;
             ntrg++;
+            if ( (iobuf->output_file = f_central) != NULL )
+            {
+               rc = write_hess_centralevent(iobuf,&hsdata->event.central);
+            }
+
             { int j;
                for ( j=0; j<num_active; j++ )
                {
                   itel = active_tel[j];
                   if ( tel_used[itel] )
                   {
+                     /* We temporarily mark just this one telescope as having participated and with data */
                      hsdata->event.num_teldata = 1;
                      hsdata->event.teldata_list[0] = hsdata->event.teldata[itel].tel_id;
                      hsdata->event.teldata[itel].known = 1;
@@ -707,20 +870,30 @@ int main (int argc, char **argv)
                      if ( (iobuf->output_file = f_teldata[itel]) != NULL )
                      {
                         if ( extract_televent == 1 )
+                        {
+                           /* In this mode we store the tracking data first and then the telescope event */
+                           if ( hsdata->event.trackdata[itel].raw_known ||
+                                hsdata->event.trackdata[itel].cor_known )
+                              (void) write_hess_trackevent(iobuf,&hsdata->event.trackdata[itel]);
 	                   rc = write_hess_televent(iobuf,&hsdata->event.teldata[itel],-1);
+                        }
                         else if ( extract_televent == 2 )
                         {
+                           /* In this mode the tracking and telescope event header get lost */
                            TelEvent *te = &hsdata->event.teldata[itel];
                            if ( te->raw != NULL && te->raw->known )
                            {
-                              if ( te->readout_mode > 0 )
+                              if ( te->readout_mode > 0 ) /* Write only samples */
                                  rc = write_hess_teladc_samples(iobuf,te->raw);
-                              else
+                              else /* or write only sums, never both */
                                  rc = write_hess_teladc_sums(iobuf,te->raw);
                            }
                         }
                         else
+                        {
+                           /* In this mode we write the full event data block, although with just one telescope */
                            rc = write_hess_event(iobuf,&hsdata->event,-1);
+                        }
                      }
                      hsdata->event.teldata[itel].known = 0;
                      hsdata->event.trackdata[itel].raw_known = 0;
@@ -791,7 +964,7 @@ int main (int argc, char **argv)
                Warning(msg);
                exit(1);
             }
-            if ( (iobuf->output_file = f_telaux[itel]) != NULL )
+            if ( (iobuf->output_file = f_telaux2[itel]) != NULL )
                write_io_block(iobuf);
            break;
 
@@ -806,7 +979,7 @@ int main (int argc, char **argv)
                Warning(msg);
                exit(1);
             }
-            if ( (iobuf->output_file = f_telaux[itel]) != NULL )
+            if ( (iobuf->output_file = f_telaux2[itel]) != NULL )
                write_io_block(iobuf);
             break;
 
