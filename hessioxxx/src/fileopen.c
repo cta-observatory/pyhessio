@@ -61,13 +61,15 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    Nov. 2000
- *  @date    @verbatim CVS $Date: 2015/07/15 19:47:47 $ @endverbatim 
- *  @version @verbatim CVS $Revision: 1.20 $ @endverbatim 
+ *  @date    @verbatim CVS $Date: 2016/03/03 11:26:35 $ @endverbatim 
+ *  @version @verbatim CVS $Revision: 1.23 $ @endverbatim 
  */
 
 #include "initial.h"
 #include "straux.h"
 #include "fileopen.h"
+#include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1121,11 +1123,19 @@ int fileclose (FILE *f)
 #endif
    {
       if ( verbose )
+      {
+#ifdef __GLIBC__
          printf("Closing now %s pipe on fileno=%d, mode=%08x\n", input_only ? "input" : "output", fno,st.st_mode);
+#else
+         printf("Closing now pipe on fileno=%d, mode=%08x\n", fno,st.st_mode);
+#endif
+      }
       errno = 0;
+#ifdef __GLIBC__
       /* We should actually do this only for output pipes: */
       if ( ! input_only )
       {
+         /* May result in an error message when applied to input files on non-glibc (Linux) systems. */
          rc = fflush(f); /* Not sure if that helps to make sure the connected program is finished with pclose, but cannot harm. */
          if ( rc != 0 || errno != 0 )
          {
@@ -1135,15 +1145,27 @@ int fileclose (FILE *f)
             errno = 0;
          }
       }
+#endif
       /* fsync(fileno(f)); */ /* If not, perhaps that would help. */
       rc = pclose(f); /* According to documentation, the program should be finished then - but I have my doubts. */
       if ( rc == -1 && errno != 0 )
+      {
+#ifdef __GLIBC__
          perror(input_only ? "Trying to close input stream" : "Trying to close stream"); /* An error as specified in the POSIX etc. standards */
+#else
+         perror("Trying to close stream"); /* An error as specified in the POSIX etc. standards */
+#endif
+      }
       else if ( rc != 0 )
       {
          if ( rc == -1 ) /* errno = 0 ? */
+#ifdef __GLIBC__
             fprintf(stderr,"Trying to close %s stream apparently failed (rc=%d, errno=%d, fileno=%d)\n",
                input_only ? "input" : "output", rc, errno, fno);
+#else
+            fprintf(stderr,"Trying to close stream apparently failed (rc=%d, errno=%d, fileno=%d)\n",
+               rc, errno, fno);
+#endif
          else if ( verbose >= 2 ) /* Non-standard return codes could come from the executed command. */
             printf("Non-standard return code from pclose (rc=%d, errno=%d, fileno=%d)\n",rc,errno,fno);
       }
@@ -1151,7 +1173,13 @@ int fileclose (FILE *f)
    else
    {
       if ( verbose )
+      {
+#ifdef __GLIBC__
          printf("Closing now %s file on fileno=%d, mode=%08x\n", input_only ? "input" : "output", fno, st.st_mode);
+#else
+         printf("Closing now file on fileno=%d, mode=%08x\n", fno, st.st_mode);
+#endif
+      }
       rc = fclose(f);
    }
 

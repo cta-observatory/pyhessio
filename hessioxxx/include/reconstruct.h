@@ -22,6 +22,9 @@ extern "C" {
 #endif
 
 /* reconstruct.c */
+
+int deallocate_nb_list(int itel);
+
 double line_point_distance(double xp1, double yp1, double zp1, double cx, double cy, double cz, double x, double y, double z);
 int reconstruct(AllHessData *hsdata, int reco_flag, 
    const double *min_amp, const size_t *min_pix, const double *tcl, const double *tch, 

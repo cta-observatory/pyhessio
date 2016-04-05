@@ -1119,6 +1119,26 @@ void free_hsdata(void)
 				hsdata->event.teldata[itel].pixcal = NULL;
 			}
 		}
+		if ( hsdata->run_header.target != NULL )
+		{
+			free(hsdata->run_header.target);
+			hsdata->run_header.target = NULL;
+		}
+		if ( hsdata->run_header.observer != NULL )
+		{
+			free(hsdata->run_header.observer);
+			hsdata->run_header.observer = NULL;
+		}
+		int j;
+		for ( j=0; j<H_MAX_PROFILE; j++)
+		{
+			if ( hsdata->mc_shower.profile[j].content != NULL )
+			{
+				free(hsdata->mc_shower.profile[j].content);
+				hsdata->mc_shower.profile[j].content = NULL;
+			}
+		}
+
 		/* Free main structure */
 		free(hsdata);
 		hsdata = NULL;

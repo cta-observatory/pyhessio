@@ -30,8 +30,8 @@
  *
  *  @author  Konrad Bernloehr
  *  @date    1997 to 2010
- *  @date    @verbatim CVS $Date: 2015/04/27 10:10:29 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.26 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/03/08 16:07:50 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.28 $ @endverbatim
  */
 
 /* ================================================================ */
@@ -133,7 +133,7 @@ int print_tel_block (IO_BUFFER *iobuf)
    int idata;
    static int first_event_in_run = 0;
    
-   if ( iobuf == (IO_BUFFER *) NULL || data == NULL )
+   if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
    
    item_header.type = 0;             /* Data type */
@@ -1585,16 +1585,18 @@ int print_camera_layout (IO_BUFFER *iobuf)
  *  @param  tel        telescope number
  *  @param  npe        Total number of photo-electrons in the camera.
  *  @param  pixels     No. of pixels to be written
- *  @param  flags      Bit 0: amplitudes available, bit 1: includes NSB p.e.
+ *  @param  flags      Bit 0: amplitudes available, bit 1: includes NSB p.e., 
+ *                     bit 2: also including no. of photons hitting each pixel.
  *  @param  pe_counts  Numbers of photo-electrons in each pixel
  *  @param  tstart     Offsets in 't' at which data for each pixel starts
  *  @param  t	       Time of arrival of photons at the camera.
  *  @param  a		 Amplitudes of p.e. signals [mean p.e.] (optional, may be NULL).
+ *  @param  photon_counts Optional number of photons arriving at a pixel (with flags bit 2 set)
  *  @return 0 (o.k.), -1, -2, -3 (error, as usual in eventio)
 */
 
 int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, int npe, int flags,
-   int pixels, int *pe_counts, int *tstart, double *t, double *a)
+   int pixels, int *pe_counts, int *tstart, double *t, double *a, int *photon_counts)
 {
    IO_ITEM_HEADER item_header;
    int i, nonempty;
@@ -1614,10 +1616,16 @@ int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, int npe, int fl
    if ( item_header.version > 1 )
       put_short(flags,iobuf);
 
-   if ( npe <= 0 )
-      /* If there are no photo-electrons, all pixels are empty. */
+   if ( npe <= 0 && (flags&4) == 0 )
+   {
+      /* If there are no photo-electrons, and no photons to record, all pixels are empty. */
       put_long(0,iobuf);
-   else
+      return put_item_end(iobuf,&item_header);
+   }
+
+   if ( npe == 0 )
+      put_long(0,iobuf);
+   else if ( tstart != NULL && t != NULL )
    {
       /* Let's first find out how many are non-empty. */
       for (i=nonempty=0; i<pixels; i++)
@@ -1637,6 +1645,26 @@ int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, int npe, int fl
 	 put_vector_of_real(t+tstart[i],pe_counts[i],iobuf);
          if ( item_header.version > 1 && (flags&1) != 0 )
 	    put_vector_of_real(a+tstart[i],pe_counts[i],iobuf);
+      }
+   }
+
+   if ( (flags&4) != 0 && photon_counts != NULL )
+   {
+      /* Let's first find out how many are non-empty. */
+      for (i=nonempty=0; i<pixels; i++)
+      {
+	 if ( photon_counts[i] <= 0 )
+            continue;
+	 nonempty++;
+      }
+      put_long(nonempty,iobuf);
+      for (i=0; i<pixels; i++)
+      {
+	 if ( photon_counts[i] <= 0 )
+            continue;
+         /* FIXME: limiting number of pixels to <= 32767 */
+	 put_short(i,iobuf);
+	 put_long(photon_counts[i],iobuf);
       }
    }
    
@@ -1660,12 +1688,13 @@ int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, int npe, int fl
  *  @param  tstart	 Offsets in 't' at which data for each pixel starts
  *  @param  t		 Time of arrival of photons at the camera.
  *  @param  a		 Amplitudes of p.e. signals [mean p.e.] (optional, may be NULL).
+ *  @param  photon_counts Optional number of photons arriving at a pixel.
  *  @return 0 (o.k.), -1, -2, -3 (error, as usual in eventio)
 */
 
 int read_photo_electrons (IO_BUFFER *iobuf, int max_pixels, int max_pe,
    int *array, int *tel, int *npe, int *pixels, int *flags,
-   int *pe_counts, int *tstart, double *t, double *a)
+   int *pe_counts, int *tstart, double *t, double *a, int *photon_counts)
 {
    IO_ITEM_HEADER item_header;
    int i, it, ipix, rc, nonempty;
@@ -1721,6 +1750,11 @@ int read_photo_electrons (IO_BUFFER *iobuf, int max_pixels, int max_pe,
    }
    for (ipix=0; ipix<*pixels; ipix++)
       pe_counts[ipix] = tstart[ipix] = 0;
+
+   if ( ((*flags)&4) != 0 && photon_counts != NULL )
+      for (ipix=0; ipix<*pixels; ipix++)
+         photon_counts[ipix] = 0;
+
    for (i=it=0; i<nonempty; i++)
    {
       /* FIXME: limiting number of pixels to <= 32767 */
@@ -1758,6 +1792,22 @@ int read_photo_electrons (IO_BUFFER *iobuf, int max_pixels, int max_pe,
       }
       it += pe_counts[ipix];
    }
+   
+   if ( ((*flags)&4) != 0 && photon_counts != NULL )
+   {
+      nonempty = get_long(iobuf); /* Non-empty with photons this time */
+      for (i=it=0; i<nonempty; i++)
+      {
+         ipix = get_short(iobuf);
+         if ( ipix < 0 || ipix >= max_pixels )
+         {
+      	    Warning("Invalid pixel number for photon count");
+	    get_item_end(iobuf,&item_header);
+	    return -5;
+         }
+         photon_counts[ipix] = get_long(iobuf);         
+      }
+   }
 
    return get_item_end(iobuf,&item_header);
 }
@@ -1775,7 +1825,7 @@ int print_photo_electrons (IO_BUFFER *iobuf)
    IO_ITEM_HEADER item_header;
    int i, j, it, ipix, rc, nonempty;
    int array, tel, npe, pixels, flags = 0;
-   int pe_counts, tstart;
+   int pe_counts, tstart, phot_counts;
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
@@ -1827,7 +1877,7 @@ int print_photo_electrons (IO_BUFFER *iobuf)
                printf(", ...");
          }
       }
-      if ( j > 0 )
+      if ( j > 0 && i <= 10 )
          printf("\n");
 
       if ( (flags&1) != 0 )
@@ -1845,10 +1895,26 @@ int print_photo_electrons (IO_BUFFER *iobuf)
                   printf(", ...");
             }
          }
-         if ( j > 0 )
+         if ( j > 0 && i <= 10 )
             printf("\n");
       }
       it += pe_counts;
+   }
+   
+   if ( (flags&4) )
+   {
+      nonempty = get_long(iobuf);
+      printf("   Also including photon counts in %d non-empty pixels:\n", nonempty);
+      for (i=it=0; i<nonempty; i++)
+      {
+         ipix = get_short(iobuf);
+         phot_counts = get_long(iobuf);
+         if ( i < 20 )
+            printf("   Pixel %d: %d photons\n", ipix, phot_counts);
+         else if ( i == 10 )
+            printf("   ...\n");
+      }
+      printf("\n");
    }
 
    return get_item_end(iobuf,&item_header);

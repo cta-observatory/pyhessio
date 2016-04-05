@@ -25,8 +25,8 @@
  *   
  *  @author  Konrad Bernloehr
  *  @date    1991 to 2010
- *  @date    @verbatim CVS $Date: 2014/11/14 15:37:00 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.43 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/03/14 13:34:52 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.47 $ @endverbatim
     
 @verbatim
  ================ General comments to eventio.c ======================
@@ -212,6 +212,17 @@
 #endif
 #ifdef OS_UNIX
 #include <unistd.h>
+#endif
+
+#ifdef __GLIBC__
+# ifdef __GNUC__
+#  if __GNUC_PREREQ (4, 3)
+#   ifndef NO_BYTESWAP
+#    include <byteswap.h>
+#    define HAVE_BYTESWAP 1
+#   endif
+#  endif
+# endif
 #endif
 
 #define IO_BUFFER_MINIMUM_SIZE 32L
@@ -834,6 +845,7 @@ uintmax_t get_count (IO_BUFFER *iobuf)
 
 uint32_t get_count32 (IO_BUFFER *iobuf)
 {
+#if 1
    uint32_t v[9];
    
    v[0] = get_byte(iobuf);
@@ -869,6 +881,64 @@ uint32_t get_count32 (IO_BUFFER *iobuf)
       return 0;
    v[8] = get_byte(iobuf);
    return 0;
+#else
+   /* This was supposed to be optimized but is actually slower */
+   uint32_t val;
+   uint32_t v[5];
+   int dr = 1;
+   v[0] = iobuf->data[0];
+   if ( (v[0] & 0x80) == 0 )
+      val = v[0];
+   else if ( (v[0] & 0xc0) == 0x80 ) /* Two-byte count (14 bits: 0 to 16383) */
+   {
+      v[1] = iobuf->data[1];
+      val = ((v[0]&0x3f) << 8) | v[1];
+      dr = 2;
+   }
+   else if ( (v[0] & 0xe0) == 0xc0 ) /* Three-byte count (21 bits: 0 to 2097151) */
+   {
+      v[1] = iobuf->data[1];
+      v[2] = iobuf->data[2];
+      val = ((v[0]&0x1f) << 16) | (v[1] << 8) | v[2];
+      dr = 3;
+   }
+   else if ( (v[0] & 0xf0) == 0xe0 ) /* Four-byte count (28 bits: 0 to 268435455) */
+   {
+      v[1] = iobuf->data[1];
+      v[2] = iobuf->data[2];
+      v[3] = iobuf->data[3];
+      val = ((v[0]&0x0f) << 24) | (v[1] << 16) | (v[2] << 8) | v[3];
+      dr = 4;
+   }
+   else if ( (v[0] & 0xf8) == 0xf0 ) /* Five-byte count (35 bits: 0 to 34359738367) */
+   {
+      v[1] = iobuf->data[1];
+      v[2] = iobuf->data[2];
+      v[3] = iobuf->data[3];
+      v[4] = iobuf->data[4];
+      /* The format would allow bits 32 and 33 being set but we ignore this here. */
+      if ( (v[0]&0x07) != 0 )
+         Warning("Excess bits in count32 ignored");
+      val = (v[1] << 24) | (v[2] << 16) | (v[3] << 8) | v[4];
+      dr = 5;
+   }
+   else
+   {
+      Warning("Invalid count32 data.");
+      val = 0;
+      if ( (v[0] & 0xfc) == 0xf8 )
+         dr = 6;
+      else if ( (v[0] & 0xfe) == 0xfc )
+         dr = 7;
+      else if ( (v[0] & 0xff) == 0xfe )
+         dr = 8;
+      else
+         dr = 9;
+   }
+   iobuf->data += dr;
+   iobuf->r_remaining-=dr;
+   return val;
+#endif
 }
 
 /* -------------------------- get_count16 ------------------------ */
@@ -1028,11 +1098,68 @@ intmax_t get_scount (IO_BUFFER *iobuf)
 
 int16_t get_scount16 (IO_BUFFER *iobuf)
 {
+#if 0
    uint16_t u = get_count16(iobuf);
    if ( (u&1) == 1 ) // Negative number;
       return -((int16_t)(u>>1)) - (int16_t)1;
    else
       return (int16_t) (u>>1);
+#else
+   /* This one is actually faster than the generic version above, in contrast to get_scount32 */
+   BYTE v0, v1, v2;
+
+   v0 = *(iobuf->data);
+   if ( (v0 & 0x80) == 0 ) /* One-byte count (-64 to +63) */
+   {
+      iobuf->data++;
+      iobuf->r_remaining--;
+      if ( (v0 & 0x01) == 0 ) /* positive */
+         return (v0>>1);
+      else                    /* negative */
+         return -(int16_t)((v0>>1) + 1);
+   }
+   else if ( (v0 & 0xc0) == 0x80 ) /* Two-byte count (-8192 to +8191) */
+   {
+      v1 = iobuf->data[1];
+      iobuf->data+=2;
+      iobuf->r_remaining-=2;
+      if ( (v1 & 0x01) == 0 ) /* positive */
+         return (((int16_t) (v0&0x3f)) << 7) | (int16_t) (v1>>1);
+      else                    /* negative */
+         return -(((((int16_t) (v0&0x3f)) << 7) | (int16_t) (v1>>1)) + (int16_t) 1);
+   }
+   else if ( (v0 & 0xe0) == 0xc0 ) /* Three-byte count (-1048576 to +1048575) */
+   {
+      v1 = iobuf->data[1];
+      v2 = iobuf->data[2];
+      iobuf->data+=3;
+      iobuf->r_remaining-=3;
+      if ( (v2 & 0x01) == 0 ) /* positive */
+         return (((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1);
+      else                    /* negative */
+         return -(((((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1)) + 1);
+   }
+   else
+   {
+      int dr = 3;
+      Warning("Invalid scount16 data.");
+      if ( (v0 & 0xf0) == 0xe0 )
+         dr = 4;
+      else if ( (v0 & 0xf8) == 0xf0 )
+         dr = 5;
+      else if ( (v0 & 0xfc) == 0xf8 )
+         dr = 6;
+      else if ( (v0 & 0xfe) == 0xfc )
+         dr = 7;
+      else if ( (v0 & 0xff) == 0xfe )
+         dr = 8;
+      else
+         dr = 9;
+      iobuf->data += dr;
+      iobuf->r_remaining-=dr;
+      return 0;
+   }
+#endif
 }
 
 /* -------------------------- get_scount32 ------------------------ */
@@ -1043,11 +1170,92 @@ int16_t get_scount16 (IO_BUFFER *iobuf)
 
 int32_t get_scount32 (IO_BUFFER *iobuf)
 {
+#if 1
    uint32_t u = get_count32(iobuf);
    if ( (u&1) == 1 ) // Negative number;
       return -((int32_t)(u>>1)) - (int32_t)1;
    else
       return (int32_t) (u>>1);
+#else
+   /* This was supposed to be optimized but is actually slower. Not sure why. Perhaps reconsider later. */
+   BYTE v0, v1, v2, v3, v4;
+
+   v0 = *(iobuf->data);
+   if ( (v0 & 0x80) == 0 ) /* One-byte count (6 bits + sign: -64 to +63) */
+   {
+      iobuf->data++;
+      iobuf->r_remaining--;
+      if ( (v0 & 0x01) == 0 ) /* positive */
+         return (v0>>1);
+      else                    /* negative */
+         return -(int32_t)((v0>>1) + 1);
+   }
+   else if ( (v0 & 0xc0) == 0x80 ) /* Two-byte count (13+: -8192 to +8191) */
+   {
+      v1 = iobuf->data[1];
+      iobuf->data+=2;
+      iobuf->r_remaining-=2;
+      if ( (v1 & 0x01) == 0 ) /* positive */
+         return (((int32_t) (v0&0x3f)) << 7) | (int32_t) (v1>>1);
+      else                    /* negative */
+         return -(((((int32_t) (v0&0x3f)) << 7) | (int32_t) (v1>>1)) + 1);
+   }
+   else if ( (v0 & 0xe0) == 0xc0 ) /* Three-byte count (20+: -1048576 to +1048575) */
+   {
+      v1 = iobuf->data[1];
+      v2 = iobuf->data[2];
+      iobuf->data+=3;
+      iobuf->r_remaining-=3;
+      if ( (v2 & 0x01) == 0 ) /* positive */
+         return (((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1);
+      else                    /* negative */
+         return -(((((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1)) + 1);
+   }
+   else if ( (v0 & 0xf0) == 0xe0 ) /* Four-byte count (27+: -134217728 to +134217727) */
+   {
+      v1 = iobuf->data[1];
+      v2 = iobuf->data[2];
+      v3 = iobuf->data[3];
+      iobuf->data+=4;
+      iobuf->r_remaining-=4;
+      if ( (v3 & 0x01) == 0 ) /* positive */
+         return (((int32_t) (v0&0x0f)) << 23) | (((int32_t) v1) << 15) | (((int32_t) v2) << 7) | (int32_t) (v3>>1);
+      else                    /* negative */
+        return -(((((int32_t) (v0&0x0f)) << 23) | (((int32_t) v1) << 15) | (((int32_t) v2) << 7) | (int32_t) (v3>>1)) + 1);
+   }
+   else if ( (v0 & 0xf8) == 0xf0 ) /* Five-byte count (34+: -17179869184 to +17179869183) */
+   {
+      v1 = iobuf->data[1];
+      v2 = iobuf->data[2];
+      v3 = iobuf->data[3];
+      v4 = iobuf->data[4];
+      iobuf->data+=5;
+      iobuf->r_remaining-=5;
+      /* The format would allow bits 32 and 33 being set but we ignore this here. */
+      if ( (v4 & 0x01) == 0 ) /* positive */
+         return (((int64_t) (v0&0x07)) << 31) | (((int32_t) v1) << 23) | 
+                (((int32_t) v2) <<15) | (((int32_t) v3) << 7) | (int32_t) (v4>>1);
+      else                    /* negative */
+         return -(((((int64_t) (v0&0x07)) << 31) | (((int32_t) v1) << 23) | 
+                (((int32_t) v2) <<15) | (((int32_t) v3) << 7) | (int32_t) (v4>>1)) + 1);
+   }
+   else
+   {
+      int dr = 5;
+      Warning("Invalid scount32 data.");
+      if ( (v0 & 0xfc) == 0xf8 )
+         dr = 6;
+      else if ( (v0 & 0xfe) == 0xfc )
+         dr = 7;
+      else if ( (v0 & 0xff) == 0xfe )
+         dr = 8;
+      else
+         dr = 9;
+      iobuf->data += dr;
+      iobuf->r_remaining-=dr;
+      return 0;
+   }
+#endif
 }
 
 /* ---------------- put_vector_of_int_scount ------------------- */
@@ -1055,6 +1263,7 @@ int32_t get_scount32 (IO_BUFFER *iobuf)
  *  @short Put an array of ints as scount32 data into an I/O buffer.
  *
  */
+
 void put_vector_of_int_scount (const int *vec, int num, IO_BUFFER *iobuf)
 {
    int i;
@@ -1067,12 +1276,286 @@ void put_vector_of_int_scount (const int *vec, int num, IO_BUFFER *iobuf)
  *  @short Get an array of ints as scount32 data from an I/O buffer.
  *
  */
+
 void get_vector_of_int_scount (int *vec, int num, IO_BUFFER *iobuf)
 {
    int i;
    for (i=0; i<num; i++)
       vec[i] = get_scount32(iobuf);
 }
+
+/* ----------- put_vector_of_uint16_scount_differential -------- */
+/**
+ *  @short Put an array of uint16_t as differential scount data into an I/O buffer.
+ *
+ */
+
+void put_vector_of_uint16_scount_differential (uint16_t *vec, int num, IO_BUFFER *iobuf)
+{
+#if 1
+   /* Generic version, via put_scount32, put_count32, put_byte: identical to put_adcsample_differential */
+   int i;
+   int32_t val;
+   if ( vec == NULL ||num <= 0 )
+      return;
+   put_scount32(val = (int32_t) vec[0],iobuf);
+   for ( i=1; i<num; i++ )
+   {
+      /* Largest possible changes are within +- 65535. Thus int32_t is the safe choice here. */
+      put_scount32((int32_t) vec[i] - val,iobuf);
+      val = (int32_t) vec[i];
+   }
+#else
+   int i;
+   uint32_t u = ((uint32_t) vec[0]) << 1;
+   int32_t p = vec[0], n;
+   /* First element is >= 0, no test needed */
+   put_count32(u,iobuf);
+   for ( i=1; i<num; i++ )
+   {
+      n = (int32_t) vec[i] - p;
+      p = (int32_t) vec[i];
+      if ( n < 0 )
+         u = (uint32_t) (((int32_t)(-(n+1)))<<1) | 1;
+      else
+         u = ((uint32_t)n) << 1;
+      put_count(u,iobuf);
+   }
+#endif
+}
+
+/* ----------- get_vector_of_uint16_scount_differential -------- */
+/**
+ *  @short Get an array of uint16_t as differential scount data from an I/O buffer.
+ *
+ *  For optimization reasons it is assumed that the data has been written
+ *  in a consistent way and is complete. Only minimal tests for remaining data
+ *  in the buffer are made - while the slower generic version would check for
+ *  each extracted number.
+ *
+ */
+
+void get_vector_of_uint16_scount_differential (uint16_t *vec, int num, IO_BUFFER *iobuf)
+{
+#if 0
+   /* Generic version, via get_scount32, get_count32, get_byte: identical to get_adcsample_differential */
+   int i;
+   int32_t val = 0;
+   for ( i=0; i<num; i++ )
+   {
+      /* Largest possible changes are within +- 65535. */
+      val += get_scount32(iobuf);
+      vec[i] = (uint16_t) val;
+   }
+#else
+   /* Do everything directly in a more optimized way */
+   int i;
+   int32_t val = 0;
+   BYTE v0, v1, v2;
+   BYTE *data0 = iobuf->data;
+   for ( i=0; i<num; i++ )
+   {
+      v0 = *(iobuf->data);
+      if ( (v0 & 0x80) == 0 ) /* One-byte count (-64 to +63) */
+      {
+         if ( (v0 & 0x01) == 0 ) /* positive */
+            val += (v0>>1);
+         else                    /* negative */
+            val -= (v0>>1) + 1;
+         iobuf->data++;
+      }
+      else if ( (v0 & 0xc0) == 0x80 ) /* Two-byte count (-8192 to +8191) */
+      {
+         v1 = iobuf->data[1];
+         if ( (v1 & 0x01) == 0 ) /* positive */
+            /* Tried '+' and '|' here but no difference seen in performance. */
+            /* Whether using int16_t or int32_t for the intermediate does not make a difference either. */
+            val += (((int16_t) (v0&0x3f)) << 7) | (int16_t) (v1>>1);
+         else                    /* negative */
+            val -= ((((int16_t) (v0&0x3f)) << 7) | (int16_t) (v1>>1)) + (int16_t) 1;
+         iobuf->data        += 2;
+      }
+      else if ( (v0 & 0xe0) == 0xc0 ) /* Three-byte count (-1048576 to +1048575) */
+      {
+         v1 = iobuf->data[1];
+         v2 = iobuf->data[2];
+         if ( (v2 & 0x01) == 0 ) /* positive */
+            val += (((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1);
+         else                    /* negative */
+            val -= ((((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1)) + 1;
+         iobuf->data        += 3;
+      }
+      else
+      {
+         int dr = 3;
+         Warning("Invalid uint16_scount_differential data.");
+         val = 0;
+         if ( (v0 & 0xf0) == 0xe0 )
+            dr = 4;
+         else if ( (v0 & 0xf8) == 0xf0 )
+            dr = 5;
+         else if ( (v0 & 0xfc) == 0xf8 )
+            dr = 6;
+         else if ( (v0 & 0xfe) == 0xfc )
+            dr = 7;
+         else if ( (v0 & 0xff) == 0xfe )
+            dr = 8;
+         else
+            dr = 9;
+         iobuf->data += dr;
+      }
+      vec[i] = (uint16_t) val;
+#ifdef BUG_CHECK
+      if ( iobuf->r_remaining <= (iobuf->data - data0)
+      {
+         Warning("I/O buffer reading exhausted");
+         break;
+      }
+#endif
+   }
+   iobuf->r_remaining -= (iobuf->data - data0);
+#endif
+}
+
+
+/* ----------- put_vector_of_uint16_scount_differential -------- */
+/**
+ *  @short Put an array of uint16_t as differential scount data into an I/O buffer.
+ *
+ */
+
+void put_vector_of_uint32_scount_differential (uint32_t *vec, int num, IO_BUFFER *iobuf)
+{
+#if 1
+   /* Generic version, via put_scount32, put_count32, put_byte: identical to put_adcsample_differential */
+   int i;
+   int32_t val;
+   if ( vec == NULL ||num <= 0 )
+      return;
+   put_scount32(val = (int32_t) vec[0],iobuf);
+   for ( i=1; i<num; i++ )
+   {
+      /* Largest possible changes are within +- 65535. Thus int32_t is the safe choice here. */
+      put_scount32((int32_t) vec[i] - val,iobuf);
+      val = (int32_t) vec[i];
+   }
+#else
+#endif
+}
+
+/* ----------- get_vector_of_uint32_scount_differential -------- */
+/**
+ *  @short Get an array of uint32_t as differential scount data from an I/O buffer.
+ *
+ *  For optimization reasons it is assumed that the data has been written
+ *  in a consistent way and is complete. Only minimal tests for remaining data
+ *  in the buffer are made - while the slower generic version would check for
+ *  each extracted number.
+ *
+ */
+
+void get_vector_of_uint32_scount_differential (uint32_t *vec, int num, IO_BUFFER *iobuf)
+{
+#if 0
+   /* Generic version, via get_scount32, get_count32, get_byte: identical to get_adcsample_differential */
+   int i;
+   int32_t val = 0;
+   for ( i=0; i<num; i++ )
+   {
+      /* Assume that largest possible changes are within -2^31 to 2^31-1. */
+      val += get_scount32(iobuf);
+      vec[i] = (uint32_t) val;
+   }
+#else
+   /* Do everything directly in a more optimized way */
+   int i;
+   int32_t val = 0;
+   BYTE v0, v1, v2, v3, v4;
+   BYTE *data0 = iobuf->data;
+   for ( i=0; i<num; i++ )
+   {
+      v0 = *(iobuf->data);
+      if ( (v0 & 0x80) == 0 ) /* One-byte count (6 bits + sign: -64 to +63) */
+      {
+         if ( (v0 & 0x01) == 0 ) /* positive */
+            val += (v0>>1);
+         else                    /* negative */
+            val -= (v0>>1) + 1;
+         iobuf->data++;
+      }
+      else if ( (v0 & 0xc0) == 0x80 ) /* Two-byte count (13+: -8192 to +8191) */
+      {
+         v1 = iobuf->data[1];
+         if ( (v1 & 0x01) == 0 ) /* positive */
+            val += (((int32_t) (v0&0x3f)) << 7) | (int32_t) (v1>>1);
+         else                    /* negative */
+            val -= ((((int32_t) (v0&0x3f)) << 7) | (int32_t) (v1>>1)) + 1;
+         iobuf->data += 2;
+      }
+      else if ( (v0 & 0xe0) == 0xc0 ) /* Three-byte count (20+: -1048576 to +1048575) */
+      {
+         v1 = iobuf->data[1];
+         v2 = iobuf->data[2];
+         if ( (v2 & 0x01) == 0 ) /* positive */
+            val += (((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1);
+         else                    /* negative */
+            val -= ((((int32_t) (v0&0x1f)) << 15) | (((int32_t) v1) << 7) | (int32_t) (v2>>1)) + 1;
+         iobuf->data += 3;
+      }
+      else if ( (v0 & 0xf0) == 0xe0 ) /* Four-byte count (27+: -134217728 to +134217727) */
+      {
+         v1 = iobuf->data[1];
+         v2 = iobuf->data[2];
+         v3 = iobuf->data[3];
+         if ( (v3 & 0x01) == 0 ) /* positive */
+            val += (((int32_t) (v0&0x0f)) << 23) | (((int32_t) v1) << 15) | (((int32_t) v2) << 7) | (int32_t) (v3>>1);
+         else                    /* negative */
+            val -= ((((int32_t) (v0&0x0f)) << 23) | (((int32_t) v1) << 15) | (((int32_t) v2) << 7) | (int32_t) (v3>>1)) + 1;
+         iobuf->data += 4;
+      }
+      else if ( (v0 & 0xf8) == 0xf0 ) /* Five-byte count (34+: -17179869184 to +17179869183) */
+      {
+         v1 = iobuf->data[1];
+         v2 = iobuf->data[2];
+         v3 = iobuf->data[3];
+         v4 = iobuf->data[4];
+         /* The format would allow bits 32 and 33 being set but we ignore this here. */
+         if ( (v4 & 0x01) == 0 ) /* positive */
+            val += (((int64_t) (v0&0x07)) << 31) | (((int32_t) v1) << 23) | 
+                   (((int32_t) v2) <<15) | (((int32_t) v3) << 7) | (int32_t) (v4>>1);
+         else                    /* negative */
+            val -= ((((int64_t) (v0&0x07)) << 31) | (((int32_t) v1) << 23) | 
+                   (((int32_t) v2) <<15) | (((int32_t) v3) << 7) | (int32_t) (v4>>1)) + 1;
+         iobuf->data += 5;
+      }
+      else
+      {
+         int dr = 3;
+         Warning("Invalid uint32_scount_differential data.");
+         val = 0;
+         if ( (v0 & 0xfc) == 0xf8 )
+            dr = 6;
+         else if ( (v0 & 0xfe) == 0xfc )
+            dr = 7;
+         else if ( (v0 & 0xff) == 0xfe )
+            dr = 8;
+         else
+            dr = 9;
+         iobuf->data += dr;
+      }
+      vec[i] = (uint32_t) val;
+#ifdef BUG_CHECK
+      if ( iobuf->r_remaining <= (iobuf->data - data0)
+      {
+         Warning("I/O buffer reading exhausted");
+         break;
+      }
+#endif
+   }
+   iobuf->r_remaining -= (iobuf->data - data0);
+#endif
+}
+
 
 /* -------------------------- put_short ------------------------ */
 /**
@@ -1231,6 +1714,7 @@ void put_vector_of_uint16 (const uint16_t *uval, int num, IO_BUFFER *iobuf)
 void get_vector_of_uint16 (uint16_t *uval, int num, IO_BUFFER *iobuf)
 {
    int i;
+#if 0
    union
    {
       uint16_t uval;
@@ -1256,6 +1740,24 @@ void get_vector_of_uint16 (uint16_t *uval, int num, IO_BUFFER *iobuf)
 
       iobuf->data += 2;
    }
+#else
+   if ( iobuf->r_remaining < 2*num )
+   {
+      for (i=0; i<num; i++)
+         uval[i] = 0;
+      iobuf->data += iobuf->r_remaining;
+      iobuf->r_remaining -= 2*num;
+      return;
+   }
+
+   if ( iobuf->byte_order == 0)
+      COPY_BYTES((void *)uval, (void *)iobuf->data, (size_t)(2*num));
+   else
+      COPY_BYTES_SWAB((void *)uval, (void *)iobuf->data, (size_t)(2*num));
+
+   iobuf->r_remaining -= (2*num);
+   iobuf->data += 2*num;
+#endif
 
 #ifdef BUG_CHECK
    bug_check(iobuf);
@@ -1294,11 +1796,13 @@ int get_short(IO_BUFFER *iobuf)
 
    int16_t num;
 
+#if 0
    union
    {
       int16_t sval;
       BYTE cval[2];
    } val[2];
+#endif
 
    if ( (iobuf->r_remaining-=2) < 0 )
       return -1;
@@ -1307,10 +1811,14 @@ int get_short(IO_BUFFER *iobuf)
       COPY_BYTES((void *) &num,(void *) iobuf->data,(size_t)2);
    else
    {
+#if 0
       COPY_BYTES((void *)&val[0].sval,(void *)iobuf->data,(size_t)2);
       val[1].cval[0] = val[0].cval[1];
       val[1].cval[1] = val[0].cval[0];
       num = val[1].sval;
+#else
+      COPY_BYTES_SWAB((void *) &num,(void *) iobuf->data,(size_t)2);
+#endif
    }
 
    iobuf->data += 2;
@@ -1339,8 +1847,25 @@ void get_vector_of_short (short *vec, int num, IO_BUFFER *iobuf)
       return;
    }
 
+#if 0
    for (i=0; i<num; i++)
       vec[i] = (short) get_short(iobuf);
+#else
+   /* If we run beyond read buffer, read as many as possible: */
+   if ( iobuf->r_remaining < 2*num )
+   {
+      for (i=0; i<num; i++)
+         vec[i] = (short) get_short(iobuf);
+      return;
+   }
+   if ( iobuf->byte_order == 0 )
+      COPY_BYTES((void *) vec,(void *) iobuf->data,(size_t)(2*num));
+   else
+      COPY_BYTES_SWAB((void *) vec,(void *) iobuf->data,(size_t)(2*num));
+      
+   iobuf->r_remaining -= (2*num);
+   iobuf->data += 2*num;
+#endif
 
 #ifdef BUG_CHECK
    bug_check(iobuf);
@@ -1399,11 +1924,16 @@ void put_int32(int32_t num, IO_BUFFER *iobuf)
    }
    else
    {
+#ifndef HAVE_BYTESWAP
       val[0].lval = (int32_t) num;
       val[1].cval[0] = val[0].cval[3];
       val[1].cval[1] = val[0].cval[2];
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
+#else
+//      val[1].lval = bswap_32(num);
+      val[1].lval = __builtin_bswap32(num);
+#endif
       COPY_BYTES((void *)iobuf->data,(void *)&val[1].lval,(size_t)4);
    }
 
@@ -1457,11 +1987,16 @@ int32_t get_int32(IO_BUFFER *iobuf)
    else
    {
       COPY_BYTES((void *)&val[0].lval,(void *)iobuf->data,(size_t)4);
+#ifndef HAVE_BYTESWAP
       val[1].cval[0] = val[0].cval[3];
       val[1].cval[1] = val[0].cval[2];
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
       num = val[1].lval;
+#else
+//      num = bswap_32(val[0].lval);
+      num = __builtin_bswap32(val[0].lval);
+#endif
    }
 
    iobuf->data += 4;
@@ -1510,11 +2045,16 @@ void get_vector_of_int32 (int32_t *vec, int num, IO_BUFFER *iobuf)
       for ( i=0; i<num; i++ )
       {
          COPY_BYTES((void *)&val[0].lval,(void *)iobuf->data,(size_t)4);
+#ifndef HAVE_BYTESWAP
          val[1].cval[0] = val[0].cval[3];
          val[1].cval[1] = val[0].cval[2];
          val[1].cval[2] = val[0].cval[1];
          val[1].cval[3] = val[0].cval[0];
          vec[i] = val[1].lval;
+#else
+//         vec[i] = bswap_32(val[0].lval);
+         vec[i] = __builtin_bswap32(val[0].lval);
+#endif
          iobuf->data += 4;
       }
    }
@@ -1552,11 +2092,16 @@ void put_uint32(uint32_t num, IO_BUFFER *iobuf)
    }
    else
    {
+#ifndef HAVE_BYTESWAP
       val[0].lval = (uint32_t) num;
       val[1].cval[0] = val[0].cval[3];
       val[1].cval[1] = val[0].cval[2];
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
+#else
+//      val[1].lval = bswap_32(num);
+      val[1].lval = __builtin_bswap32(num);
+#endif
       COPY_BYTES((void *)iobuf->data,(void *)&val[1].lval,(size_t)4);
    }
 
@@ -1611,11 +2156,16 @@ uint32_t get_uint32(IO_BUFFER *iobuf)
    else
    {
       COPY_BYTES((void *)&val[0].lval,(void *)iobuf->data,(size_t)4);
+#ifndef HAVE_BYTESWAP
       val[1].cval[0] = val[0].cval[3];
       val[1].cval[1] = val[0].cval[2];
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
       num = val[1].lval;
+#else
+//      num = bswap_32(val[0].lval);
+      num = __builtin_bswap32(val[0].lval);
+#endif
    }
 
    iobuf->data += 4;
@@ -1664,11 +2214,16 @@ void get_vector_of_uint32 (uint32_t *vec, int num, IO_BUFFER *iobuf)
       for ( i=0; i<num; i++ )
       {
          COPY_BYTES((void *)&val[0].lval,(void *)iobuf->data,(size_t)4);
+#ifndef HAVE_BYTESWAP
          val[1].cval[0] = val[0].cval[3];
          val[1].cval[1] = val[0].cval[2];
          val[1].cval[2] = val[0].cval[1];
          val[1].cval[3] = val[0].cval[0];
          vec[i] = val[1].lval;
+#else
+//         vec[i] = bswap_32(val[0].lval);
+         vec[i] = __builtin_bswap32(val[0].lval);
+#endif
          iobuf->data += 4;
       }
    }
@@ -1706,11 +2261,16 @@ void put_long(long num, IO_BUFFER *iobuf)
    }
    else
    {
+#ifndef HAVE_BYTESWAP
       val[0].lval = (int32_t) num;
       val[1].cval[0] = val[0].cval[3];
       val[1].cval[1] = val[0].cval[2];
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
+#else
+//      val[1].lval = bswap_32(num);
+      val[1].lval = __builtin_bswap32(num);
+#endif
       COPY_BYTES((void *)iobuf->data,(void *)&val[1].lval,(size_t)4);
    }
 
@@ -1764,11 +2324,16 @@ long get_long(IO_BUFFER *iobuf)
    else
    {
       COPY_BYTES((void *)&val[0].lval,(void *)iobuf->data,(size_t)4);
+#ifndef HAVE_BYTESWAP
       val[1].cval[0] = val[0].cval[3];
       val[1].cval[1] = val[0].cval[2];
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
       num = val[1].lval;
+#else
+//      num = bswap_32(val[0].lval);
+      num = __builtin_bswap32(val[0].lval);
+#endif
    }
 
    iobuf->data += 4;
@@ -1828,12 +2393,17 @@ void get_vector_of_long (long *vec, int num, IO_BUFFER *iobuf)
       for ( i=0; i<num; i++ )
       {
          COPY_BYTES((void *)&val[0].lval,(void *)iobuf->data,(size_t)4);
+#ifndef HAVE_BYTESWAP
          val[1].cval[0] = val[0].cval[3];
          val[1].cval[1] = val[0].cval[2];
          val[1].cval[2] = val[0].cval[1];
          val[1].cval[3] = val[0].cval[0];
          /* Note the possible sign propagation on 64-bit machines */
          vec[i] = (long) val[1].lval;
+#else
+//         vec[i] = (long) bswap_32(val[0].lval);
+         vec[i] = (long) __builtin_bswap32(val[0].lval);
+#endif
          iobuf->data += 4;
       }
    }
@@ -1881,6 +2451,7 @@ void put_vector_of_int64 (const int64_t *ival, int num, IO_BUFFER *iobuf)
       }
       else
       {
+#ifndef HAVE_BYTESWAP
 	 val[0].ival = ival[i];
 	 val[1].cval[0] = val[0].cval[7];
 	 val[1].cval[1] = val[0].cval[6];
@@ -1890,6 +2461,10 @@ void put_vector_of_int64 (const int64_t *ival, int num, IO_BUFFER *iobuf)
 	 val[1].cval[5] = val[0].cval[2];
 	 val[1].cval[6] = val[0].cval[1];
 	 val[1].cval[7] = val[0].cval[0];
+#else
+//         val[1].ival = bswap_64(ival[i]);
+         val[1].ival = __builtin_bswap64(ival[i]);
+#endif
          COPY_BYTES((void *)iobuf->data,(const void *)&val[1].ival,(size_t)8);
       }
 
@@ -1932,6 +2507,7 @@ void get_vector_of_int64 (int64_t *ival, int num, IO_BUFFER *iobuf)
       else
       {
          COPY_BYTES((void *)&val[0].ival,(void *)iobuf->data,(size_t)8);
+#ifndef HAVE_BYTESWAP
 	 val[1].cval[0] = val[0].cval[7];
 	 val[1].cval[1] = val[0].cval[6];
 	 val[1].cval[2] = val[0].cval[5];
@@ -1941,6 +2517,10 @@ void get_vector_of_int64 (int64_t *ival, int num, IO_BUFFER *iobuf)
 	 val[1].cval[6] = val[0].cval[1];
 	 val[1].cval[7] = val[0].cval[0];
 	 ival[i] = val[1].ival;
+#else
+//         ival[i] = bswap_64(val[0].ival);
+         ival[i] = __builtin_bswap64(val[0].ival);
+#endif
       }
 
       iobuf->data += 8;
@@ -1986,6 +2566,7 @@ void put_vector_of_uint64 (const uint64_t *uval, int num, IO_BUFFER *iobuf)
       }
       else
       {
+#ifndef HAVE_BYTESWAP
 	 val[0].uval = uval[i];
 	 val[1].cval[0] = val[0].cval[7];
 	 val[1].cval[1] = val[0].cval[6];
@@ -1995,6 +2576,10 @@ void put_vector_of_uint64 (const uint64_t *uval, int num, IO_BUFFER *iobuf)
 	 val[1].cval[5] = val[0].cval[2];
 	 val[1].cval[6] = val[0].cval[1];
 	 val[1].cval[7] = val[0].cval[0];
+#else
+//         val[1].uval = bswap_64(uval[i]);
+         val[1].uval = __builtin_bswap64(uval[i]);
+#endif
          COPY_BYTES((void *)iobuf->data,(const void *)&val[1].uval,(size_t)8);
       }
 
@@ -2037,6 +2622,7 @@ void get_vector_of_uint64 (uint64_t *uval, int num, IO_BUFFER *iobuf)
       else
       {
          COPY_BYTES((void *)&val[0].uval,(void *)iobuf->data,(size_t)8);
+#ifndef HAVE_BYTESWAP
 	 val[1].cval[0] = val[0].cval[7];
 	 val[1].cval[1] = val[0].cval[6];
 	 val[1].cval[2] = val[0].cval[5];
@@ -2046,6 +2632,10 @@ void get_vector_of_uint64 (uint64_t *uval, int num, IO_BUFFER *iobuf)
 	 val[1].cval[6] = val[0].cval[1];
 	 val[1].cval[7] = val[0].cval[0];
 	 uval[i] = val[1].uval;
+#else
+//         uval[i] = bswap_64(val[0].uval);
+         uval[i] = __builtin_bswap64(val[0].uval);
+#endif
       }
 
       iobuf->data += 8;

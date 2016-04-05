@@ -30,8 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *  @author  Konrad Bernloehr 
  *  @date    initial version: August 2006
- *  @date    @verbatim CVS $Date: 2015/04/30 09:47:11 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.70 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2015/12/15 13:07:22 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.72 $ @endverbatim
  */
 
 #include <limits.h>
@@ -203,7 +203,10 @@ void user_set_lookup_file (const char *fname)
    if ( fname != NULL && strlen(fname) < sizeof(user_lookup_fname) )
       strncpy(user_lookup_fname,fname,sizeof(user_lookup_fname)-1);
    else
+   {
+      fflush(stdout);
       fprintf(stderr,"Invalid lookup file name\n");
+   }
 }
 
 /**
@@ -215,7 +218,10 @@ void user_set_histogram_file (const char *fname)
    if ( fname != NULL && strlen(fname) < sizeof(hist_fname) )
       strncpy(hist_fname,fname,sizeof(hist_fname)-1);
    else
+   {
+      fflush(stdout);
       fprintf(stderr,"Invalid histogram file name\n");
+   }
 }
 
 /**
@@ -257,6 +263,7 @@ int user_set_tel_type_param_by_str(const char *str)
    }
    if ( word[0][0] == '\0' )
    {
+      fflush(stdout);
       fprintf(stderr,"Bad telescope type parameters.\n");
       return -1;
    }
@@ -270,6 +277,7 @@ int user_set_tel_type_param_by_str(const char *str)
    }
    if ( itype < 1 || itype > MAX_TEL_TYPES )
    {
+      fflush(stdout);
       fprintf(stderr,"Telescope type out of range.\n");
       return -1;
    }
@@ -1577,6 +1585,938 @@ void set_ebias_correction (HISTOGRAM *h)
    }
 }
 
+static void init_telescope_types (AllHessData *hsdata);
+static int tel_types_change = 0;
+static int stat_type[MAX_TEL_TYPES+2];
+
+/* --------------- init_telescope_types ----------------- */
+/**
+ *  @short Initialize what of type each telescope is. In normal 
+ *         simulation data this is only needed once but in complex
+ *         merged (via merge_simtel) data the necessary info may not be
+ *         available for all of them when types for the first of
+ *         them is needed.
+ */
+
+static void init_telescope_types (AllHessData *hsdata)
+{
+   int itel, tel_type, num_types = 0;
+   int nas = 0;
+   
+   printf("\nInitialize (or re-initialize) available telescope types.\n");
+
+   for ( itel=0; itel<hsdata->run_header.ntel; itel++ )
+   {
+      if ( hsdata->camera_set[itel].num_mirrors > 0 )
+      {
+         if ( telescope_type[itel] == 0 ) /* Report just once */
+         {
+            telescope_type[itel] = which_telescope_type(&hsdata->camera_set[itel]);
+            if ( verbosity >= 0 )
+             printf("CT%d of type %d at (%3.1f, %3.1f, %3.1f) m has %3.1f m^2 in %d mirrors (f=%3.1f m).\n",
+              hsdata->run_header.tel_id[itel], 
+              telescope_type[itel],
+              hsdata->run_header.tel_pos[itel][0],
+              hsdata->run_header.tel_pos[itel][1],
+              hsdata->run_header.tel_pos[itel][2],
+              hsdata->camera_set[itel].mirror_area,
+              hsdata->camera_set[itel].num_mirrors,
+              hsdata->camera_set[itel].flen);
+            store_camera_radius(&hsdata->camera_set[itel],itel);
+         }
+         else if ( tel_types_change )
+            telescope_type[itel] = which_telescope_type(&hsdata->camera_set[itel]);
+      }
+      else /* May report more than once in complex merged data, until info available. */
+      {
+         if ( verbosity >= 0 )
+          printf("CT%d at (%3.1f, %3.1f, %3.1f) m with %3.1f m^2 mirror area not seen active (yet).\n",
+            hsdata->run_header.tel_id[itel], 
+            hsdata->run_header.tel_pos[itel][0],
+            hsdata->run_header.tel_pos[itel][1],
+            hsdata->run_header.tel_pos[itel][2],
+            hsdata->camera_set[itel].mirror_area);
+      }
+   }
+
+   /* Let's see for which type numbers we have any telescopes */
+   for ( tel_type=0; tel_type<=MAX_TEL_TYPES+1; tel_type++ )
+      stat_type[tel_type] = 0;
+   for ( itel=0; itel<hsdata->run_header.ntel; itel++ )
+   {
+      tel_type = telescope_type[itel];
+      if ( tel_type >= 0 && tel_type <= MAX_TEL_TYPES )
+         stat_type[tel_type]++;
+      if ( tel_type > 0 )
+         nas++;
+   }
+   /* If there are gaps in the type presence, keep types actually used. */
+   for ( tel_type=0; tel_type<=MAX_TEL_TYPES+1; tel_type++ )
+   {
+      if ( stat_type[tel_type] > 0 )
+         num_types++;
+   }
+   if ( num_types > 1 )
+   {
+      printf("%d different types of telescopes were found.\n", num_types);
+   }
+   if ( nas == hsdata->run_header.ntel )
+   {
+      printf("All %d telescopes have a telescope type assigned.\n", nas);
+   }
+   else if ( nas == 0 )
+   {
+      printf("No telescope has a telescope type assigned.\n");
+   }
+   else
+   {
+      printf("%d out of %d telescopes have a telescope type assigned.\n", 
+         nas, hsdata->run_header.ntel);
+   }
+
+   tel_types_change = 0;
+}
+
+static int init_hist_for_type[MAX_TEL_TYPES+2];
+static int init_hist_global = 0;
+
+static void book_hist_global(AllHessData *hsdata);
+static void book_hist_for_type(AllHessData *hsdata, int itype);
+
+static void book_hist_global(AllHessData *hsdata)
+{
+   double xylow[2], xyhigh[2];
+   int nbins[2];
+   int i, itel;
+
+   if ( init_hist_global )
+      return;
+
+   printf("Booking global histograms.\n");
+
+   xylow[0] = -0.5; xyhigh[0] = hsdata->run_header.ntel+0.5; nbins[0] = hsdata->run_header.ntel+1;
+   book_histogram(10001,
+      "No. of triggered telescopes in triggered events", 
+      "D", 1, xylow, xyhigh, nbins);
+   book_histogram(10004,
+      "No. of triggered telescopes in triggered events - no weights", 
+      "D", 1, xylow, xyhigh, nbins);
+   xylow[1]  = -3.; xyhigh[1] = 4.; nbins[1]  = 140;
+   book_histogram(10003,
+      "lg(true E) versus no. of triggered telescopes in triggered events", 
+      "D", 2, xylow, xyhigh, nbins);
+   xylow[1] = -0.5; xyhigh[1] = hsdata->run_header.ntel+0.5; nbins[1] = hsdata->run_header.ntel+1;
+   book_histogram(10002,
+      "No. of triggered telescopes versus participating Tel. ID in triggered events", 
+      "D", 2, xylow, xyhigh, nbins);
+   xylow[1]  = -0.5; xyhigh[1] = 10.5; nbins[1]  = 11;
+   book_histogram(10005,
+      "Telescope type versus no. of triggered telescopes per type in triggered events", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = -3.; /* 1 GeV */
+   xyhigh[0] = 4000.; xyhigh[1] = 4.;  /* 10 PeV */
+   nbins[0]  = 400;   nbins[1]  = 140;
+   book_histogram(12001, 
+      "lg(true E) versus array core distance, all", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22001,  "lg(true E), all - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22101,  "lg(true E), all - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12002, 
+      "lg(true E) versus array core distance, triggered", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22002, "lg(true E), triggered - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22102, "lg(true E),triggered  - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12003, 
+      "lg(true E) versus array core distance, passing amplitude cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22003, "lg(true E), passing amplitude cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22103, "lg(true E), passing amplitude cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12004, 
+      "lg(true E) versus array core distance, passing ampl.+edge cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22004, "lg(true E), passing ampl.+edge cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22104, "lg(true E), passing ampl.+edge cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12005, 
+      "lg(true E) versus array core distance, passing shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22005, "lg(true E), passing shape cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22105, "lg(true E), passing shape cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12006, 
+      "lg(true E) versus array core distance, passing shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22006, "lg(true E), passing shape+angle cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22106, "lg(true E), passing shape+angle cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12007, 
+      "lg(true E) versus array core distance, passing shape+angle+dE cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22007, "lg(true E), passing shape+angle+dE cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22107, "lg(true E), passing shape+angle+dE cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12008, 
+      "lg(true E) versus array core distance, passing shape+angle+dE+dE2 cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22008, "lg(true E), passing shape+angle+dE+dE2 cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22108, "lg(true E), passing shape+angle+dE+dE2 cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12009, 
+      "lg(true E) versus array core distance, passing shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22009, "lg(true E), passing shape+angle+dE+dE2+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22109, "lg(true E), passing shape+angle+dE+dE2+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+
+   book_histogram(12010, 
+      "lg(true E) versus array core distance, passing angle+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22010, "lg(true E), passing angle+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22110, "lg(true E), passing angle+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12011, 
+      "lg(true E) versus array core distance, passing shape+angle+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22011, "lg(true E), passing shape+angle+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22111, "lg(true E), passing shape+angle+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12012, 
+      "lg(true E) versus array core distance, passing shape+angle+dE+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22012, "lg(true E), passing shape+angle+dE+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22112, "lg(true E), passing shape+angle+dE+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12013, 
+      "lg(true E) versus array core distance, passing shape+angle+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22013, "lg(true E), passing shape+angle+dE2+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22113, "lg(true E), passing shape+angle+dE2+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12014, 
+      "lg(true E) versus array core distance, passing angle+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22014, "lg(true E), passing angle+dE2+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22114, "lg(true E), passing angle+dE2+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+
+   book_histogram(12015, 
+      "lg(true E) versus array core distance, passing shape cuts, central 1 deg",
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22015, "lg(true E), passing shape cuts, central 1 deg - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22115, "lg(true E), passing shape cuts, central 1 deg - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+
+   book_histogram(12053, 
+      "lg(rec. E) versus array core distance, passing angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22053, "lg(rec. E), passing angle cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22153, "lg(rec. E), passing angle cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12054,
+      "lg(rec. E) versus array core distance, any reconstructed energy", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22054, "lg(rec. E), any reconstructed energy - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22154, "lg(rec. E), any reconstructed energy - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12055, 
+      "lg(rec. E) versus array core distance, passing shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22055, "lg(rec. E), passing shape cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22155, "lg(rec. E), passing shape cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12056, 
+      "lg(rec. E) versus array core distance, passing shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22056, "lg(rec. E), passing shape+angle cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22156, "lg(rec. E), passing shape+angle cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12057, 
+      "lg(rec. E) versus array core distance, passing shape+angle+dE cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22057, "lg(rec. E), passing shape+angle+dE cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22157, "lg(rec. E), passing shape+angle+dE cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12058, 
+      "lg(rec. E) versus array core distance, passing shape+angle+dE+dE2 cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22058, "lg(rec. E), passing shape+angle+dE+dE2 cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22158, "lg(rec. E), passing shape+angle+dE+dE2 cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12059, 
+      "lg(rec. E) versus array core distance, passing shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22059, "lg(rec. E), passing shape+angle+dE+dE2+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22159, "lg(rec. E), passing shape+angle+dE+dE2+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+
+   book_histogram(12060, 
+      "lg(rec. E) versus array core distance, passing angle+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22060, "lg(rec. E), passing angle+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22160, "lg(rec. E), passing angle+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12061, 
+      "lg(rec. E) versus array core distance, passing shape+angle+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22061, "lg(rec. E), passing shape+angle+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22161, "lg(rec. E), passing shape+angle+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12062, 
+      "lg(rec. E) versus array core distance, passing shape+angle+dE+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22062, "lg(rec. E), passing shape+angle+dE+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22162, "lg(rec. E), passing shape+angle+dE+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12063, 
+      "lg(rec. E) versus array core distance, passing shape+angle+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22063, "lg(rec. E), passing shape+angle+dE2+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22163, "lg(rec. E), passing shape+angle+dE2+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12064, 
+      "lg(rec. E) versus array core distance, passing angle+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22064, "lg(rec. E), passing angle+dE2+hmax cuts - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22164, "lg(rec. E), passing angle+dE2+hmax cuts - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+
+   book_histogram(12065, 
+      "lg(rec. E) versus array core distance, passing shape cuts, central 1 deg",
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22065, "lg(rec. E), passing shape cuts, central 1 deg - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22165, "lg(rec. E), passing shape cuts, central 1 deg - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12067, 
+      "lg(rec. E) versus array core distance, passing shape+dE cuts, central 1 deg",
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22067, "lg(rec. E), passing shape+dE cuts, central 1 deg - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22167, "lg(rec. E), passing shape+dE cuts, central 1 deg - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12068, 
+      "lg(rec. E) versus array core distance, passing shape+dE+dE2 cuts, central 1 deg",
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22068, "lg(rec. E), passing shape+dE+dE2 cuts, central 1 deg - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22168, "lg(rec. E), passing shape+dE+dE2 cuts, central 1 deg - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+   book_histogram(12069, 
+      "lg(rec. E) versus array core distance, passing shape+dE+dE2+hmax cuts, central 1 deg",
+      "D", 2, xylow, xyhigh, nbins);
+   book_1d_histogram(22069, "lg(rec. E), passing shape+dE+dE2+hmax cuts, central 1 deg - no weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+   book_1d_histogram(22169, "lg(rec. E), passing shape+dE+dE2+hmax cuts, central 1 deg - with weights",
+      "D", xylow[1], xyhigh[1], nbins[1]*5);
+
+
+   for ( itel=1; itel<9; itel++ )
+   {
+      int icut;
+      const char *tcut[] = { "shape", "shape+angle", "shape+angle+dE+dE2+hmax", "shape+angle+hmax" };
+      char title[1024];
+      for ( icut=0; (size_t)icut<sizeof(tcut)/sizeof(tcut[0]); icut++ )
+      {
+         snprintf(title,sizeof(title)-1,
+            "lg(E) versus array core distance, passing %s cuts, =%d good images",
+            tcut[icut], itel);
+         book_histogram(12100+100*icut+itel, title,
+            "D", 2, xylow, xyhigh, nbins);
+      }
+   }
+
+   xylow[0]  = -0.5;
+   xyhigh[0] = (double)(nparams)-0.5;
+   nbins[0]  = nparams;
+
+   {
+      int ip=0, itp;
+      params[ip++] = 201.; /* Version */
+      params[ip++] = MAX_TEL_TYPES+2; /* How many sets of each type */
+      params[ip++] = nparams_i; /* Integers per set */
+      for ( itp=0; itp <= MAX_TEL_TYPES+1; itp++ )
+         for ( i=0; i<nparams_i; i++ )
+            params[ip++] = *(((int *)&up[itp].i)+i);
+      params[ip++] = nparams_d; /* Doubles per set */
+      for ( itp=0; itp <= MAX_TEL_TYPES+1; itp++ )
+         for ( i=0; i<nparams_d; i++ )
+            params[ip++] = *(((double *)&up[itp].d)+i);
+   }
+
+   {  HISTOGRAM *h;
+      if ( (h = get_histogram_by_ident(12099)) != NULL )
+         free_histogram(h);
+      h = book_histogram(12099,"Analysis parameters", 
+            "D", 1, xylow, xyhigh, nbins);
+      for (i=0; i<nparams; i++)
+         fill_histogram(h,i,0.,params[i]);
+   }
+
+   xylow[0]  = 0.;    xylow[1]  = -3.; /* 1 GeV */
+   xyhigh[0] = 30e3;  xyhigh[1] = 4.;  /* 10 PeV */
+   nbins[0]  = 150.;  nbins[1]  = 140.;
+   book_histogram(15001, "Hmax, lg(true E): ew, amp.+edge cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15002, "Hmax, lg(true E): ew, passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15003, "Hmax, lg(true E): ew, passing shape+angular cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15004, "Hmax, lg(true E): ew, passing shape+angular+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15005, "Hmax, lg(true E): ew, passing shape+angular+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15006, "Hmax, lg(true E): ew, passing shape+angular+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(15101, "Hmax, lg(rec. E): ew, any reconstructed energy",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15102, "Hmax, lg(rec. E): ew, passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15103, "Hmax, lg(rec. E): ew, passing shape+angular cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15104, "Hmax, lg(rec. E): ew, passing shape+angular+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15105, "Hmax, lg(rec. E): ew, passing shape+angular+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(15106, "Hmax, lg(rec. E): ew, passing shape+angular+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = -5.;   xylow[1]  = -5.;
+   xyhigh[0] = 20.;    xyhigh[1] = 20.;
+   nbins[0]  = 250;   nbins[1]  = 250;
+   book_histogram(17000, "MSRW, MSRL: ew", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17001, "MSRW, MSRL: ew, within 1 deg", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17002, "MSRW, MSRL: ew, passing angular cut", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17003, "MSRW, MSRL: ew, passing dE cut", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17004, "MSRW, MSRL: ew, passing angular+dE cut",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17005, "MSRW, MSRL: ew, passing angular+dE+dE2 cut",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17006, "MSRW, MSRL: ew, passing angular+dE+dE2+hmax cut",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17500, "SRW, SRL: ew", 
+      "D", 2, xylow, xyhigh, nbins);
+   for (i=0;i<10;i++)
+      book_histogram(17100+i, "MSRW, MSRL: ew for radial bins", 
+         "D", 2, xylow, xyhigh, nbins);
+   for (i=0;i<12;i++)
+      book_histogram(17200+i, "MSRW, MSRL: ew for energy bins", 
+         "D", 2, xylow, xyhigh, nbins);
+   for (i=0;i<10;i++)
+      book_histogram(17300+i, "MSRW, MSRL: ew for tel. multiplicity", 
+         "D", 2, xylow, xyhigh, nbins);
+   for (i=0;i<12;i++)
+      book_histogram(17400+i, "MSRW, MSRL: ew for Xmax/50", 
+         "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = 0.;
+   xyhigh[0] = 100.;  xyhigh[1] = 1.;
+   nbins[0]  = 100;   nbins[1]  = 200;
+   book_histogram(17810, "hottest pixel 3(2) / pixel 1", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17800, "hottest pixel / image amp.", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17802, "pixel amp. / image amp. sigma", 
+      "D", 2, xylow, xyhigh, nbins);
+   xylow[1] = 0.; xyhigh[1] = 2.;
+   book_histogram(17801, "log10(mean pixel amp.)", 
+      "D", 2, xylow, xyhigh, nbins);
+   xylow[1] = -5.; xyhigh[1] = 5.;
+   book_histogram(17803, "pixel amp. / image amp. skewness", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(17804, "pixel amp. / image amp. kurtosis", 
+      "D", 2, xylow, xyhigh, nbins);
+
+
+   xylow[0]  = -3.;  xylow[1]  = 0.;
+   xyhigh[0] = 4.;   xyhigh[1] = 800.;
+   nbins[0]  = 70;   nbins[1]  = 20;
+   book_histogram(18200,
+      "Xmax versus Erec: no. of entries",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(18201,
+      "Xmax versus Erec: event weights",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(18211,
+      "Xmax versus Erec: e.w.*(lg Erec - lg Etrue)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(18212,
+      "Xmax versus Erec: e.w.*(lg Erec - lg Etrue)**2",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = 0.;
+   xyhigh[0] = 100.;  xyhigh[1] = 2.;
+   nbins[0]  = 100;   nbins[1]  = 200;
+   book_histogram(19001, 
+      "direction error versus no. of telescopes",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19101, 
+      "direction error versus no. of telescopes, passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19201, 
+      "direction error versus no. of telescopes, passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19301, 
+      "direction error versus no. of telescopes, passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19401, 
+      "direction error versus no. of telescopes, passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19501, 
+      "direction error versus no. of telescopes, passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19601, 
+      "direction error versus no. of telescopes, passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19701, 
+      "direction error versus no. of telescopes, passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = -3.;    xylow[1]  = 0.;
+   xyhigh[0] = 4.;  xyhigh[1] = 2.;
+   nbins[0]  = 140;   nbins[1]  = 200;
+   book_histogram(19002, 
+      "direction error versus log10(energy)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19102, 
+      "direction error versus log10(energy), passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19202, 
+      "direction error versus log10(energy), passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19302, 
+      "direction error versus log10(energy), passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19402, 
+      "direction error versus log10(energy), passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19502, 
+      "direction error versus log10(energy), passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19602, 
+      "direction error versus log10(energy), passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19702, 
+      "direction error versus log10(energy), passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;     xylow[1]  = 0.;
+   xyhigh[0] = 2000.;  xyhigh[1] = 2.;
+   nbins[0]  = 200;    nbins[1]  = 200;
+   book_histogram(19003, 
+      "Direction error versus core distance",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19103, 
+      "Direction error versus core distance, passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19203, 
+      "Direction error versus core distance, passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19303, 
+      "Direction error versus core distance, passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19403, 
+      "Direction error versus core distance, passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19503, 
+      "Direction error versus core distance, passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19603, 
+      "Direction error versus core distance, passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19703, 
+      "Direction error versus core distance, passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = -3.;    xylow[1]  = -2.;
+   xyhigh[0] = 4.;     xyhigh[1] = 1.;
+   nbins[0]  = 140;    nbins[1]  = 150;
+   book_histogram(19012, 
+      "log10(rec. E/true E) versus log10(true E)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19013, 
+      "log10(rec. E/true E) versus log10(rec. E)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19014, 
+      "log10(rec. E0/true E) versus log10(rec. E0)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19112, 
+      "log10(rec. E/true E) versus log10(true E), passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19113, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19114,
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19212, 
+      "log10(rec. E/true E) versus log10(true E), passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19213, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19214,
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19312, 
+      "log10(rec. E/true E) versus log10(true E), passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19313, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19314, 
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19412, 
+      "log10(rec. E/true E) versus log10(true E), passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19413, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19414, 
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19512, 
+      "log10(rec. E/true E) versus log10(true E), passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19513, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19514, 
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19612, 
+      "log10(rec. E/true E) versus log10(true E), passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19613, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19614, 
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19712, 
+      "log10(rec. E/true E) versus log10(true E), passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19713, 
+      "log10(rec. E/true E) versus log10(rec. E), passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19714, 
+      "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = -5.;    xylow[1]  = -5.;
+   xyhigh[0] = 5.;     xyhigh[1] = 5.;
+   nbins[0]  = 200;    nbins[1]  = 200;
+   book_histogram(19530, 
+      "True direction (deg) in nominal plane",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19531, 
+      "Rec. direction (deg) in nominal plane",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19532, 
+      "Rec. direction (deg) in nominal plane, passing amplitude cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19533, 
+      "Rec. direction (deg) in nominal plane, passing ampl.+edge cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19534, 
+      "Rec. direction (deg) in nominal plane, passing shape cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19535, 
+      "Rec. direction (deg) in nominal plane, passing shape+dE cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19536, 
+      "Rec. direction (deg) in nominal plane, passing shape+dE+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19537, 
+      "Rec. direction (deg) in nominal plane, passing shape+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19538, 
+      "Rec. direction (deg) in nominal plane, passing shape+dE+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19539, 
+      "Rec. direction (deg) in nominal plane, passing shape+dE2+hmax cuts",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(19540, 
+      "Rec. direction (deg) in nominal plane, passing shape+dE+dE2 cuts",
+      "D", 2, xylow, xyhigh, nbins);
+
+   init_hist_global = 1;
+}
+
+static void book_hist_for_type(AllHessData *hsdata, int tel_type)
+{
+   double xylow[2], xyhigh[2];
+   int nbins[2];
+   int ht = 100000 * tel_type;
+
+   if ( tel_type < 0 || tel_type > MAX_TEL_TYPES+1 )
+      return;
+   if ( init_hist_for_type[tel_type] )
+      return;
+
+   printf("Booking histograms for telescope type %d.\n", tel_type);
+
+   xylow[0]  = 0.;    xylow[1]  = 0.;
+   xyhigh[0] = 2000.; xyhigh[1] = 6.;
+   nbins[0]  = 200;   nbins[1]  = 120;
+   book_histogram(ht+18000, 
+      "Log10(image ampl.) versus core distance: no. of entries",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18001, 
+      "Log10(Image ampl.) versus core distance: event weights",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18011, 
+      "Log10(Image ampl.) versus core distance: e.w.*width",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18012, 
+      "Log10(Image ampl.) versus core distance: e.w.*width*width",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18021, 
+      "Log10(Image ampl.) versus core distance: e.w.*length",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18022, 
+      "Log10(Image ampl.) versus core distance: e.w.*length*length",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(ht+18051, 
+      "Log10(Image ampl.) versus core distance: e.w.*Amp/E",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18052, 
+      "Log10(Image ampl.) versus core distance: e.w.*(Amp/E)**2",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18061, 
+      "Log10(Image ampl.) versus core distance, shape cuts: e.w.*Amp/E",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18062, 
+      "Log10(Image ampl.) versus core distance, shape cuts: e.w.*(Amp/E)**2",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0] = 0.; xyhigh[0] = 1.0; nbins[0] = 200.;
+   book_histogram(ht+18005,
+      "Log10(image ampl.) versus w/l: no. of entries",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18006,
+      "Log10(image ampl.) versus w/l: event weights",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18071,
+      "Log10(image ampl.) versus w/l: e.w.*rcore",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18072,
+      "Log10(image ampl.) versus w/l: e.w.*rcore*rcore",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18081,
+      "Log10(image ampl.) versus w/l: e.w.*rimg",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18082,
+      "Log10(image ampl.) versus w/l: e.w.*rimg*rimg",
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = -3;
+   xyhigh[0] = 2000.; xyhigh[1] = 3.;
+   nbins[0]  = 200;   nbins[1]  = 120;
+   book_histogram(ht+18301,
+      "lg(rec. E) vs. rec. core distance, any tel. in rec. event", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18302,
+      "lg(rec. E) vs. rec. core distance, any tel. after shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18311,
+      "lg(rec. E) vs. rec. core distance, trig. tel. in rec. event", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18312,
+      "lg(rec. E) vs. rec. core distance, trig. tel. after shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18321,
+      "lg(rec. E) vs. rec. core distance, min. amp. in rec. event", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18322,
+      "lg(rec. E) vs. rec. core distance, min. amp. after shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = -20;
+   xyhigh[0] = 1000.; xyhigh[1] = 20.;
+   nbins[0]  = 100;   nbins[1]  = 200;
+   book_histogram(ht+18401,
+      "time slope vs. true core distance, min amp.+edge cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18402,
+      "time slope vs. true core distance, shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18403,
+      "time slope vs. true core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18404,
+      "time slope vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(ht+18503,
+      "time slope vs. rec. core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18504,
+      "time slope vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = 0;
+   xyhigh[0] = 1000.; xyhigh[1] = 7.5;
+   nbins[0]  = 100;   nbins[1]  = 75;
+   book_histogram(ht+18411,
+      "time residual vs. true core distance, min amp.+edge cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18412,
+      "time residual vs. true core distance, shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18413,
+      "time residual vs. true core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18414,
+      "time residual vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(ht+18513,
+      "time residual vs. rec. core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18514,
+      "time residual vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = 0;
+   xyhigh[0] = 1000.; xyhigh[1] = 15.;
+   nbins[0]  = 100;   nbins[1]  = 75;
+   book_histogram(ht+18421,
+      "time width 1 vs. true core distance, min amp.+edge cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18422,
+      "time width 1 vs. true core distance, shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18423,
+      "time width 1 vs. true core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18424,
+      "time width 1 vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(ht+18523,
+      "time width 1 vs. rec. core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18524,
+      "time width 1 vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = 0;
+   xyhigh[0] = 1000.; xyhigh[1] = 15.;
+   nbins[0]  = 100;   nbins[1]  = 75;
+   book_histogram(ht+18431,
+      "time width 2 vs. true core distance, amp.+edge cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18432,
+      "time width 2 vs. true core distance, shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18433,
+      "time width 2 vs. true core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18434,
+      "time width 2 vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(ht+18533,
+      "time width 2 vs. rec. core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18534,
+      "time width 2 vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   xylow[0]  = 0.;    xylow[1]  = 0;
+   xyhigh[0] = 1000.; xyhigh[1] = 7.5;
+   nbins[0]  = 100;   nbins[1]  = 75;
+   book_histogram(ht+18441,
+      "rise time vs. true core distance, min amp.+edge cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18442,
+      "rise time vs. true core distance, shape cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18443,
+      "rise time vs. true core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18444,
+      "rise time vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(ht+18543,
+      "rise time vs. rec. core distance, shape+angle cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(ht+18544,
+      "rise time vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
+      "D", 2, xylow, xyhigh, nbins);
+ 
+   init_hist_for_type[tel_type] = 1;
+}
+
 /* -------------------------  user_init  ---------------------------- */
 /**
  *  @short Initialisation of user analysis, booking of histograms etc.
@@ -1585,992 +2525,166 @@ void set_ebias_correction (HISTOGRAM *h)
 static void user_init (AllHessData *hsdata)
 {
    /* One time initialisations like booking of histograms ... */
-   /* Example code: */
-      double xylow[2], xyhigh[2];
-      int nbins[2];
-      int itel;
-      int i;
-      int tel_type, stat_type[MAX_TEL_TYPES+2], num_types = 0;
+
+   int itel;
+   int i;
+   int tel_type;
 
    if ( user_init_done )
+   {
+      printf("\nUser analysis re-initialisation check\n");
+      if ( tel_types_change )
+      {
+         printf("Telescope type definitions may have changed.\n");
+         init_telescope_types(hsdata);
+      }
+      /* Adding telescope type specific histograms? */
+      for ( tel_type=0; tel_type <= MAX_TEL_TYPES+1; tel_type++ )
+      {
+         if ( stat_type[tel_type] != 0 && init_hist_for_type[tel_type] == 0 )
+            book_hist_for_type(hsdata, tel_type);
+      }
+      /* Nothing else to be done */
       return;
+   }
    user_init_done = 1;
 
-      printf("User analysis one-time initialisation called.\n");
-      user_init_parameters();
-      if ( hsdata != NULL && hsdata->mc_shower.primary_id == 0 && 
-         up[0].d.theta_scale != 1.0 && hsdata->mc_run_header.viewcone[1] == 0. )
-      {
-         printf("Theta-cut scale factor forced to 1.0 for point-source gammas!\n");
-         up[0].d.theta_scale = 1.0;
-      }
-      if ( diffuse_mode )
-      {
-         printf("Using diffuse mode, accepting showers between "
-                "%4.2f and %4.2f deg from nominal viewing direction.\n",
-            diffuse_off_axis_min*(180./M_PI),
-            diffuse_off_axis_max*(180./M_PI));
-      }
+   printf("\n");
+   printf("+++++++++++++++++++++++++++++++++++++++++++++++++\n");
+   printf("+ User analysis one-time initialisation called. +\n");
+   printf("+++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
-      Az_src  = (fabs(hsdata->mc_run_header.az_range[1] -
-                        hsdata->mc_run_header.az_range[0]) < M_PI) ?
-                   0.5*(hsdata->mc_run_header.az_range[0] +
-                        hsdata->mc_run_header.az_range[1]) :
-                   (hsdata->mc_run_header.az_range[0] +
-                    hsdata->mc_run_header.az_range[1] < M_PI) ?
-                   0.5*(hsdata->mc_run_header.az_range[0] +
-                        hsdata->mc_run_header.az_range[1] + M_PI) :
-                   0.5*(hsdata->mc_run_header.az_range[0] +
-                        hsdata->mc_run_header.az_range[1] - M_PI);
-      Alt_src = 0.5*(hsdata->mc_run_header.alt_range[0] + 
-                         hsdata->mc_run_header.alt_range[1]);
-      Az_nom  = hsdata->run_header.direction[0];
-      Alt_nom = hsdata->run_header.direction[1];
+   user_init_parameters();
 
-      source_offset =angle_between(Az_src, Alt_src, Az_nom, Alt_nom);
-      up[0].d.source_offset_deg = source_offset*(180./M_PI);
+   if ( hsdata != NULL && hsdata->mc_shower.primary_id == 0 && 
+      up[0].d.theta_scale != 1.0 && hsdata->mc_run_header.viewcone[1] == 0. )
+   {
+      printf("Theta-cut scale factor forced to 1.0 for point-source gammas!\n");
+      up[0].d.theta_scale = 1.0;
+   }
+   if ( diffuse_mode )
+   {
+      printf("Using diffuse mode, accepting showers between "
+             "%4.2f and %4.2f deg from nominal viewing direction.\n",
+         diffuse_off_axis_min*(180./M_PI),
+         diffuse_off_axis_max*(180./M_PI));
+   }
 
-      printf("Simulated source direction is at Az=%4.2f deg, Alt %4.2f deg.\n",
-         Az_src*(180./M_PI), Alt_src*(180./M_PI));
-      printf("Nominal viewing direction is at Az=%4.2f deg, Alt %4.2f deg.\n",
-         Az_nom*(180./M_PI), Alt_nom*(180./M_PI));
-      if ( source_offset > 0. )
-         printf("Source offset to nominal viewing direction is %5.3f deg.\n", up[0].d.source_offset_deg);
+   Az_src  = (fabs(hsdata->mc_run_header.az_range[1] -
+                     hsdata->mc_run_header.az_range[0]) < M_PI) ?
+                0.5*(hsdata->mc_run_header.az_range[0] +
+                     hsdata->mc_run_header.az_range[1]) :
+                (hsdata->mc_run_header.az_range[0] +
+                 hsdata->mc_run_header.az_range[1] < M_PI) ?
+                0.5*(hsdata->mc_run_header.az_range[0] +
+                     hsdata->mc_run_header.az_range[1] + M_PI) :
+                0.5*(hsdata->mc_run_header.az_range[0] +
+                     hsdata->mc_run_header.az_range[1] - M_PI);
+   Alt_src = 0.5*(hsdata->mc_run_header.alt_range[0] + 
+                      hsdata->mc_run_header.alt_range[1]);
+   Az_nom  = hsdata->run_header.direction[0];
+   Alt_nom = hsdata->run_header.direction[1];
 
-      for ( itel=0; itel<hsdata->run_header.ntel; itel++ )
+   source_offset =angle_between(Az_src, Alt_src, Az_nom, Alt_nom);
+   up[0].d.source_offset_deg = source_offset*(180./M_PI);
+
+   printf("Simulated source direction is at Az=%4.2f deg, Alt %4.2f deg.\n",
+      Az_src*(180./M_PI), Alt_src*(180./M_PI));
+   printf("Nominal viewing direction is at Az=%4.2f deg, Alt %4.2f deg.\n",
+      Az_nom*(180./M_PI), Alt_nom*(180./M_PI));
+   if ( source_offset > 0. )
+      printf("Source offset to nominal viewing direction is %5.3f deg.\n", up[0].d.source_offset_deg);
+
+   init_telescope_types(hsdata);
+
+   histogram_hashing(10000);
+   if ( up[0].d.source_offset_deg < 0.01 ) 
+      snprintf(lookup_fname, sizeof(lookup_fname),
+         "lookups%d_%d-%d_%1.0f_%d_%1.0f_%1.0f.hdata.gz",
+         up[0].i.reco_flag, up[0].i.min_tel_img, up[0].i.max_tel_img, 
+         up[0].d.min_amp, up[0].i.min_pix,
+         up[0].d.tailcut_low, up[0].d.tailcut_high);
+   else
+      snprintf(lookup_fname, sizeof(lookup_fname),
+         "lookups%d_%d-%d_%1.0f_%d_%1.0f_%1.0f_off%4.2f.hdata.gz",
+         up[0].i.reco_flag, up[0].i.min_tel_img, up[0].i.max_tel_img, 
+         up[0].d.min_amp, up[0].i.min_pix,
+         up[0].d.tailcut_low, up[0].d.tailcut_high, up[0].d.source_offset_deg);
+   if ( user_lookup_fname[0] != '\0' )
+      strncpy(lookup_fname,user_lookup_fname,sizeof(lookup_fname)-1);
+
+   if (  read_histogram_file(lookup_fname,0) < 0 )
+   {
+      fflush(stdout);
+      fprintf(stderr,"\nCannot read lookups file '%s'.\n\n", lookup_fname);
+      sleep(2);
+   }
+   else
+   {
+      printf("Lookups read from '%s'.\n", lookup_fname);
+      if ( up[0].i.user_flags == 0 ) /* not HESS-style */
       {
-         if ( hsdata->camera_set[itel].num_mirrors >= 0 )
-            printf("CT%d of type %d at (%3.1f, %3.1f, %3.1f) m has %3.1f m^2 in %d mirrors (f=%3.1f m).\n",
-               hsdata->run_header.tel_id[itel], 
-               which_telescope_type(&hsdata->camera_set[itel]),
-               hsdata->run_header.tel_pos[itel][0],
-               hsdata->run_header.tel_pos[itel][1],
-               hsdata->run_header.tel_pos[itel][2],
-               hsdata->camera_set[itel].mirror_area,
-               hsdata->camera_set[itel].num_mirrors,
-               hsdata->camera_set[itel].flen);
-         else
-            printf("CT%d at (%3.1f, %3.1f, %3.1f) m with %3.1f m^2 mirror area is not active.\n",
-               hsdata->run_header.tel_id[itel], 
-               hsdata->run_header.tel_pos[itel][0],
-               hsdata->run_header.tel_pos[itel][1],
-               hsdata->run_header.tel_pos[itel][2],
-               hsdata->camera_set[itel].mirror_area);
-         store_camera_radius(&hsdata->camera_set[itel],itel);
-
-         telescope_type[itel] = which_telescope_type(&hsdata->camera_set[itel]);
-      }
-      /* Let's see for which type numbers we have any telescopes */
-      for ( tel_type=0; tel_type<=MAX_TEL_TYPES+1; tel_type++ )
-         stat_type[tel_type] = 0;
-      for ( itel=0; itel<hsdata->run_header.ntel; itel++ )
-      {
-         tel_type = telescope_type[itel];
-         if ( tel_type >= 0 && tel_type <= MAX_TEL_TYPES )
-            stat_type[tel_type]++;
-      }
-      /* If there are gaps in the type presence, keep types actually used. */
-      for ( tel_type=0; tel_type<=MAX_TEL_TYPES+1; tel_type++ )
-      {
-         if ( stat_type[tel_type] > 0 )
-            num_types++;
-      }
-      if ( num_types > 1 )
-         fprintf(stderr, 
-            "%d different types of telescopes were found.\n", num_types);
-
-      histogram_hashing(10000);
-      if ( up[0].d.source_offset_deg < 0.01 ) 
-         snprintf(lookup_fname, sizeof(lookup_fname),
-            "lookups%d_%d-%d_%1.0f_%d_%1.0f_%1.0f.hdata.gz",
-            up[0].i.reco_flag, up[0].i.min_tel_img, up[0].i.max_tel_img, 
-            up[0].d.min_amp, up[0].i.min_pix,
-            up[0].d.tailcut_low, up[0].d.tailcut_high);
-      else
-         snprintf(lookup_fname, sizeof(lookup_fname),
-            "lookups%d_%d-%d_%1.0f_%d_%1.0f_%1.0f_off%4.2f.hdata.gz",
-            up[0].i.reco_flag, up[0].i.min_tel_img, up[0].i.max_tel_img, 
-            up[0].d.min_amp, up[0].i.min_pix,
-            up[0].d.tailcut_low, up[0].d.tailcut_high, up[0].d.source_offset_deg);
-      if ( user_lookup_fname[0] != '\0' )
-         strncpy(lookup_fname,user_lookup_fname,sizeof(lookup_fname)-1);
-
-      if (  read_histogram_file(lookup_fname,0) < 0 )
-      {
-         fprintf(stderr,"\nCannot read lookups file '%s'.\n\n", lookup_fname);
-         sleep(2);
-      }
-      else
-      {
-         printf("Lookups read from '%s'.\n", lookup_fname);
-         if ( up[0].i.user_flags == 0 ) /* not HESS-style */
+         int ires;
+         HISTOGRAM *h;
+         for ( i=0; i<H_MAX_TEL; i++ )
+            opt_theta_cut[0][i] = 0.;
+         for ( ires=0; ires<7 /* 3 */; ires++ )
          {
-            int ires;
-            HISTOGRAM *h;
-            for ( i=0; i<H_MAX_TEL; i++ )
-               opt_theta_cut[0][i] = 0.;
-            for ( ires=0; ires<7 /* 3 */; ires++ )
+            if ( (h = get_histogram_by_ident(18911+ires)) != NULL )
             {
-               if ( (h = get_histogram_by_ident(18911+ires)) != NULL )
-               {
-                  for ( i=0; i<H_MAX_TEL && i<h->nbins; i++ )
-	          {
-                     opt_theta_cut[ires][i] = 
-                        h->extension->ddata[i] * (M_PI/180.) * up[0].d.theta_scale;
-		     if ( opt_theta_cut[ires][i] > max_theta * up[0].d.theta_scale && max_theta > 0. )
-		        opt_theta_cut[ires][i] = max_theta * up[0].d.theta_scale;
-		     if ( opt_theta_cut[ires][i] < min_theta * up[0].d.theta_scale )
-		        opt_theta_cut[ires][i] = min_theta * up[0].d.theta_scale;
-	          }
-               }
-               else if ( ires > 0 )
-               {
-                  for ( i=0; i<H_MAX_TEL && i<h->nbins; i++ )
-                     opt_theta_cut[ires][i] = opt_theta_cut[ires-1][i];
-               }
+               for ( i=0; i<H_MAX_TEL && i<h->nbins; i++ )
+	       {
+                  opt_theta_cut[ires][i] = 
+                     h->extension->ddata[i] * (M_PI/180.) * up[0].d.theta_scale;
+		  if ( opt_theta_cut[ires][i] > max_theta * up[0].d.theta_scale && max_theta > 0. )
+		     opt_theta_cut[ires][i] = max_theta * up[0].d.theta_scale;
+		  if ( opt_theta_cut[ires][i] < min_theta * up[0].d.theta_scale )
+		     opt_theta_cut[ires][i] = min_theta * up[0].d.theta_scale;
+	       }
+            }
+            else if ( ires > 0 )
+            {
+               for ( i=0; i<H_MAX_TEL && i<h->nbins; i++ )
+                  opt_theta_cut[ires][i] = opt_theta_cut[ires-1][i];
             }
          }
       }
-      {
-         int ires;
-         for ( ires=0; ires<7 /* 3 */; ires++ )
-            for ( itel=0; itel<H_MAX_TEL; itel++ )
-               if ( opt_theta_cut[ires][itel] <= 0. )
-                  opt_theta_cut[ires][itel] = max_theta * up[0].d.theta_scale;
-      }
-      set_ebias_correction(get_histogram_by_ident(19119)); /* If available */
+   }
+   {
+      int ires;
+      for ( ires=0; ires<7 /* 3 */; ires++ )
+         for ( itel=0; itel<H_MAX_TEL; itel++ )
+            if ( opt_theta_cut[ires][itel] <= 0. )
+               opt_theta_cut[ires][itel] = max_theta * up[0].d.theta_scale;
+   }
+   set_ebias_correction(get_histogram_by_ident(19119)); /* If available */
 
 #if 0
-for ( itel=0; itel<20; itel++ )
-  printf("+++ ntel=%d: opt_theta_cut = %f, %f, %f deg after scaling by %f.\n",  itel,
-   opt_theta_cut[0][itel]*(180./M_PI),  
-   opt_theta_cut[1][itel]*(180./M_PI), 
-   opt_theta_cut[2][itel]*(180./M_PI),
-   up[0].d.theta_scale);
+   for ( itel=0; itel<20; itel++ )
+     printf("+++ ntel=%d: opt_theta_cut = %f, %f, %f deg after scaling by %f.\n",  itel,
+      opt_theta_cut[0][itel]*(180./M_PI),  
+      opt_theta_cut[1][itel]*(180./M_PI), 
+      opt_theta_cut[2][itel]*(180./M_PI),
+      up[0].d.theta_scale);
 #endif
 
-      xylow[0] = -0.5; xyhigh[0] = hsdata->run_header.ntel+0.5; nbins[0] = hsdata->run_header.ntel+1;
-      book_histogram(10001,
-         "No. of triggered telescopes in triggered events", 
-         "D", 1, xylow, xyhigh, nbins);
-      book_histogram(10004,
-         "No. of triggered telescopes in triggered events - no weights", 
-         "D", 1, xylow, xyhigh, nbins);
-      xylow[1]  = -3.; xyhigh[1] = 4.; nbins[1]  = 140;
-      book_histogram(10003,
-         "lg(true E) versus no. of triggered telescopes in triggered events", 
-         "D", 2, xylow, xyhigh, nbins);
-      xylow[1] = -0.5; xyhigh[1] = hsdata->run_header.ntel+0.5; nbins[1] = hsdata->run_header.ntel+1;
-      book_histogram(10002,
-         "No. of triggered telescopes versus participating Tel. ID in triggered events", 
-         "D", 2, xylow, xyhigh, nbins);
-      xylow[1]  = -0.5; xyhigh[1] = 10.5; nbins[1]  = 11;
-      book_histogram(10005,
-         "Telescope type versus no. of triggered telescopes per type in triggered events", 
-         "D", 2, xylow, xyhigh, nbins);
+   book_hist_global(hsdata);
 
-      xylow[0]  = 0.;    xylow[1]  = -3.; /* 1 GeV */
-      xyhigh[0] = 4000.; xyhigh[1] = 4.;  /* 10 PeV */
-      nbins[0]  = 400;   nbins[1]  = 140;
-      book_histogram(12001, 
-         "lg(true E) versus array core distance, all", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22001,  "lg(true E), all - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22101,  "lg(true E), all - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
+   /* Telescope type specific histograms */
 
-      book_histogram(12002, 
-         "lg(true E) versus array core distance, triggered", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22002, "lg(true E), triggered - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22102, "lg(true E),triggered  - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
+   for ( tel_type=0; tel_type <= MAX_TEL_TYPES+1; tel_type++ )
+   {
 
-      book_histogram(12003, 
-         "lg(true E) versus array core distance, passing amplitude cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22003, "lg(true E), passing amplitude cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22103, "lg(true E), passing amplitude cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12004, 
-         "lg(true E) versus array core distance, passing ampl.+edge cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22004, "lg(true E), passing ampl.+edge cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22104, "lg(true E), passing ampl.+edge cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12005, 
-         "lg(true E) versus array core distance, passing shape cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22005, "lg(true E), passing shape cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22105, "lg(true E), passing shape cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12006, 
-         "lg(true E) versus array core distance, passing shape+angle cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22006, "lg(true E), passing shape+angle cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22106, "lg(true E), passing shape+angle cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12007, 
-         "lg(true E) versus array core distance, passing shape+angle+dE cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22007, "lg(true E), passing shape+angle+dE cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22107, "lg(true E), passing shape+angle+dE cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12008, 
-         "lg(true E) versus array core distance, passing shape+angle+dE+dE2 cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22008, "lg(true E), passing shape+angle+dE+dE2 cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22108, "lg(true E), passing shape+angle+dE+dE2 cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12009, 
-         "lg(true E) versus array core distance, passing shape+angle+dE+dE2+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22009, "lg(true E), passing shape+angle+dE+dE2+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22109, "lg(true E), passing shape+angle+dE+dE2+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-
-      book_histogram(12010, 
-         "lg(true E) versus array core distance, passing angle+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22010, "lg(true E), passing angle+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22110, "lg(true E), passing angle+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12011, 
-         "lg(true E) versus array core distance, passing shape+angle+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22011, "lg(true E), passing shape+angle+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22111, "lg(true E), passing shape+angle+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12012, 
-         "lg(true E) versus array core distance, passing shape+angle+dE+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22012, "lg(true E), passing shape+angle+dE+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22112, "lg(true E), passing shape+angle+dE+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12013, 
-         "lg(true E) versus array core distance, passing shape+angle+dE2+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22013, "lg(true E), passing shape+angle+dE2+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22113, "lg(true E), passing shape+angle+dE2+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12014, 
-         "lg(true E) versus array core distance, passing angle+dE2+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22014, "lg(true E), passing angle+dE2+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22114, "lg(true E), passing angle+dE2+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-
-      book_histogram(12015, 
-         "lg(true E) versus array core distance, passing shape cuts, central 1 deg",
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22015, "lg(true E), passing shape cuts, central 1 deg - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22115, "lg(true E), passing shape cuts, central 1 deg - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-
-      book_histogram(12053, 
-         "lg(rec. E) versus array core distance, passing angle cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22053, "lg(rec. E), passing angle cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22153, "lg(rec. E), passing angle cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12054,
-         "lg(rec. E) versus array core distance, any reconstructed energy", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22054, "lg(rec. E), any reconstructed energy - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22154, "lg(rec. E), any reconstructed energy - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12055, 
-         "lg(rec. E) versus array core distance, passing shape cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22055, "lg(rec. E), passing shape cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22155, "lg(rec. E), passing shape cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12056, 
-         "lg(rec. E) versus array core distance, passing shape+angle cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22056, "lg(rec. E), passing shape+angle cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22156, "lg(rec. E), passing shape+angle cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12057, 
-         "lg(rec. E) versus array core distance, passing shape+angle+dE cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22057, "lg(rec. E), passing shape+angle+dE cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22157, "lg(rec. E), passing shape+angle+dE cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12058, 
-         "lg(rec. E) versus array core distance, passing shape+angle+dE+dE2 cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22058, "lg(rec. E), passing shape+angle+dE+dE2 cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22158, "lg(rec. E), passing shape+angle+dE+dE2 cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12059, 
-         "lg(rec. E) versus array core distance, passing shape+angle+dE+dE2+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22059, "lg(rec. E), passing shape+angle+dE+dE2+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22159, "lg(rec. E), passing shape+angle+dE+dE2+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-
-      book_histogram(12060, 
-         "lg(rec. E) versus array core distance, passing angle+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22060, "lg(rec. E), passing angle+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22160, "lg(rec. E), passing angle+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12061, 
-         "lg(rec. E) versus array core distance, passing shape+angle+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22061, "lg(rec. E), passing shape+angle+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22161, "lg(rec. E), passing shape+angle+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12062, 
-         "lg(rec. E) versus array core distance, passing shape+angle+dE+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22062, "lg(rec. E), passing shape+angle+dE+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22162, "lg(rec. E), passing shape+angle+dE+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12063, 
-         "lg(rec. E) versus array core distance, passing shape+angle+dE2+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22063, "lg(rec. E), passing shape+angle+dE2+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22163, "lg(rec. E), passing shape+angle+dE2+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12064, 
-         "lg(rec. E) versus array core distance, passing angle+dE2+hmax cuts", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22064, "lg(rec. E), passing angle+dE2+hmax cuts - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22164, "lg(rec. E), passing angle+dE2+hmax cuts - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-
-      book_histogram(12065, 
-         "lg(rec. E) versus array core distance, passing shape cuts, central 1 deg",
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22065, "lg(rec. E), passing shape cuts, central 1 deg - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22165, "lg(rec. E), passing shape cuts, central 1 deg - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12067, 
-         "lg(rec. E) versus array core distance, passing shape+dE cuts, central 1 deg",
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22067, "lg(rec. E), passing shape+dE cuts, central 1 deg - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22167, "lg(rec. E), passing shape+dE cuts, central 1 deg - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12068, 
-         "lg(rec. E) versus array core distance, passing shape+dE+dE2 cuts, central 1 deg",
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22068, "lg(rec. E), passing shape+dE+dE2 cuts, central 1 deg - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22168, "lg(rec. E), passing shape+dE+dE2 cuts, central 1 deg - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-      book_histogram(12069, 
-         "lg(rec. E) versus array core distance, passing shape+dE+dE2+hmax cuts, central 1 deg",
-         "D", 2, xylow, xyhigh, nbins);
-      book_1d_histogram(22069, "lg(rec. E), passing shape+dE+dE2+hmax cuts, central 1 deg - no weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-      book_1d_histogram(22169, "lg(rec. E), passing shape+dE+dE2+hmax cuts, central 1 deg - with weights",
-         "D", xylow[1], xyhigh[1], nbins[1]*5);
-
-
-      for ( itel=1; itel<9; itel++ )
+      if ( stat_type[tel_type] == 0 )
       {
-         int icut;
-         const char *tcut[] = { "shape", "shape+angle", "shape+angle+dE+dE2+hmax", "shape+angle+hmax" };
-         char title[1024];
-         for ( icut=0; (size_t)icut<sizeof(tcut)/sizeof(tcut[0]); icut++ )
-         {
-            snprintf(title,sizeof(title)-1,
-               "lg(E) versus array core distance, passing %s cuts, =%d good images",
-               tcut[icut], itel);
-            book_histogram(12100+100*icut+itel, title,
-               "D", 2, xylow, xyhigh, nbins);
-         }
+         if ( tel_type <= MAX_TEL_TYPES )
+            printf("No telescopes of type %d.\n", tel_type);
+         continue; /* No telescopes of this type, so no need for histograms. */
       }
-
-      xylow[0]  = -0.5;
-      xyhigh[0] = (double)(nparams)-0.5;
-      nbins[0]  = nparams;
-
-      {
-         int ip=0, itp;
-         params[ip++] = 201.; /* Version */
-         params[ip++] = MAX_TEL_TYPES+2; /* How many sets of each type */
-         params[ip++] = nparams_i; /* Integers per set */
-         for ( itp=0; itp <= MAX_TEL_TYPES+1; itp++ )
-            for ( i=0; i<nparams_i; i++ )
-               params[ip++] = *(((int *)&up[itp].i)+i);
-         params[ip++] = nparams_d; /* Doubles per set */
-         for ( itp=0; itp <= MAX_TEL_TYPES+1; itp++ )
-            for ( i=0; i<nparams_d; i++ )
-               params[ip++] = *(((double *)&up[itp].d)+i);
-      }
-
-      {  HISTOGRAM *h;
-         if ( (h = get_histogram_by_ident(12099)) != NULL )
-            free_histogram(h);
-         h = book_histogram(12099,"Analysis parameters", 
-               "D", 1, xylow, xyhigh, nbins);
-         for (i=0; i<nparams; i++)
-            fill_histogram(h,i,0.,params[i]);
-      }
-
-      xylow[0]  = 0.;    xylow[1]  = -3.; /* 1 GeV */
-      xyhigh[0] = 30e3;  xyhigh[1] = 4.;  /* 10 PeV */
-      nbins[0]  = 150.;  nbins[1]  = 140.;
-      book_histogram(15001, "Hmax, lg(true E): ew, amp.+edge cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15002, "Hmax, lg(true E): ew, passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15003, "Hmax, lg(true E): ew, passing shape+angular cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15004, "Hmax, lg(true E): ew, passing shape+angular+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15005, "Hmax, lg(true E): ew, passing shape+angular+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15006, "Hmax, lg(true E): ew, passing shape+angular+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-
-      book_histogram(15101, "Hmax, lg(rec. E): ew, any reconstructed energy",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15102, "Hmax, lg(rec. E): ew, passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15103, "Hmax, lg(rec. E): ew, passing shape+angular cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15104, "Hmax, lg(rec. E): ew, passing shape+angular+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15105, "Hmax, lg(rec. E): ew, passing shape+angular+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(15106, "Hmax, lg(rec. E): ew, passing shape+angular+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = -5.;   xylow[1]  = -5.;
-      xyhigh[0] = 20.;    xyhigh[1] = 20.;
-      nbins[0]  = 250;   nbins[1]  = 250;
-      book_histogram(17000, "MSRW, MSRL: ew", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17001, "MSRW, MSRL: ew, within 1 deg", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17002, "MSRW, MSRL: ew, passing angular cut", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17003, "MSRW, MSRL: ew, passing dE cut", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17004, "MSRW, MSRL: ew, passing angular+dE cut",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17005, "MSRW, MSRL: ew, passing angular+dE+dE2 cut",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17006, "MSRW, MSRL: ew, passing angular+dE+dE2+hmax cut",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17500, "SRW, SRL: ew", 
-         "D", 2, xylow, xyhigh, nbins);
-      for (i=0;i<10;i++)
-         book_histogram(17100+i, "MSRW, MSRL: ew for radial bins", 
-            "D", 2, xylow, xyhigh, nbins);
-      for (i=0;i<12;i++)
-         book_histogram(17200+i, "MSRW, MSRL: ew for energy bins", 
-            "D", 2, xylow, xyhigh, nbins);
-      for (i=0;i<10;i++)
-         book_histogram(17300+i, "MSRW, MSRL: ew for tel. multiplicity", 
-            "D", 2, xylow, xyhigh, nbins);
-      for (i=0;i<12;i++)
-         book_histogram(17400+i, "MSRW, MSRL: ew for Xmax/50", 
-            "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = 0.;    xylow[1]  = 0.;
-      xyhigh[0] = 100.;  xyhigh[1] = 1.;
-      nbins[0]  = 100;   nbins[1]  = 200;
-      book_histogram(17810, "hottest pixel 3(2) / pixel 1", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17800, "hottest pixel / image amp.", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17802, "pixel amp. / image amp. sigma", 
-         "D", 2, xylow, xyhigh, nbins);
-      xylow[1] = 0.; xyhigh[1] = 2.;
-      book_histogram(17801, "log10(mean pixel amp.)", 
-         "D", 2, xylow, xyhigh, nbins);
-      xylow[1] = -5.; xyhigh[1] = 5.;
-      book_histogram(17803, "pixel amp. / image amp. skewness", 
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(17804, "pixel amp. / image amp. kurtosis", 
-         "D", 2, xylow, xyhigh, nbins);
-
-      /* Telescope type specific histograms */
-
-      for ( tel_type=0; tel_type <= MAX_TEL_TYPES+1; tel_type++ )
-      {
-         int ht = 100000 * tel_type;
-
-         if ( stat_type[tel_type] == 0 )
-         {
-            if ( tel_type <= MAX_TEL_TYPES )
-               printf("No telescopes of type %d.\n", tel_type);
-            continue; /* No telescopes of this type, so no need for histograms. */
-         }
-         printf("Booking histograms for telescope type %d.\n", tel_type);
-
-         xylow[0]  = 0.;    xylow[1]  = 0.;
-         xyhigh[0] = 2000.; xyhigh[1] = 6.;
-         nbins[0]  = 200;   nbins[1]  = 120;
-         book_histogram(ht+18000, 
-            "Log10(image ampl.) versus core distance: no. of entries",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18001, 
-            "Log10(Image ampl.) versus core distance: event weights",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18011, 
-            "Log10(Image ampl.) versus core distance: e.w.*width",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18012, 
-            "Log10(Image ampl.) versus core distance: e.w.*width*width",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18021, 
-            "Log10(Image ampl.) versus core distance: e.w.*length",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18022, 
-            "Log10(Image ampl.) versus core distance: e.w.*length*length",
-            "D", 2, xylow, xyhigh, nbins);
-
-         book_histogram(ht+18051, 
-            "Log10(Image ampl.) versus core distance: e.w.*Amp/E",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18052, 
-            "Log10(Image ampl.) versus core distance: e.w.*(Amp/E)**2",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18061, 
-            "Log10(Image ampl.) versus core distance, shape cuts: e.w.*Amp/E",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18062, 
-            "Log10(Image ampl.) versus core distance, shape cuts: e.w.*(Amp/E)**2",
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0] = 0.; xyhigh[0] = 1.0; nbins[0] = 200.;
-         book_histogram(ht+18005,
-            "Log10(image ampl.) versus w/l: no. of entries",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18006,
-            "Log10(image ampl.) versus w/l: event weights",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18071,
-            "Log10(image ampl.) versus w/l: e.w.*rcore",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18072,
-            "Log10(image ampl.) versus w/l: e.w.*rcore*rcore",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18081,
-            "Log10(image ampl.) versus w/l: e.w.*rimg",
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18082,
-            "Log10(image ampl.) versus w/l: e.w.*rimg*rimg",
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0]  = 0.;    xylow[1]  = -3;
-         xyhigh[0] = 2000.; xyhigh[1] = 3.;
-         nbins[0]  = 200;   nbins[1]  = 120;
-         book_histogram(ht+18301,
-            "lg(rec. E) vs. rec. core distance, any tel. in rec. event", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18302,
-            "lg(rec. E) vs. rec. core distance, any tel. after shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18311,
-            "lg(rec. E) vs. rec. core distance, trig. tel. in rec. event", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18312,
-            "lg(rec. E) vs. rec. core distance, trig. tel. after shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18321,
-            "lg(rec. E) vs. rec. core distance, min. amp. in rec. event", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18322,
-            "lg(rec. E) vs. rec. core distance, min. amp. after shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0]  = 0.;    xylow[1]  = -20;
-         xyhigh[0] = 1000.; xyhigh[1] = 20.;
-         nbins[0]  = 100;   nbins[1]  = 200;
-         book_histogram(ht+18401,
-            "time slope vs. true core distance, min amp.+edge cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18402,
-            "time slope vs. true core distance, shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18403,
-            "time slope vs. true core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18404,
-            "time slope vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         book_histogram(ht+18503,
-            "time slope vs. rec. core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18504,
-            "time slope vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0]  = 0.;    xylow[1]  = 0;
-         xyhigh[0] = 1000.; xyhigh[1] = 7.5;
-         nbins[0]  = 100;   nbins[1]  = 75;
-         book_histogram(ht+18411,
-            "time residual vs. true core distance, min amp.+edge cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18412,
-            "time residual vs. true core distance, shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18413,
-            "time residual vs. true core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18414,
-            "time residual vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         book_histogram(ht+18513,
-            "time residual vs. rec. core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18514,
-            "time residual vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0]  = 0.;    xylow[1]  = 0;
-         xyhigh[0] = 1000.; xyhigh[1] = 15.;
-         nbins[0]  = 100;   nbins[1]  = 75;
-         book_histogram(ht+18421,
-            "time width 1 vs. true core distance, min amp.+edge cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18422,
-            "time width 1 vs. true core distance, shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18423,
-            "time width 1 vs. true core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18424,
-            "time width 1 vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         book_histogram(ht+18523,
-            "time width 1 vs. rec. core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18524,
-            "time width 1 vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0]  = 0.;    xylow[1]  = 0;
-         xyhigh[0] = 1000.; xyhigh[1] = 15.;
-         nbins[0]  = 100;   nbins[1]  = 75;
-         book_histogram(ht+18431,
-            "time width 2 vs. true core distance, amp.+edge cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18432,
-            "time width 2 vs. true core distance, shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18433,
-            "time width 2 vs. true core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18434,
-            "time width 2 vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         book_histogram(ht+18533,
-            "time width 2 vs. rec. core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18534,
-            "time width 2 vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         xylow[0]  = 0.;    xylow[1]  = 0;
-         xyhigh[0] = 1000.; xyhigh[1] = 7.5;
-         nbins[0]  = 100;   nbins[1]  = 75;
-         book_histogram(ht+18441,
-            "rise time vs. true core distance, min amp.+edge cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18442,
-            "rise time vs. true core distance, shape cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18443,
-            "rise time vs. true core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18444,
-            "rise time vs. true core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-         book_histogram(ht+18543,
-            "rise time vs. rec. core distance, shape+angle cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-         book_histogram(ht+18544,
-            "rise time vs. rec. core distance, shape+angle+dE+dE2+hmax cuts", 
-            "D", 2, xylow, xyhigh, nbins);
-
-      } /* End of telescope type specific histograms */
-
-      xylow[0]  = -3.;  xylow[1]  = 0.;
-      xyhigh[0] = 4.;   xyhigh[1] = 800.;
-      nbins[0]  = 70;   nbins[1]  = 20;
-      book_histogram(18200,
-         "Xmax versus Erec: no. of entries",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(18201,
-         "Xmax versus Erec: event weights",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(18211,
-         "Xmax versus Erec: e.w.*(lg Erec - lg Etrue)",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(18212,
-         "Xmax versus Erec: e.w.*(lg Erec - lg Etrue)**2",
-         "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = 0.;    xylow[1]  = 0.;
-      xyhigh[0] = 100.;  xyhigh[1] = 2.;
-      nbins[0]  = 100;   nbins[1]  = 200;
-      book_histogram(19001, 
-         "direction error versus no. of telescopes",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19101, 
-         "direction error versus no. of telescopes, passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19201, 
-         "direction error versus no. of telescopes, passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19301, 
-         "direction error versus no. of telescopes, passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19401, 
-         "direction error versus no. of telescopes, passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19501, 
-         "direction error versus no. of telescopes, passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19601, 
-         "direction error versus no. of telescopes, passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19701, 
-         "direction error versus no. of telescopes, passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = -3.;    xylow[1]  = 0.;
-      xyhigh[0] = 4.;  xyhigh[1] = 2.;
-      nbins[0]  = 140;   nbins[1]  = 200;
-      book_histogram(19002, 
-         "direction error versus log10(energy)",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19102, 
-         "direction error versus log10(energy), passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19202, 
-         "direction error versus log10(energy), passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19302, 
-         "direction error versus log10(energy), passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19402, 
-         "direction error versus log10(energy), passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19502, 
-         "direction error versus log10(energy), passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19602, 
-         "direction error versus log10(energy), passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19702, 
-         "direction error versus log10(energy), passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = 0.;     xylow[1]  = 0.;
-      xyhigh[0] = 2000.;  xyhigh[1] = 2.;
-      nbins[0]  = 200;    nbins[1]  = 200;
-      book_histogram(19003, 
-         "Direction error versus core distance",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19103, 
-         "Direction error versus core distance, passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19203, 
-         "Direction error versus core distance, passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19303, 
-         "Direction error versus core distance, passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19403, 
-         "Direction error versus core distance, passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19503, 
-         "Direction error versus core distance, passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19603, 
-         "Direction error versus core distance, passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19703, 
-         "Direction error versus core distance, passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = -3.;    xylow[1]  = -2.;
-      xyhigh[0] = 4.;     xyhigh[1] = 1.;
-      nbins[0]  = 140;    nbins[1]  = 150;
-      book_histogram(19012, 
-         "log10(rec. E/true E) versus log10(true E)",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19013, 
-         "log10(rec. E/true E) versus log10(rec. E)",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19014, 
-         "log10(rec. E0/true E) versus log10(rec. E0)",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19112, 
-         "log10(rec. E/true E) versus log10(true E), passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19113, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19114,
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19212, 
-         "log10(rec. E/true E) versus log10(true E), passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19213, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19214,
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19312, 
-         "log10(rec. E/true E) versus log10(true E), passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19313, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19314, 
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19412, 
-         "log10(rec. E/true E) versus log10(true E), passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19413, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19414, 
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19512, 
-         "log10(rec. E/true E) versus log10(true E), passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19513, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19514, 
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19612, 
-         "log10(rec. E/true E) versus log10(true E), passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19613, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19614, 
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19712, 
-         "log10(rec. E/true E) versus log10(true E), passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19713, 
-         "log10(rec. E/true E) versus log10(rec. E), passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19714, 
-         "log10(rec. E0/true E) versus log10(rec. E0), passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
-
-      xylow[0]  = -5.;    xylow[1]  = -5.;
-      xyhigh[0] = 5.;     xyhigh[1] = 5.;
-      nbins[0]  = 200;    nbins[1]  = 200;
-      book_histogram(19530, 
-         "True direction (deg) in nominal plane",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19531, 
-         "Rec. direction (deg) in nominal plane",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19532, 
-         "Rec. direction (deg) in nominal plane, passing amplitude cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19533, 
-         "Rec. direction (deg) in nominal plane, passing ampl.+edge cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19534, 
-         "Rec. direction (deg) in nominal plane, passing shape cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19535, 
-         "Rec. direction (deg) in nominal plane, passing shape+dE cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19536, 
-         "Rec. direction (deg) in nominal plane, passing shape+dE+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19537, 
-         "Rec. direction (deg) in nominal plane, passing shape+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19538, 
-         "Rec. direction (deg) in nominal plane, passing shape+dE+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19539, 
-         "Rec. direction (deg) in nominal plane, passing shape+dE2+hmax cuts",
-         "D", 2, xylow, xyhigh, nbins);
-      book_histogram(19540, 
-         "Rec. direction (deg) in nominal plane, passing shape+dE+dE2 cuts",
-         "D", 2, xylow, xyhigh, nbins);
+      book_hist_for_type(hsdata, tel_type);
+   } /* End of telescope type specific histograms */
 
    pixmom = alloc_moments(0.,3000.);
-
-   /* - */
 }
 
 /* ------------------------ user_mc_shower_fill ------------------------ */
@@ -2619,6 +2733,7 @@ static void user_event_fill (AllHessData *hsdata, int stage)
    double E_true = hsdata->mc_shower.energy;    /**< true energy [TeV] */
    if ( E_true <= 0. )
    {
+      fflush(stdout);
       fprintf(stderr,"\nBad MC energy: %f\n", E_true);
       return;
    }
@@ -3973,6 +4088,12 @@ static void user_finish (AllHessData *hsdata)
       else
          fprintf(stderr,"Generate a matching lookup file (if these were gamma showers) with:\n"
           "    gen_lookup %s %s\n", hist_fname, lookup_fname);
+      
+      if ( pixmom != NULL )
+      {
+         free_moments(pixmom);
+         pixmom = NULL;
+      }
    }
    /* - */
 }
@@ -4007,11 +4128,13 @@ int do_user_ana (AllHessData *hsdata, unsigned long item_type, int stage)
          /* Relevant new data: hsdata->mc_run_header */
          break;
       case IO_TYPE_HESS_MC_SHOWER:
-         if ( !init_done )
+         if ( !init_done || tel_types_change )
          {
             user_init(hsdata);
             init_done = 1;
          }
+         if ( tel_types_change )
+            init_telescope_types(hsdata);
          /* Relevant new data: hsdata->mc_shower */
          user_mc_shower_fill(hsdata);
          break;
@@ -4019,12 +4142,17 @@ int do_user_ana (AllHessData *hsdata, unsigned long item_type, int stage)
          /* Relevant new data: hsdata->mc_event */
          user_mc_event_fill(hsdata);
          break;
+      case IO_TYPE_HESS_CAMSETTINGS:
+         tel_types_change = 1;
+         break;
       case IO_TYPE_HESS_EVENT:
-         if ( !init_done )
+         if ( !init_done || tel_types_change )
          {
             user_init(hsdata);
             init_done = 1;
          }
+         if ( tel_types_change )
+            init_telescope_types(hsdata);
          /* Here comes the real beef. */
          /*   Stage 0: with reconstruction from sim_hessarray */
          /*   Stage 1: optional, with new reconstruction in read_hess. */

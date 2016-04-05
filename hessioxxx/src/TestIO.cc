@@ -31,8 +31,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     the testio tool. Comparison of the files may serve as an additional test.
 
     @author  Konrad Bernloehr
-    $Date: 2014/11/17 15:44:00 $
-    $Revision: 1.25 $
+    $Date: 2016/03/03 11:16:39 $
+    $Revision: 1.26 $
 */
 
 /** @defgroup TestIO_cc The TestIO program */
@@ -1440,6 +1440,8 @@ int main (int argc, char **argv)
    }
 #endif
 
+   if ( ! ok )
+      exit(1);
    return 0;
 }
 
