@@ -419,15 +419,23 @@ int get_mc_shower_primary_id(){
 // Returns  0 on success otherwise -1
 //----------------------------------------------------------------
 int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe){
-	if (hsdata != NULL  ){
-		int itel = get_telescope_index (telescope_id);
+
+
+    if (hsdata != NULL){
+        int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
 			return TEL_INDEX_NOT_VALID;
-   if( pixel_id > H_MAX_PIX)
-	 	return PIXEL_INDEX_NOT_VALID;
-	 *pe = hsdata->mc_event.mc_pe_list[telescope_id].pe_count[pixel_id];
-	 return 0;
- }
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL && raw->known){	// If triggered telescopes
+			int ipix = 0.;
+			for (ipix = 0.; ipix < raw->num_pixels; ipix++){ 	//  loop over pixels
+				if (raw->significant[ipix]){
+					 *pe++ = hsdata->mc_event.mc_pe_list[itel].pe_count[ipix];
+				}		// end if raw->significant[ipix]
+			}			// end of   loop over pixels
+		}			// end if triggered telescopes
+		return 0;
+	}
 	return -1;
 }
 //----------------------------------------------------------------
