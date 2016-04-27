@@ -905,7 +905,8 @@ def get_mc_number_photon_electron(telescope_id, pixel_id):
     or HessioGeneralError if hsdata is not available
     if information is not available or if telscioe_id or pixel_id are wrong
     """
-    pe = np.zeros(1,dtype=np.int32)
+    npix = get_num_pixels(telescope_id)
+    pe = np.zeros(npix,dtype=np.int32)
     result = lib.get_mc_number_photon_electron(telescope_id,pixel_id,pe)
     if result == TEL_INDEX_NOT_VALID:
         raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
