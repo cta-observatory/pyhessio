@@ -901,9 +901,8 @@ def get_mc_number_photon_electron(telescope_id):
     Raises
     ------
     HessioTelescopeIndexError
-    HessioPixelIndexError
     or HessioGeneralError if hsdata is not available
-    if information is not available or if telscioe_id or pixel_id are wrong
+    if information is not available or if telescope_id are wrong
     """
     npix = get_num_pixels(telescope_id)
     pe = np.zeros(npix,dtype=np.int32)
