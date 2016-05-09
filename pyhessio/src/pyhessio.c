@@ -45,7 +45,7 @@ double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
 double get_mc_shower_h_first_int(void);
-int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe);
+int get_mc_number_photon_electron(int telescope_id, int* pe);
 uint8_t get_adc_known (int telescope_id, int channel, int pixel_id);
 double get_ref_shape (int telescope_id, int channel, int fshape);
 double get_ref_step (int telescope_id);
@@ -418,7 +418,7 @@ int get_mc_shower_primary_id(){
 // pe is a output parameter, fill with numbers of photon electron
 // Returns  0 on success otherwise -1
 //----------------------------------------------------------------
-int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe){
+int get_mc_number_photon_electron(int telescope_id, int* pe){
 
 
     if (hsdata != NULL){
