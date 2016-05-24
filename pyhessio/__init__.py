@@ -34,7 +34,6 @@ __all__ = ['move_to_next_event','move_to_next_mc_event',
 
 
 _path = os.path.dirname(__file__)
-print('path', _path)
 lib = np.ctypeslib.load_library('pyhessioc', _path)
 
 lib.close_file.restype = None
