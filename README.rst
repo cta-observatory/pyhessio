@@ -5,6 +5,7 @@ pyhessio
 CTA Python wrapper for hessio event format that is used in output of simtel_array.
 
 * Code: https://github.com/cta-observatory/pyhessio 
+* Docs: https://cta-observatory.github.io/pyhessio/
 
 This is a temporaly solution for testing ctapipe with real CTA MC data.
 
@@ -12,8 +13,6 @@ This is a temporaly solution for testing ctapipe with real CTA MC data.
     :target: https://travis-ci.org/cta-observatory/pyhessio
     :alt: Test Status
 
-* Code: https://github.com/cta-observatory/pyhessio
-* Docs: https://cta-observatory.github.io/pyhessio/
  
 ===========
 Quick Start
