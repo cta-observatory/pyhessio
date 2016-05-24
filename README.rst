@@ -11,6 +11,9 @@ This is a temporaly solution for testing ctapipe with real CTA MC data.
 * .. image:: http://img.shields.io/travis/cta-observatory/pyhessio.svg?branch=master
     :target: https://travis-ci.org/cta-observatory/pyhessio
     :alt: Test Status
+
+* Code: https://github.com/cta-observatory/pyhessio
+* Docs: https://cta-observatory.github.io/pyhessio/
  
 ===========
 Quick Start
