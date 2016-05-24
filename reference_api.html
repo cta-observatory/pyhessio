@@ -1,0 +1,1204 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Reference/API &mdash; pyhessio 5 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="pyhessio 5 documentation" href="index.html"/>
+        <link rel="prev" title="Quick Start" href="getting_started/index.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> pyhessio
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                5.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Quick Start</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Reference/API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="index.html">pyhessio</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+ 
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="index.html">Docs</a> &raquo;</li>
+      
+    <li>Reference/API</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+            <a href="_sources/reference_api.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-pyhessio">
+<span id="reference-api"></span><h1>Reference/API<a class="headerlink" href="#module-pyhessio" title="Permalink to this headline">¶</a></h1>
+<p>Simple python wrapper for hessioxxx c library.</p>
+<dl class="function">
+<dt id="pyhessio.move_to_next_event">
+<code class="descclassname">pyhessio.</code><code class="descname">move_to_next_event</code><span class="sig-paren">(</span><em>limit=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#move_to_next_event"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.move_to_next_event" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read data form input file
+and fill corresponding container
+Data can be then access with
+other available functions in
+this module
+By default all events are computed</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>limit</strong> (<em>int, optional</em>) &#8211; limit the number of event generated</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">run number and event id in case of SUCCESS, otherwise -1,-1</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">tuple(int,int):</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.move_to_next_mc_event">
+<code class="descclassname">pyhessio.</code><code class="descname">move_to_next_mc_event</code><span class="sig-paren">(</span><em>limit=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#move_to_next_mc_event"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.move_to_next_mc_event" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read data form input file
+and fill corresponding container
+Data can be then access with
+other available functions in
+this module.
+This iterator scans all the simulated events,
+not only the triggered ones.
+By default all events are computed</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>limit</strong> (<em>int, optional</em>) &#8211; limit the number of event generated</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">run number and event id in case of success, otherwise -1,-1</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">tuple(int,int):</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.file_open">
+<code class="descclassname">pyhessio.</code><code class="descname">file_open</code><span class="sig-paren">(</span><em>filename</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#file_open"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.file_open" title="Permalink to this definition">¶</a></dt>
+<dd><p>Open input data file</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>filename</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#str" title="(in Python v2.7)"><em>str</em></a>) &#8211; file name to be opened</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">0 in case of success, otherwise -1</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">int:</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.file_close">
+<code class="descclassname">pyhessio.</code><code class="descname">file_close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#file_close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.file_close" title="Permalink to this definition">¶</a></dt>
+<dd><p>Close opened iobuf</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.close_file">
+<code class="descclassname">pyhessio.</code><code class="descname">close_file</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#close_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.close_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Close opened iobuf</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_global_event_count">
+<code class="descclassname">pyhessio.</code><code class="descname">get_global_event_count</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_global_event_count"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_global_event_count" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">counter for system trigger</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">int:</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_run_number">
+<code class="descclassname">pyhessio.</code><code class="descname">get_run_number</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_run_number"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_run_number" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">run number read in data file or -1 if not available</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;run_header.run is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_num_telescope">
+<code class="descclassname">pyhessio.</code><code class="descname">get_num_telescope</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_num_telescope"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_num_telescope" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">the number of telescopes in current run.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;event.num_tel is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_telescope_with_data_list">
+<code class="descclassname">pyhessio.</code><code class="descname">get_telescope_with_data_list</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_telescope_with_data_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_telescope_with_data_list" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">list of telescope with data for current event</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(num_teldata,dtype=np.int32)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when information is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_teldata_list">
+<code class="descclassname">pyhessio.</code><code class="descname">get_teldata_list</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_teldata_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_teldata_list" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">list of IDs of telescopes with data for current event</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(num_teldata,dtype=np.int32)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when information is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_telescope_position">
+<code class="descclassname">pyhessio.</code><code class="descname">get_telescope_position</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_telescope_position"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_telescope_position" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; The telescope id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">Telescope position for a telescope id.</td>
+</tr>
+</tbody>
+</table>
+<ul class="simple">
+<li>x is counted from array reference position towards North</li>
+<li>y towards West</li>
+<li>z upwards</li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(3,dtype=np.double)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when  telescope position not available for this telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_num_teldata">
+<code class="descclassname">pyhessio.</code><code class="descname">get_num_teldata</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_num_teldata"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_num_teldata" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">number of telescopes for which we actually have data</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError when hsdata-&gt;event.num_teldata is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_num_channel">
+<code class="descclassname">pyhessio.</code><code class="descname">get_num_channel</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_num_channel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_num_channel" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">type of channel used</td>
+</tr>
+</tbody>
+</table>
+<ul class="simple">
+<li>HI_GAIN          0     Index to high-gain channels in adc_sum, adc_sample, pedestal, ...</li>
+<li>LO_GAIN          1     Index to low-gain channels in adc_sum, adc_sample, pedestal, ...</li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;event.teldata[itel].raw</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_num_pixels">
+<code class="descclassname">pyhessio.</code><code class="descname">get_num_pixels</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_num_pixels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_num_pixels" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">the number of pixels in the camera (as in configuration)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;camera_set[itel].num_pixels</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_num_samples">
+<code class="descclassname">pyhessio.</code><code class="descname">get_num_samples</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_num_samples"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_num_samples" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">the number of samples (time slices) recorded</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when data-&gt;event.teldata[itel].raw-&gt;num-&gt;samples not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_adc_sample">
+<code class="descclassname">pyhessio.</code><code class="descname">get_adc_sample</code><span class="sig-paren">(</span><em>telescope_id</em>, <em>channel</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_adc_sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_adc_sample" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</li>
+<li><strong>channel</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; (0-&gt;HI_GAIN, 1-&gt;LOW_GAIN)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">pulses sampled</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">numpy.array(npix,ntimeslices,dtype=np.uint16)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body"><p class="first">HessioGeneralError: when information is not available</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body"><p class="first">HessioTelescopeIndexError when no telescope exist with this id</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body"><p class="first last">HessioChannelIndexError when channel does not exist for this telescope</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_adc_sum">
+<code class="descclassname">pyhessio.</code><code class="descname">get_adc_sum</code><span class="sig-paren">(</span><em>telescope_id</em>, <em>channel</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_adc_sum"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_adc_sum" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</li>
+<li><strong>channel</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; (0-&gt;HI_GAIN, 1-&gt;LOW_GAIN)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">sum of ADC values.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">np.zeros(npix,dtype=np.int32)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body"><p class="first">HessioGeneralError: when No adc_sum for telescope</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body"><p class="first">HessioTelescopeIndexError: when no telescope exist with this id</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body"><p class="first last">HessioChannelIndexError: when channel does not exist for this telescope</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pedestal">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pedestal</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pedestal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pedestal" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">pedestal</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(ngain,npix,dtype=np.double)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when data not available for this telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_calibration">
+<code class="descclassname">pyhessio.</code><code class="descname">get_calibration</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_calibration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_calibration" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">calibration numpy array (num_gain dimention)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">nupy.array(ngain,npix,dtype=np.double)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when data not available for this telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_position">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_position</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_position"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_position" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">pixels position for a telescope id (pos_x,pos_y)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">tuple(numpy.ndarray(npix,dtype=np.double),numpy.ndarray(npix,dtype=np.double))</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when pixel position not available for this telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_timing_timval">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_timing_timval</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_timing_timval"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_timing_timval" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">PixelTiming.timval</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.array(npix,ntimes,dtype=np.float32)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;event.teldata[itel]-&gt;timval[ipix][itimes] not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_shape">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_shape</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_shape"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_shape" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">pixels shape for a telescope id</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(npix,dtype=np.double)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when pixel shape not available for this telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_area">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_area</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_area"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_area" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">pixels area for a telescope id</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(npix,dtype=np.double)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when pixel area not available for this telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mirror_area">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mirror_area</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mirror_area"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mirror_area" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; Telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">total area of individual mirrors corrected for inclination [m^2].</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;camera_set[itel].mirror_area not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_timing_num_times_types">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_timing_num_times_types</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_timing_num_times_types"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_timing_num_times_types" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">how many different types of times can we store</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;event.teldata[itel].pixtm-&gt;num_types not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_timing_threshold">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_timing_threshold</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_timing_threshold"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_timing_threshold" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">PixelTiming threshold: Minimum base-to-peak raw amplitude difference applied in pixel selection</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.int32</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: When hsdata-&gt;event.teldata[itel].pixtm</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when  no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_pixel_timing_peak_global">
+<code class="descclassname">pyhessio.</code><code class="descname">get_pixel_timing_peak_global</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_pixel_timing_peak_global"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_pixel_timing_peak_global" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">PixelTiming peak_global: Camera-wide (mean) peak position [time slices]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.float32</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;event.teldata[itel].pixtm; not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_shower_primary_id">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_shower_primary_id</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_shower_primary_id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_shower_primary_id" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">shower primary ID 0 (gamma), 1(e-), 2(mu-), 100*A+Z for nucleons and nuclei, negative for antimatter.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_shower_h_first_int">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_shower_h_first_int</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_shower_h_first_int"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_shower_h_first_int" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">shower height of first interaction a.s.l. [m]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_event_xcore">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_event_xcore</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_event_xcore"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_event_xcore" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">x core position w.r.t. array reference point [m], x -&gt; N</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_event_ycore">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_event_ycore</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_event_ycore"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_event_ycore" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">y core position w.r.t. array reference point [m],y -&gt; W</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_shower_energy">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_shower_energy</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_shower_energy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_shower_energy" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">shower primary energy [TeV]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_event_offset_fov">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_event_offset_fov</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_event_offset_fov"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_event_offset_fov" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">offset of pointing direction in camera f.o.v. divided by focal length, i.e. converted to radians: [0] = Camera x (downwards in normal pointing, i.e. increasing Alt) [1] = Camera y -&gt; Az.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(2,dtype=np.double)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when information is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_number_photon_electron">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_number_photon_electron</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_number_photon_electron"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_number_photon_electron" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">numbers of photon electron</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError when no telescope with this id exists</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError if hsdata is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_shower_azimuth">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_shower_azimuth</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_shower_azimuth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_shower_azimuth" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">shower azimuth (N-&gt;E) [rad]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mc_shower_altitude">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mc_shower_altitude</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mc_shower_altitude"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mc_shower_altitude" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">shower altitude [rad]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_adc_known">
+<code class="descclassname">pyhessio.</code><code class="descname">get_adc_known</code><span class="sig-paren">(</span><em>telescope_id</em>, <em>channel</em>, <em>pixel_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_adc_known"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_adc_known" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</li>
+<li><strong>channel</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; HI_GAIN, LOW_GAIN</li>
+<li><strong>pixel_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; pixel&#8217;s id</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">individual channel recorded information ? Bit 0: sum, 1: samples, 2: ADC was in saturation.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_ref_shape">
+<code class="descclassname">pyhessio.</code><code class="descname">get_ref_shape</code><span class="sig-paren">(</span><em>telescope_id</em>, <em>channel</em>, <em>fshape</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_ref_shape"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_ref_shape" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</li>
+<li><strong>channel</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; HI_GAIN, LOW_GAIN</li>
+<li><strong>fshape</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Reference pulse shape(s) If telescope_id, channel or fshape are not valid return 0.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_ref_step">
+<code class="descclassname">pyhessio.</code><code class="descname">get_ref_step</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_ref_step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_ref_step" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">If telescope_id, channel or fshape are not valid return 0.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_time_slice">
+<code class="descclassname">pyhessio.</code><code class="descname">get_time_slice</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_time_slice"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_time_slice" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">Width of readout time slice (i.e. one sample) [ns]. If telescope_id is not valid return 0.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_ref_shapes">
+<code class="descclassname">pyhessio.</code><code class="descname">get_ref_shapes</code><span class="sig-paren">(</span><em>telescope_id</em>, <em>channel</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_ref_shapes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_ref_shapes" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</li>
+<li><strong>channel</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; HI_GAIN, LOW_GAIN</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Array of Reference pulse shape(s). 0 if channel is not valid TEL_INDEX_NOT_VALID if telescope index is not valid</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">numpy.array(num_shapes,dtype=np.double)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_nrefshape">
+<code class="descclassname">pyhessio.</code><code class="descname">get_nrefshape</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_nrefshape"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_nrefshape" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">Number of following reference pulse shapes (num_gains or 0) TEL_INDEX_NOT_VALID if telescope index is not valid</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_lrefshape">
+<code class="descclassname">pyhessio.</code><code class="descname">get_lrefshape</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_lrefshape"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_lrefshape" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">Length of following reference pulse shape(s). TEL_INDEX_NOT_VALID if telescope index is not valid</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_tel_event_gps_time">
+<code class="descclassname">pyhessio.</code><code class="descname">get_tel_event_gps_time</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_tel_event_gps_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_tel_event_gps_time" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">telescope event gps tine in a 2D array: -seconds  -nonosecond</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(1,dtype=np.long)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">pyhessio.</code><code class="descname">get_tel_event_gps_time</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_tel_event_gps_time"><span class="viewcode-link">[source]</span></a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">telescope event gps tine in a 2D array: -seconds  -nonosecond</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(1,dtype=np.long)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_central_event_teltrg_list">
+<code class="descclassname">pyhessio.</code><code class="descname">get_central_event_teltrg_list</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_central_event_teltrg_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_central_event_teltrg_list" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">List of IDs of triggered telescopes</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">np.ndarray(num_teltrig,dtype=np.int32)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when information is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_num_tel_trig">
+<code class="descclassname">pyhessio.</code><code class="descname">get_num_tel_trig</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_num_tel_trig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_num_tel_trig" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">How many telescopes triggered in Central Event</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_central_event_gps_time">
+<code class="descclassname">pyhessio.</code><code class="descname">get_central_event_gps_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_central_event_gps_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_central_event_gps_time" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">telescope central envent gps tine in a 2D array: -seconds  -nonosecond</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(1,dtype=np.long)</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_camera_rotation_angle">
+<code class="descclassname">pyhessio.</code><code class="descname">get_camera_rotation_angle</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_camera_rotation_angle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_camera_rotation_angle" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">rotation angle of the camera of a given telescope (counter-clock-wise from back side for prime focus camera)L</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;camera_set[itel].cam_rot not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_mirror_number">
+<code class="descclassname">pyhessio.</code><code class="descname">get_mirror_number</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_mirror_number"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_mirror_number" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">total number of mirror tiles of a telescope</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)">int</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;camera_set[itel].num_mirrors not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_optical_foclen">
+<code class="descclassname">pyhessio.</code><code class="descname">get_optical_foclen</code><span class="sig-paren">(</span><em>telescope_id</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_optical_foclen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_optical_foclen" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>telescope_id</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#int" title="(in Python v2.7)"><em>int</em></a>) &#8211; telescope&#8217;s id</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">focal length of optics of a telescope [m]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="http://docs.python.org/library/functions.html#float" title="(in Python v2.7)">float</a></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when hsdata-&gt;camera_set[itel].flen not available</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioTelescopeIndexError: when no telescope exist with this id</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pyhessio.get_telescope_ids">
+<code class="descclassname">pyhessio.</code><code class="descname">get_telescope_ids</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pyhessio.html#get_telescope_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyhessio.get_telescope_ids" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">list of IDs of telescopes used in the run</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">numpy.ndarray(num_tel,dtype=np.int32)</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raise:</th><td class="field-body">HessioGeneralError: when information is not available</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+
+
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="getting_started/index.html" class="btn btn-neutral" title="Quick Start" accesskey="p"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, CTA developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'5',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
