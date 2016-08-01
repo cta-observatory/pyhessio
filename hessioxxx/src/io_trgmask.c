@@ -278,7 +278,7 @@ int trgmask_fill_hashed (struct trgmask_set *tms, struct trgmask_hash_set *ths)
    for ( i=0; i<tms->num_entries; i++ )
    {
       hi = TRGMASK_HASH(tms->mask[i].event,tms->mask[i].tel_id);
-      if ( hi < 0 || hi >= TRGMASK_PRIME )
+      if ( /* hi < 0 || */ hi >= TRGMASK_PRIME )
       {
          fprintf(stderr,
             "Not filling invalid trigger bit pattern entry for event %ld telescope ID %d.\n",

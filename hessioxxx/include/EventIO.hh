@@ -24,8 +24,8 @@
     
     @author  Konrad Bernloehr
     @date Initial release: April 2003
-    $Date: 2014/11/17 15:44:00 $
-    $Revision: 1.42 $
+    $Date: 2016/05/17 11:16:55 $
+    $Revision: 1.43 $
     
     Header file for C++ interface to the eventio data format.
     In constrast to the C interface, the C++ interface can
@@ -841,17 +841,17 @@ namespace eventio
             /// Put operations for 'Uint16' item type (unsigned 16-bit integers)
 
             void PutUint16(uint16_t us) { if ( rc == 0 )
-               put_vector_of_uint16(&us,1,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_uint16(&us,1,iobuf); }
+               else { check_throw("Put"); } }
             /// The 'size_t' to uint16_t conversion gets extra checking since it
             /// is used in many vector length values and silently chopping off here
             /// would easily lead to data corruption.
             inline void PutUint16(size_t us) { if (us > 65535) 
-               throw std::range_error("PutUint16(size_t): value too large for uint16_t data");
+               { throw std::range_error("PutUint16(size_t): value too large for uint16_t data"); }
                uint16_t us16 = us; put_vector_of_uint16(&us16,1,iobuf); }
             void PutUint16(const uint16_t *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_uint16(const_cast<uint16_t *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_uint16(const_cast<uint16_t *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutUint16(const std::vector<uint16_t>& vec, size_t num);
             void PutUint16(const std::vector<uint16_t>& vec)
@@ -872,14 +872,14 @@ namespace eventio
             /// Put operations for 'Int32' item type (signed 32-bit integers, 'LONG')
 
             void PutInt32(int32_t i) { if ( rc == 0 )
-               put_int32(i,iobuf);
-               else check_throw("Put"); }
+               { put_int32(i,iobuf); }
+               else { check_throw("Put"); } }
             void PutInt32(const int32_t *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_int32(const_cast<int32_t *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_int32(const_cast<int32_t *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
             void PutInt32(const long *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_long(const_cast<long *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_long(const_cast<long *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutInt32(const std::vector<int32_t>& vec, size_t num);
             void PutInt32(const std::vector<int32_t>& vec)
@@ -900,11 +900,11 @@ namespace eventio
             /// Put operations for 'Uint32' item type (unsigned 32-bit integers)
 
             void PutUint32(uint32_t ui) { if ( rc == 0 )
-               put_uint32(ui,iobuf);
-               else check_throw("Put"); }
+               { put_uint32(ui,iobuf); }
+               else { check_throw("Put"); } }
             void PutUint32(const uint32_t *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_uint32(const_cast<uint32_t *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_uint32(const_cast<uint32_t *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_64BIT_INT
             /// The 'uint_t' to uint32_t conversion gets extra checking 
             /// on machines with 64 bit integers since it is used in many
@@ -912,7 +912,7 @@ namespace eventio
             /// chopping off here would easily lead to data corruption
             /// (well actually only with really huge data blocks).
             inline void PutUint32(uint64_t us) { if (us > UINT_MAX) 
-               throw std::range_error("PutUint32(unit64_t): value too large for uint32_t data");
+               { throw std::range_error("PutUint32(unit64_t): value too large for uint32_t data"); }
                uint32_t us32 = us; put_vector_of_uint32(&us32,1,iobuf); }
 #endif
 #ifdef HAVE_STD_VECTOR
@@ -937,11 +937,11 @@ namespace eventio
             /// Put operations for 'Int64' item type (signed 64-bit integers)
 
             void PutInt64(int64_t ll) { if ( rc == 0 )
-               put_vector_of_int64(&ll,1,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_int64(&ll,1,iobuf); }
+               else { check_throw("Put"); } }
             void PutInt64(const int64_t *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_int64(const_cast<int64_t *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_int64(const_cast<int64_t *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutInt64(const std::vector<int64_t>& vec, size_t num);
             void PutInt64(const std::vector<int64_t>& vec)
@@ -956,11 +956,11 @@ namespace eventio
             /// Put operations for 'Uint64' item type (unsigned 64-bit integers)
 
             void PutUint64(uint64_t ull) { if ( rc == 0 )
-               put_vector_of_uint64(&ull,1,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_uint64(&ull,1,iobuf); }
+               else { check_throw("Put"); } }
             void PutUint64(const uint64_t *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_uint64(const_cast<uint64_t *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_uint64(const_cast<uint64_t *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutUint64(const std::vector<uint64_t>& vec, size_t num);
             void PutUint64(const std::vector<uint64_t>& vec)
@@ -976,11 +976,11 @@ namespace eventio
             /// Put operations for 'Real' item type (32-bit IEEE float)
 
             void PutReal(float f) { if ( rc == 0 )
-               put_real(f,iobuf);
-               else check_throw("Put"); }
+               { put_real(f,iobuf); }
+               else { check_throw("Put"); } }
             void PutReal(const float *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_float(const_cast<float *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_float(const_cast<float *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutReal(const std::vector<float>& vec, size_t num);
             void PutReal(const std::vector<float>& vec)
@@ -992,11 +992,11 @@ namespace eventio
                { PutCount(vec.size()); PutReal(vec,vec.size()); }
 #endif
             void PutReal(double d) { if ( rc == 0 )
-               put_real(d,iobuf);
-               else check_throw("Put"); }
+               { put_real(d,iobuf); }
+               else { check_throw("Put"); } }
             void PutReal(const double *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_real(const_cast<double *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_real(const_cast<double *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutReal(const std::vector<double>& vec, size_t num);
             void PutReal(const std::vector<double>& vec)
@@ -1011,11 +1011,11 @@ namespace eventio
             /// Put operations for 'Double' item type (64-bit IEEE double)
 
             void PutDouble(double d) { if ( rc == 0 )
-               put_double(d,iobuf);
-               else check_throw("Put"); }
+               { put_double(d,iobuf); }
+               else { check_throw("Put"); } }
             void PutDouble(const double *vec, size_t num) { if ( rc == 0 )
-               put_vector_of_double(const_cast<double *>(vec),num,iobuf);
-               else check_throw("Put"); }
+               { put_vector_of_double(const_cast<double *>(vec),num,iobuf); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutDouble(const std::vector<double>& vec, size_t num);
             void PutDouble(const std::vector<double>& vec)
@@ -1030,20 +1030,20 @@ namespace eventio
             /// Put operations for 'Sfloat' item type (16-bit OpenGL float)
 
             void PutSfloat(double d) { if ( rc == 0 )
-               put_sfloat(d,iobuf);
-               else check_throw("Put"); }
+               { put_sfloat(d,iobuf); }
+               else { check_throw("Put");}  }
             void PutSfloat(const float *vec, size_t num) { if ( rc == 0 )
                {
                   for ( size_t i=0; i<num; i++ )
                      put_sfloat(vec[i],iobuf);
                }
-               else check_throw("Put"); }
+               else { check_throw("Put"); } }
             void PutSfloat(const double *vec, size_t num) { if ( rc == 0 )
                {
                   for ( size_t i=0; i<num; i++ )
                      put_sfloat(vec[i],iobuf);
                }
-               else check_throw("Put"); }
+               else { check_throw("Put"); } }
 #ifdef HAVE_STD_VECTOR
             void PutSfloat(const std::vector<float>& vec, size_t num);
             void PutSfloat(const std::vector<double>& vec, size_t num);
@@ -1145,8 +1145,8 @@ namespace eventio
          /// The item ident found by the last Find() call.
          long ItemIdent(void) const { return search_header.ident; }
          /// The length of the data in the item found by the last Find() call.
-         size_t ItemLength(void) const { if (iobuf != 0) return iobuf->item_length[0];
-               else return 0; }
+         size_t ItemLength(void) const { if (iobuf != 0) { return iobuf->item_length[0]; }
+               else { return 0; } }
 
          int Find(void);
          int Read(void);

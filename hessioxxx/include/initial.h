@@ -25,8 +25,8 @@
     
     @author  Konrad Bernloehr
     @date    1991 to 2010
-    @date    @verbatim $Date: 2012/11/13 16:28:15 $ @endverbatim
-    @version @verbatim $Revision: 1.14 $ @endverbatim
+    @date    @verbatim $Date: 2016/03/14 23:38:36 $ @endverbatim
+    @version @verbatim $Revision: 1.17 $ @endverbatim
     
     This file identifies a range of supported operating systems
     and processor types. As a result, some preprocessor definitions
@@ -175,6 +175,13 @@ extern "C" {
 
 /* On UNIX the version of files extracted from SCCS are available for 'what' */
 #ifdef OS_UNIX
+#   ifndef _DEFAULT_SOURCE
+#      define _DEFAULT_SOURCE
+#   endif
+#   ifndef _XOPEN_SOURCE
+#      define _XOPEN_SOURCE 700
+#      define _XOPEN_SOURCE_EXTENDED
+#   endif
 #   ifndef lint
 #      define USING_SCCS 1
 #      define USING_SCCS_ID 1

@@ -8,7 +8,7 @@ __all__ = ['move_to_next_event','move_to_next_mc_event',
            'get_num_telescope','get_telescope_with_data_list',
            'get_teldata_list', 'get_telescope_position',
            'get_num_teldata','get_num_channel','get_num_pixels',
-           'get_num_samples','get_adc_sample','get_adc_sum',
+           'get_num_samples','get_adc_sample','get_adc_sum','get_significant',
            'get_pedestal','get_calibration','get_pixel_position',
            'get_pixel_timing_timval','get_pixel_shape','get_pixel_area',
            'get_mirror_area','get_pixel_timing_num_times_types',
@@ -39,6 +39,8 @@ lib.get_adc_sample.argtypes = [ctypes.c_int,ctypes.c_int,np.ctypeslib.ndpointer(
 lib.get_adc_sample.restype = ctypes.c_int
 lib.get_adc_sum.argtypes = [ctypes.c_int,ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_int32, flags="C_CONTIGUOUS")]
 lib.get_adc_sum.restype = ctypes.c_int
+lib.get_significant.argtypes =[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_uint8, flags="C_CONTIGUOUS")]
+lib.get_significant.restype = ctypes.c_int
 lib.get_calibration.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
 lib.get_calibration.restype=ctypes.c_int
 lib.get_pedestal.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
@@ -534,6 +536,38 @@ def get_pixel_timing_num_times_types(telescope_id):
         raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
     else:
         raise(HessioGeneralError("hsdata->event.teldata[itel].pixtm->num_types  not available"))
+
+def get_significant(telescope_id):
+    """
+    Returns
+    -------
+    Was amplitude large enough to record it? Bit 0: sum, 1: samples.
+
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    try:
+        npix = get_num_pixels(telescope_id)
+
+        data = np.zeros(npix,dtype=np.uint8)
+        result = lib.get_significant(telescope_id ,data)
+        if result == 0:
+            return data
+        elif result == TEL_INDEX_NOT_VALID:
+            raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+        else:
+            raise(HessioGeneralError("adc sample not available for telescope "+
+                                   str(telescope_id) +
+                                   " and channel " + str(channel)))
+
+    except HessioTelescopeIndexError: raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
 
 
 def get_num_samples(telescope_id):

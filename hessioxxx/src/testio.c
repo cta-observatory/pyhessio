@@ -22,8 +22,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     
     @author  Konrad Bernloehr
     @date    1994 to 2010
-    @date    @verbatim CVS $Date: 2014/08/04 13:05:28 $ @endverbatim
-    @version @verbatim CVS $Revision: 1.22 $ @endverbatim
+    @date    @verbatim CVS $Date: 2016/03/03 11:16:39 $ @endverbatim
+    @version @verbatim CVS $Revision: 1.23 $ @endverbatim
 */
 
 /** @defgroup testio_c The testio program */
@@ -1350,6 +1350,8 @@ int main (int argc, char **argv)
    }
 #endif
 
+   if ( ! ok )
+      exit(1);
    return 0;
 }
 

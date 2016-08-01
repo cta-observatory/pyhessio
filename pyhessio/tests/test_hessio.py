@@ -25,6 +25,7 @@ def test_hessio():
     v get_num_samples(telescope_id):
     v get_adc_sample(telescope_id,channel):
     v get_adc_sum(telescope_id,channel):
+    v get_significant(telescope_id):
     v get_data_for_calibration(telescope_id):
     v get_pixel_position(telescope_id):
     v get_pixel_shape(telescope_id)
@@ -102,6 +103,11 @@ def test_hessio():
         data_ch = get_adc_sample(47, 5)
         assert()
     except HessioChannelIndexError: pass
+
+    #get_significant
+    data_sig = get_significant(tel_id)
+    model = np.ones(2048)
+    assert np.array_equal(data_sig,model) == True
 
     #get_adc_sum
     data_ch_sum = get_adc_sum(tel_id,channel)

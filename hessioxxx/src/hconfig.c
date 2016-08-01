@@ -25,8 +25,8 @@
    @brief Configuration control and procedure call interface.
 
    @author  Konrad Bernloehr
-   @date    $Date: 2015/06/25 13:01:17 $
-   @version $Revision: 1.19 $
+   @date    $Date: 2016/03/03 11:26:36 $
+   @version $Revision: 1.20 $
 
 
      This is the module controlling all configuration except
@@ -144,6 +144,7 @@
 #include <ctype.h>
 #include "warning.h"
 #include <errno.h>
+#include <strings.h>
 
 #ifdef _REENTRANT
 #include <pthread.h>

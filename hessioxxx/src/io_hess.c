@@ -34,8 +34,8 @@
  *  @author  Konrad Bernl&ouml;hr
  *  @date July 2000 (initial version)
  *
- *  @date    @verbatim CVS $Date: 2015/03/13 18:53:34 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.87 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.96 $ @endverbatim
  */
 
 /* ================================================================== */
@@ -1203,6 +1203,7 @@ int read_hess_camorgan (IO_BUFFER *iobuf, CameraOrganisation *co)
       return rc;
    if ( item_header.version > 2 )
    {
+      fflush(stdout);
       fprintf(stderr,"Unsupported camera organisation version: %d.\n",
          item_header.version);
       get_item_end(iobuf,&item_header);
@@ -1210,6 +1211,9 @@ int read_hess_camorgan (IO_BUFFER *iobuf, CameraOrganisation *co)
    }
    if ( co->tel_id >= 0 && item_header.ident != co->tel_id )
    {
+      fflush(stdout);
+      fprintf(stderr,"Expected CameraOrganisation for telescope ID = %d, got %ld\n",
+         co->tel_id, item_header.ident);
       Warning("Refusing to copy CameraOrganisation for wrong telescope");
       get_item_end(iobuf,&item_header);
       return -1;
@@ -1223,6 +1227,7 @@ int read_hess_camorgan (IO_BUFFER *iobuf, CameraOrganisation *co)
    if ( co->num_pixels < 0 || co->num_pixels > H_MAX_PIX ||
         co->num_gains < 0 || co->num_gains > H_MAX_GAINS )
    {
+      fflush(stdout);
       Warning("Data size in CameraOrganisation is invalid.");
       fprintf(stderr,"  num_pixels = %d; allowed: %d\n", co->num_pixels, H_MAX_PIX);
       fprintf(stderr,"  num_gains  = %d; allowed: %d\n", co->num_gains, H_MAX_GAINS);
@@ -1315,11 +1320,24 @@ int read_hess_camorgan (IO_BUFFER *iobuf, CameraOrganisation *co)
 
    if ( item_header.version >= 1 )
    {
-      for (i=0; i<co->num_sectors; i++)
+      for (i=0; i<co->num_sectors && i<H_MAX_SECTORS; i++)
       {
          co->sector_type[i] = get_byte(iobuf);
          co->sector_threshold[i] = get_real(iobuf);
          co->sector_pixthresh[i] = get_real(iobuf);
+      }
+      if ( co->num_sectors > H_MAX_SECTORS )
+      {
+         fflush(stdout);
+         fprintf(stderr,
+            "There are %d trigger groups ('sectors') in telescope ID %d but only %d are supported.\n",
+            co->num_sectors, co->tel_id, H_MAX_SECTORS);
+         for ( i=H_MAX_SECTORS; i<co->num_sectors; i++ )
+         {
+            (void) get_byte(iobuf);
+            (void) get_real(iobuf);
+            (void) get_real(iobuf);
+         }
       }
    }
    else
@@ -2891,13 +2909,13 @@ void put_adcsample_differential(uint16_t *adc_sample, int n, IO_BUFFER *iobuf)
       between two consecutive time slices. Amplitudes in each time slice
       should fit in a 16-bit unsigned integer. */
    int ibin;
-   int16_t prev_amp = 0, amp_diff, this_amp;
+   int32_t prev_amp = 0, amp_diff, this_amp;
    for ( ibin=0; ibin<n; ibin++ )
    {
       this_amp = adc_sample[ibin];
       amp_diff = this_amp - prev_amp;
       prev_amp = this_amp;
-      put_scount16(amp_diff,iobuf);
+      put_scount32(amp_diff,iobuf);
    }
 }
 
@@ -2905,10 +2923,10 @@ void get_adcsample_differential(uint16_t *adc_sample, int n, IO_BUFFER *iobuf)
 {
    /* New format: store as variable-size integers. */
    int ibin;
-   int16_t prev_amp = 0, this_amp;
+   int32_t prev_amp = 0, this_amp;
    for ( ibin=0; ibin<n; ibin++ )
    {
-      this_amp = adc_sample[ibin] = get_scount32(iobuf) + prev_amp;
+      adc_sample[ibin] = this_amp = get_scount32(iobuf) + prev_amp;
       prev_amp = this_amp;
    }
 }
@@ -3619,7 +3637,9 @@ int read_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
         raw->zero_sup_mode > 2 ||
 	raw->data_red_mode > 2 )
    {
-      Warning("Invalid raw data block is skipped.");
+      Warning("Invalid raw data block is skipped (limits exceeded or bad mode).");
+      fprintf(stderr,"Num_pixels=%d, num_gains=%d, zero_sup=%d, data_red=%d\n",
+         raw->num_pixels, raw->num_gains, raw->zero_sup_mode, raw->data_red_mode);
       get_item_end(iobuf,&item_header);
       raw->num_pixels = 0;
       return -1;
@@ -3673,7 +3693,11 @@ m_tot = raw->num_pixels;
                   if ( item_header.version < 3 )
       	             get_adcsum_as_uint16(raw->adc_sum[i],raw->num_pixels,iobuf);
                   else
-      	             get_adcsum_differential(raw->adc_sum[i],raw->num_pixels,iobuf);
+#ifdef OLD_CODE
+                     get_adcsum_differential(raw->adc_sum[i],raw->num_pixels,iobuf);
+#else
+      	             get_vector_of_uint32_scount_differential(raw->adc_sum[i],raw->num_pixels,iobuf);
+#endif
                }
 	       break;
 #if (H_MAX_GAINS >= 2 )
@@ -3700,9 +3724,15 @@ m_tot = raw->num_pixels;
                   }
                   else
                   {
+#ifdef OLD_CODE
                      if ( raw->num_gains >= 2 )
 		        get_adcsum_differential(lgval,mlg,iobuf);
 		     get_adcsum_differential(&raw->adc_sum[HI_GAIN][k],n,iobuf);
+#else
+                     if ( raw->num_gains >= 2 )
+		        get_vector_of_uint32_scount_differential(lgval,mlg,iobuf);
+		     get_vector_of_uint32_scount_differential(&raw->adc_sum[HI_GAIN][k],n,iobuf);
+#endif
                   }
 #ifdef XXDEBUG
 mlg_tot += mlg;
@@ -3760,9 +3790,15 @@ mhg16_tot += n;
                   }
                   else
                   {
+#ifdef OLD_CODE
                      if ( raw->num_gains >= 2 )
 		        get_adcsum_differential(lgval,mlg,iobuf);
 		     get_adcsum_differential(hgval,mhg16,iobuf);
+#else
+                     if ( raw->num_gains >= 2 )
+		        get_vector_of_uint32_scount_differential(lgval,mlg,iobuf);
+		     get_vector_of_uint32_scount_differential(hgval,mhg16,iobuf);
+#endif
                   }
 		  get_vector_of_uint8(hgval8,mhg8,iobuf);
 #ifdef XXDEBUG
@@ -3876,9 +3912,15 @@ printf("#+# b: %04x\n",bflags);
                         }
                         else
                         {
+#ifdef OLD_CODE
                            if ( raw->num_gains >= 2)
 		     	      get_adcsum_differential(lgval,mlg,iobuf);
 		     	   get_adcsum_differential(hgval,mhg16,iobuf);
+#else
+                           if ( raw->num_gains >= 2)
+		     	      get_vector_of_uint32_scount_differential(lgval,mlg,iobuf);
+		     	   get_vector_of_uint32_scount_differential(hgval,mhg16,iobuf);
+#endif
                         }
 			if ( mhg8 > 0 )
 		     	   get_vector_of_uint8(hgval8,mhg8,iobuf);
@@ -4325,7 +4367,9 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
         raw->num_gains > H_MAX_GAINS ||
 	raw->num_samples > H_MAX_SLICES )
    {
-      Warning("Invalid raw data block is skipped.");
+      Warning("Invalid raw data block is skipped (limits exceeded).");
+      fprintf(stderr,"Num_pixels=%d, num_gains=%d, num_samples=%d\n",
+         raw->num_pixels, raw->num_gains, raw->num_samples);
       get_item_end(iobuf,&item_header);
       raw->num_pixels = 0;
       return -1;
@@ -4361,7 +4405,11 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
          for ( ilist=0; ilist<list_size; ilist++ )
             for ( ipix=pixel_list[ilist][0]; ipix<=pixel_list[ilist][1]; ipix++ )
             {
+#ifdef OLD_CODE
                get_adcsample_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
+#else
+               get_vector_of_uint16_scount_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
+#endif
                raw->significant[ipix] |= 0x20;
                
                /* Should the sampled data also be summed up here? There might be sum data preceding this sample mode data! */
@@ -4397,7 +4445,11 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
             if ( item_header.version < 3 )
       	       get_vector_of_uint16(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
             else
+#ifdef OLD_CODE
                get_adcsample_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
+#else
+               get_vector_of_uint16_scount_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
+#endif
 
             /* Should the sampled data be summed up here? If there is preceding sum data, we keep that. */
             /* Note that having non-zero-suppressed samples after sum data is normally used. */
@@ -4537,7 +4589,11 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
             for ( ilist=0, kpix=0; ilist<list_size; ilist++ )
                for ( ipix=pixel_list[ilist][0]; (int)ipix<=pixel_list[ilist][1]; ipix++ )
                {
+#ifdef OLD_CODE
                   get_adcsample_differential(adc_sample,num_samples,iobuf);
+#else
+                  get_vector_of_uint16_scount_differential(adc_sample,num_samples,iobuf);
+#endif
                   if ( kpix < maxprt )
                   {
                      printf("        Pixel %zu, ch. %zu:",ipix,igain);
@@ -4561,7 +4617,11 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
                if ( item_header.version < 3 )
       	          get_vector_of_uint16(adc_sample,num_samples,iobuf);
                else
+#ifdef OLD_CODE
                   get_adcsample_differential(adc_sample,num_samples,iobuf);
+#else
+                  get_vector_of_uint16_scount_differential(adc_sample,num_samples,iobuf);
+#endif
 
                if ( (int) ipix < maxprt )
                {
@@ -4588,12 +4648,15 @@ static void adc_reset (AdcData *raw);
 
 static void adc_reset (AdcData *raw)
 {
-   int ipix, igain, is;
+   int ipix, igain;
+//   int is;
+   size_t nb;
    if ( raw == NULL )
       return;
    raw->known = 0;
    raw->list_known = 0;
    raw->list_size = 0;
+   nb = raw->num_samples * sizeof(raw->adc_sample[0][0][0]);
    for (igain=0; igain<raw->num_gains; igain++)
    {
       for (ipix=0; ipix<raw->num_pixels; ipix++)
@@ -4601,8 +4664,12 @@ static void adc_reset (AdcData *raw)
          raw->significant[ipix] = 0;
          raw->adc_known[igain][ipix] = 0;
          raw->adc_sum[igain][ipix] = 0;
-         for (is=0; is<raw->num_samples; is++)
-            raw->adc_sample[igain][ipix][is] = 0;
+//         /* Traditionally resetting samples one by one */
+//         for (is=0; is<raw->num_samples; is++)
+//            raw->adc_sample[igain][ipix][is] = 0;
+         /* At the typical length of traces, memset is a bit faster than 
+            resetting the samples one by one. */
+         memset(&raw->adc_sample[igain][ipix][0],0,nb);
       }
    }
 }
@@ -5831,32 +5898,39 @@ int write_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
    /* Raw data is optional. */
    if ( raw != NULL && raw->known && (what & (RAWDATA_FLAG|RAWSUM_FLAG)) != 0 )
    {
-      if ( (te->readout_mode & 0xff) && (what & RAWDATA_FLAG) ) /* readout_mode is normally 0 (sum) or 1 (samples) or 2 (both) */
+      if ( (te->readout_mode & 0xff) && (what & RAWDATA_FLAG) ) /* readout_mode is normally 0 (sum) or 1 (samples) or >=2 (both) */
       {
 	 if ( raw->num_samples >= H_MAX_SLICES )
       	    raw->num_samples = H_MAX_SLICES;
-         if ( (te->readout_mode & 0xff) >= 2 ) 
-         { /* Write both which makes only sense with some zero suppression */
-            if ( (raw->zero_sup_mode & 0x20) == 0 )
+         if ( (te->readout_mode & 0xff) >= 2 ) /* Both sum and samples */
+         {
+            int zero_sup_mode = raw->zero_sup_mode;
+            /* Write both which makes only sense with some zero suppression */
+            if ( raw->zero_sup_mode != 0 && (raw->zero_sup_mode & 0x20) == 0 )
                raw->zero_sup_mode |= 0x20; /* Implied zero suppression for sample mode data */
-            if ( te->pixtm != NULL && te->pixtm->known )
+            if ( (te->readout_mode & 0xff) == 9 ) /* Not relying on proper cleaning */
             {
-               for (ipix=0; ipix<raw->num_pixels; ipix++)
+               /* Poor method of setting pixel significance from pixel timing no longer used */
+               if ( te->pixtm != NULL && te->pixtm->known )
                {
-                  if ( te->pixtm->timval[ipix][0] >= 0. )
-                     raw->significant[ipix] |= 0x20;
+                  for (ipix=0; ipix<raw->num_pixels; ipix++)
+                  {
+                     if ( te->pixtm->timval[ipix][0] >= 0. )
+                        raw->significant[ipix] |= 0x20;
+                  }
                }
-            }
-            else /* No timing analysis applied, use significance bits from sum mode */
-            {
-               for (ipix=0; ipix<raw->num_pixels; ipix++)
+               else /* No timing analysis applied, use significance bits from sum mode */
                {
-                  if ( raw->significant[ipix] )
-                     raw->significant[ipix] |= 0x20;
+                  for (ipix=0; ipix<raw->num_pixels; ipix++)
+                  {
+                     if ( raw->significant[ipix] )
+                        raw->significant[ipix] |= 0x20;
+                  }
                }
             }
             if ( (rc = write_hess_teladc_sums(iobuf,raw)) == 0 )
 	       rc = write_hess_teladc_samples(iobuf,raw);
+            raw->zero_sup_mode = zero_sup_mode; /* Reset temporary */
          }
          else /* Write only samples */
             rc = write_hess_teladc_samples(iobuf,raw);
@@ -6578,7 +6652,7 @@ int write_hess_event (IO_BUFFER *iobuf, FullEvent *ev, int what)
    rc = write_hess_centralevent(iobuf,&ev->central);
    if ( rc != 0 )
    {
-      Warning("Abort write_hess_event() due to probem in write_hess_centralevent()\n");
+      Warning("Abort write_hess_event() due to problem in write_hess_centralevent()\n");
       unput_item(iobuf,&item_header);
       return rc;
    }
@@ -6592,7 +6666,7 @@ int write_hess_event (IO_BUFFER *iobuf, FullEvent *ev, int what)
 	    rc = write_hess_televent(iobuf,&ev->teldata[j],what);
             if ( rc != 0 )
             {
-               Warning("Abort write_hess_event() due to probem in write_hess_televent()\n");
+               Warning("Abort write_hess_event() due to problem in write_hess_televent()\n");
                unput_item(iobuf,&item_header);
                return rc;
             }
@@ -6610,7 +6684,7 @@ int write_hess_event (IO_BUFFER *iobuf, FullEvent *ev, int what)
 	    rc = write_hess_trackevent(iobuf,&ev->trackdata[j]);
             if ( rc != 0 )
             {
-               Warning("Abort write_hess_event() due to probem in write_hess_trackevent()\n");
+               Warning("Abort write_hess_event() due to problem in write_hess_trackevent()\n");
                unput_item(iobuf,&item_header);
                return rc;
             }
@@ -6623,7 +6697,7 @@ int write_hess_event (IO_BUFFER *iobuf, FullEvent *ev, int what)
       rc = write_hess_shower(iobuf,&ev->shower);
       if ( rc != 0 )
       {
-         Warning("Abort write_hess_event() due to probem in write_hess_shower()\n");
+         Warning("Abort write_hess_event() due to problem in write_hess_shower()\n");
          unput_item(iobuf,&item_header);
          return rc;
       }
@@ -7731,9 +7805,10 @@ void reset_htime (HTime *t)
 void fill_htime_now (HTime *now)
 {
    struct timeval tv;
-   struct timezone tz;
+//   struct timezone tz;
 
-   gettimeofday(&tv,&tz);
+//   gettimeofday(&tv,&tz);
+   gettimeofday(&tv,NULL);
    now->seconds = tv.tv_sec;
    now->nanoseconds = tv.tv_usec * 1000;
 }
@@ -8673,7 +8748,7 @@ int print_hess_mc_run_stat (IO_BUFFER *iobuf)
  
 int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
 {
-   int iarray=0, itel=0, jtel=0, type, nbunches=0, max_bunches=0;
+   int iarray=0, itel=0, jtel=0, type, nbunches=0, max_bunches=0, flags=0;
    int npe=0, pixels=0, max_npe=0;
    int rc;
    double photons=0.;
@@ -8685,6 +8760,9 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
       switch (type)
       {
       	 case IO_TYPE_MC_PHOTONS:
+            /* The purpose of this first call to read_tel_photons is only
+               to retrieve the array and telescope numbers (yes the offset
+               number, not the telescope ID) etc. */
 	    /* With a NULL pointer argument, we expect rc = -10 */
       	    rc = read_tel_photons(iobuf, 0, &iarray, &itel, &photons,
 	          NULL, &nbunches);
@@ -8739,9 +8817,12 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
 	    }
 	    break;
 	 case IO_TYPE_MC_PE:
+            /* The purpose of this first call to read_photo_electrons is only
+               to retrieve the array and telescope offset numbers (yes the offset
+               number, not the telescope ID), the number of p.e.s and pixels etc. */
 	    /* Here we expect as well rc = -10 */
 	    rc = read_photo_electrons(iobuf, H_MAX_PIX, 0, &iarray,&itel,
-	          &npe, &pixels, &mce->mc_pe_list[itel].flags, NULL, NULL, NULL, NULL);
+	          &npe, &pixels, &flags, NULL, NULL, NULL, NULL, NULL);
 	    if ( rc != -10 )
 	    {
       	       get_item_end(iobuf,&item_header);
@@ -8761,11 +8842,13 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
 	    }
             /* If the current p.e. list buffer is too small or
                non-existent or if it is unnecessarily large, 
-               we (re-) allocate a p.e. list buffer. */
+               we (re-) allocate a p.e. list buffer for p.e. times
+               and, if requested, for amplitudes. */
 	    if ( npe > mce->mc_pe_list[itel].max_npe || 
 	         (npe < mce->mc_pe_list[itel].max_npe/4 && 
 		 mce->mc_pe_list[itel].max_npe > 20000) ||
-		 mce->mc_pe_list[itel].atimes == NULL )
+		 mce->mc_pe_list[itel].atimes == NULL ||
+                 (mce->mc_pe_list[itel].amplitudes == NULL && (flags&1) != 0) )
 	    {
 	       if ( mce->mc_pe_list[itel].atimes != NULL )
 		  free(mce->mc_pe_list[itel].atimes);
@@ -8776,17 +8859,41 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
       	          get_item_end(iobuf,&item_header);
 	          return -4;
 	       }
+               if ( mce->mc_pe_list[itel].amplitudes != NULL )
+		  free(mce->mc_pe_list[itel].amplitudes);
+               /* If the amplitude bit in flags is set, also check for that part */
+               if ( (flags&1) != 0 )
+               {
+	          if ( (mce->mc_pe_list[itel].amplitudes = (double *)
+		       calloc(npe>0?npe:1,sizeof(double))) == NULL )
+	          {
+		     mce->mc_pe_list[itel].max_npe = 0;
+      	             get_item_end(iobuf,&item_header);
+	             return -4;
+	          }
+               }
 	       mce->mc_pe_list[itel].max_npe = max_npe = npe;
 	    }
 	    else
 	       max_npe = mce->mc_pe_list[itel].max_npe;
 
+#ifdef STORE_PHOTO_ELECTRONS
 	    rc = read_photo_electrons(iobuf, H_MAX_PIX, max_npe, 
 	          &iarray, &itel, &npe, &pixels, &mce->mc_pe_list[itel].flags,
 		  mce->mc_pe_list[itel].pe_count, 
 		  mce->mc_pe_list[itel].itstart, 
 		  mce->mc_pe_list[itel].atimes,
-                  mce->mc_pe_list[itel].amplitudes);
+                  mce->mc_pe_list[itel].amplitudes,
+                  mce->mc_pe_list[itel].photon_count);
+#else
+	    rc = read_photo_electrons(iobuf, H_MAX_PIX, max_npe, 
+	          &iarray, &itel, &npe, &pixels, &mce->mc_pe_list[itel].flags,
+		  mce->mc_pe_list[itel].pe_count, 
+		  mce->mc_pe_list[itel].itstart, 
+		  mce->mc_pe_list[itel].atimes,
+                  mce->mc_pe_list[itel].amplitudes,
+                  NULL);
+#endif
 
 	    if ( rc < 0 )
 	    {
