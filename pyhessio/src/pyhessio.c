@@ -23,6 +23,8 @@ int get_mirror_area (int telescope_id, double *mirror_area);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
 int get_num_samples (int telescope_id);
+int get_zero_sup_mode(int telescope_id,int* result);
+int get_data_red_mode(int telescope_id,int* result);
 int get_num_teldata (void);
 int get_num_telescope (void);
 int get_pixel_timing_num_times_types (int telescope_id);
@@ -756,6 +758,7 @@ int  get_mirror_area (int telescope_id, double *result)
 //-----------------------------------------------------
 // Returns the number of samples (time slices) recorded
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// Otherwise 0
 //-----------------------------------------------------
 int get_num_samples (int telescope_id)
 {
@@ -772,6 +775,49 @@ int get_num_samples (int telescope_id)
 		}
 	return -1;
 }
+
+//-----------------------------------------------------
+// Returns the desired or used zero suppression mode.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//-----------------------------------------------------
+int get_zero_sup_mode(int telescope_id,int* mode){
+	if (hsdata != NULL)
+	{
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+			return TEL_INDEX_NOT_VALID;
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL)		//&& raw->known   )
+		{
+			*mode = raw->zero_sup_mode;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+//-----------------------------------------------------
+// Returns the desired or used zero suppression mode.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// Otherwise 0
+//-----------------------------------------------------
+int get_data_red_mode(int telescope_id,int* mode){
+	if (hsdata != NULL)
+	{
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+			return TEL_INDEX_NOT_VALID;
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL)		//&& raw->known   )
+		{
+			*mode = raw->data_red_mode;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+
 //-----------------------------------------------------
 // Returns the number of different types of times can we store
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
@@ -779,16 +825,16 @@ int get_num_samples (int telescope_id)
 int get_pixel_timing_num_times_types (int telescope_id)
 {
 	if (hsdata != NULL)
-		{
+	{
 		int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
-		return TEL_INDEX_NOT_VALID;
+			return TEL_INDEX_NOT_VALID;
 		PixelTiming *pt = hsdata->event.teldata[itel].pixtm;
 		if (pt != NULL)
 		{
-		return pt->num_types;
+			return pt->num_types;
 		}
-		}
+	}
 	return -1;
 }
 //-----------------------------------------------------

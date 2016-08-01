@@ -23,6 +23,8 @@ def test_hessio():
     v get_num_channel(telescope_id):
     v get_num_pixels(telescope_id):
     v get_num_samples(telescope_id):
+    v get_zero_sup_mode(telescope_id):
+    v get_data_red_mode(telescope_id):
     v get_adc_sample(telescope_id,channel):
     v get_adc_sum(telescope_id,channel):
     v get_significant(telescope_id):
@@ -133,6 +135,21 @@ def test_hessio():
         assert()
     except HessioTelescopeIndexError:pass
 
+    #get_zero_sup_mode
+    mode = get_zero_sup_mode(tel_id)
+    assert mode == 0
+    try:
+        get_zero_sup_mode(70000)
+        assert()
+    except HessioTelescopeIndexError:pass
+
+    #get_data_red_mode
+    mode = get_data_red_mode(tel_id)
+    assert mode == 0
+    try:
+        get_data_red_mode(70000)
+        assert()
+    except HessioTelescopeIndexError:pass
 
     #get_calibration
     calibration = get_calibration(tel_id)
