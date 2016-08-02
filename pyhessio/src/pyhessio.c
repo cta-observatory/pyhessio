@@ -15,6 +15,7 @@ void free_hsdata(void);
 int fill_hsdata (int *event_id);
 int get_adc_sample (int telescope_id, int channel, uint16_t * data);
 int get_adc_sum (int telescope_id, int channel, uint32_t * data);
+uint8_t get_significant (int telescope_id, uint8_t * data);
 int get_pedestal (int telescope_id, double *pedestal);
 int get_calibration (int telescope_id, double *calib);
 int get_global_event_count (void);
@@ -22,6 +23,8 @@ int get_mirror_area (int telescope_id, double *mirror_area);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
 int get_num_samples (int telescope_id);
+int get_zero_sup_mode(int telescope_id,int* result);
+int get_data_red_mode(int telescope_id,int* result);
 int get_num_teldata (void);
 int get_num_telescope (void);
 int get_pixel_timing_num_times_types (int telescope_id);
@@ -45,7 +48,7 @@ double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
 double get_mc_shower_h_first_int(void);
-int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe);
+int get_mc_number_photon_electron(int telescope_id, int* pe);
 uint8_t get_adc_known (int telescope_id, int channel, int pixel_id);
 double get_ref_shape (int telescope_id, int channel, int fshape);
 double get_ref_step (int telescope_id);
@@ -418,16 +421,24 @@ int get_mc_shower_primary_id(){
 // pe is a output parameter, fill with numbers of photon electron
 // Returns  0 on success otherwise -1
 //----------------------------------------------------------------
-int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe){
-	if (hsdata != NULL  ){
-		int itel = get_telescope_index (telescope_id);
+int get_mc_number_photon_electron(int telescope_id, int* pe){
+
+
+    if (hsdata != NULL){
+        int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
 			return TEL_INDEX_NOT_VALID;
-   if( pixel_id > H_MAX_PIX)
-	 	return PIXEL_INDEX_NOT_VALID;
-	 *pe = hsdata->mc_event.mc_pe_list[telescope_id].pe_count[pixel_id];
-	 return 0;
- }
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL && raw->known){	// If triggered telescopes
+			int ipix = 0.;
+			for (ipix = 0.; ipix < raw->num_pixels; ipix++){ 	//  loop over pixels
+				if (raw->significant[ipix]){
+					 *pe++ = hsdata->mc_event.mc_pe_list[itel].pe_count[ipix];
+				}		// end if raw->significant[ipix]
+			}			// end of   loop over pixels
+		}			// end if triggered telescopes
+		return 0;
+	}
 	return -1;
 }
 //----------------------------------------------------------------
@@ -555,6 +566,30 @@ int get_adc_sample (int telescope_id, int channel, uint16_t * data){
 	}
 	return -1;
 }
+
+//----------------------------------------------------------------
+// Returns Was amplitude large enough to record it? Bit 0: sum, 1: samples.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+uint8_t get_significant (int telescope_id, uint8_t * data){
+	if (hsdata != NULL){
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+			return TEL_INDEX_NOT_VALID;
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL ){
+			int ipix = 0;
+			for (ipix = 0; ipix < raw->num_pixels; ipix++){ 	//  loop over pixels
+				*data++ = raw->significant[ipix];
+			}			// end of   loop over pixels
+			return 0;
+		}
+
+	}
+	return -1;
+}
+
+
 //----------------------------------------------------------------
 // Return adc sum for corresponding telescope and channel (HI_GAIN/LOW_GAIN)
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
@@ -732,6 +767,7 @@ int  get_mirror_area (int telescope_id, double *result)
 //-----------------------------------------------------
 // Returns the number of samples (time slices) recorded
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// Otherwise 0
 //-----------------------------------------------------
 int get_num_samples (int telescope_id)
 {
@@ -748,6 +784,49 @@ int get_num_samples (int telescope_id)
 		}
 	return -1;
 }
+
+//-----------------------------------------------------
+// Returns the desired or used zero suppression mode.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//-----------------------------------------------------
+int get_zero_sup_mode(int telescope_id,int* mode){
+	if (hsdata != NULL)
+	{
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+			return TEL_INDEX_NOT_VALID;
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL)
+		{
+			*mode = raw->zero_sup_mode;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+//-----------------------------------------------------
+// Returns the desired or used zero suppression mode.
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+// Otherwise 0
+//-----------------------------------------------------
+int get_data_red_mode(int telescope_id,int* mode){
+	if (hsdata != NULL)
+	{
+		int itel = get_telescope_index (telescope_id);
+		if (itel == TEL_INDEX_NOT_VALID)
+			return TEL_INDEX_NOT_VALID;
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL)
+		{
+			*mode = raw->data_red_mode;
+			return 0;
+		}
+	}
+	return -1;
+}
+
+
 //-----------------------------------------------------
 // Returns the number of different types of times can we store
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
@@ -755,16 +834,16 @@ int get_num_samples (int telescope_id)
 int get_pixel_timing_num_times_types (int telescope_id)
 {
 	if (hsdata != NULL)
-		{
+	{
 		int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
-		return TEL_INDEX_NOT_VALID;
+			return TEL_INDEX_NOT_VALID;
 		PixelTiming *pt = hsdata->event.teldata[itel].pixtm;
 		if (pt != NULL)
 		{
-		return pt->num_types;
+			return pt->num_types;
 		}
-		}
+	}
 	return -1;
 }
 //-----------------------------------------------------

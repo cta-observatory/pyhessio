@@ -1,19 +1,3 @@
-========
-pyhessio
-========
-
-CTA Python wrapper for hessio event format that is used in output of simtel_array.
-
-* Code: https://github.com/cta-observatory/pyhessio 
-* Docs: https://cta-observatory.github.io/pyhessio/
-
-This is a temporaly solution for testing ctapipe with real CTA MC data.
-
-* .. image:: http://img.shields.io/travis/cta-observatory/pyhessio.svg?branch=master
-    :target: https://travis-ci.org/cta-observatory/pyhessio
-    :alt: Test Status
-
- 
 ===========
 Quick Start
 ===========
@@ -23,26 +7,26 @@ Users of the Anaconda python distribution should follow the instructions for Ana
 Dependencies
 ------------
 
-:: 
+::
 
-    python3 
+    python3
     setuptools
     numpy
 
 build and install
------------------ 
+-----------------
 
-Installation without anaconda  
-________________________________ 
+Installation without anaconda
+________________________________
 
-::  
-  
-    git clone https://github.com/cta-observatory/pyhessio  
-    cd pyhessio  
-    python setup.py install   
+::
 
-Installation for an anaconda env 
-________________________________ 
+    git clone https://github.com/cta-observatory/pyhessio
+    cd pyhessio
+    python setup.py install
+
+Installation for an anaconda env
+________________________________
 
 ::
 

@@ -1,3 +1,8 @@
+0.5.5(2016-08-01)
+-----------------
+Update hessioxxx(2016-05-25)
+add significant zero_sup_mode and data_red_mode getter
+
 0.5 (2016-01-08)
 ----------------
 - Remove CMake and build hessioxxx sources code directly in setup.py
