@@ -267,9 +267,6 @@ def test_hessio():
     assert( mc_offset_x == 0)
     assert( mc_offset_y == 0)
 
-    assert(get_mc_number_photon_electron(1,1) == 0)
-
-
     """
     xcode 1129.6055908203125
     ycode 547.77001953125
@@ -292,7 +289,7 @@ def test_hessio():
     assert(float(get_mc_event_xcore()) == float(1129.6055908203125))
     assert(float(get_mc_event_ycore()) == float(547.77001953125))
     assert(float(get_mc_shower_energy()) == float(.3820943236351013))
-    assert(get_mc_number_photon_electron(1,1) == 0)
+    assert(get_mc_number_photon_electron(1)[0] == 0)
     assert(float(get_mc_shower_azimuth()) == float(6.283185005187988))
     assert(float(get_mc_shower_altitude()) == float( 1.2217304706573486))
 

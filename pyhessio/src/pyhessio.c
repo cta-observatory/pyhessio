@@ -48,7 +48,7 @@ double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
 double get_mc_shower_h_first_int(void);
-int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe);
+int get_mc_number_photon_electron(int telescope_id, int* pe);
 uint8_t get_adc_known (int telescope_id, int channel, int pixel_id);
 double get_ref_shape (int telescope_id, int channel, int fshape);
 double get_ref_step (int telescope_id);
@@ -421,16 +421,24 @@ int get_mc_shower_primary_id(){
 // pe is a output parameter, fill with numbers of photon electron
 // Returns  0 on success otherwise -1
 //----------------------------------------------------------------
-int get_mc_number_photon_electron(int telescope_id, int pixel_id, int* pe){
-	if (hsdata != NULL  ){
-		int itel = get_telescope_index (telescope_id);
+int get_mc_number_photon_electron(int telescope_id, int* pe){
+
+
+    if (hsdata != NULL){
+        int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
 			return TEL_INDEX_NOT_VALID;
-   if( pixel_id > H_MAX_PIX)
-	 	return PIXEL_INDEX_NOT_VALID;
-	 *pe = hsdata->mc_event.mc_pe_list[telescope_id].pe_count[pixel_id];
-	 return 0;
- }
+		AdcData *raw = hsdata->event.teldata[itel].raw;
+		if (raw != NULL && raw->known){	// If triggered telescopes
+			int ipix = 0.;
+			for (ipix = 0.; ipix < raw->num_pixels; ipix++){ 	//  loop over pixels
+				if (raw->significant[ipix]){
+					 *pe++ = hsdata->mc_event.mc_pe_list[itel].pe_count[ipix];
+				}		// end if raw->significant[ipix]
+			}			// end of   loop over pixels
+		}			// end if triggered telescopes
+		return 0;
+	}
 	return -1;
 }
 //----------------------------------------------------------------
@@ -1190,6 +1198,26 @@ void free_hsdata(void)
 				hsdata->event.teldata[itel].pixcal = NULL;
 			}
 		}
+		if ( hsdata->run_header.target != NULL )
+		{
+			free(hsdata->run_header.target);
+			hsdata->run_header.target = NULL;
+		}
+		if ( hsdata->run_header.observer != NULL )
+		{
+			free(hsdata->run_header.observer);
+			hsdata->run_header.observer = NULL;
+		}
+		int j;
+		for ( j=0; j<H_MAX_PROFILE; j++)
+		{
+			if ( hsdata->mc_shower.profile[j].content != NULL )
+			{
+				free(hsdata->mc_shower.profile[j].content);
+				hsdata->mc_shower.profile[j].content = NULL;
+			}
+		}
+
 		/* Free main structure */
 		free(hsdata);
 		hsdata = NULL;
