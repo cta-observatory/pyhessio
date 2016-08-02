@@ -30,8 +30,8 @@
  *  @author  Konrad Bernl&ouml;hr 
  *  @date initial version: July 2000
  *
- *  @date    @verbatim CVS $Date: 2016/03/08 16:07:50 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.97 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.98 $ @endverbatim
  */
 
 /* ================================================================ */
@@ -880,7 +880,7 @@ struct hess_tel_event_data_struct
    int known_time_trgsect; ///< Are the trigger times known? (0/1)
    double time_trgsect[H_MAX_SECTORS]; ///< Times when trigger groups (as in list) fired.
 //   char type_trgsect[H_MAX_SECTORS]; ///< 0: majority, 1: analog sum, 2: digital sum.
-   int readout_mode;       ///< Sum mode (0) or sample mode (1 ... 255, normally: 1).
+   int readout_mode;       ///< Sum mode (0) or sample mode only (1) or both (>=2)
    int num_image_sets;     ///< how many 'img' sets are available.
    int max_image_sets;     ///< how many 'img' sets were allocated.
    AdcData *raw;           ///< Pointer to raw data, if any.

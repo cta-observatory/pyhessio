@@ -1,3 +1,3 @@
-#define EVENTIO_VERSION "2016-03-18 12:50:04 CET (konrad@wizard4)"
-#define EVENTIO_RELEASE "2016-03-18 (prod3/prod3n)"
-#define EVENTIO_BASE_RELEASE "2016-03-18 (prod3/prod3n)"
+#define EVENTIO_VERSION "2016-05-25 18:04:57 CEST (konrad@wizard4)"
+#define EVENTIO_BASE_RELEASE "2016-05-25 (prod3/prod3n)"
+#define EVENTIO_BASE_RELEASE "2016-05-25 (prod3/prod3n)"

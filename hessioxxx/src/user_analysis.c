@@ -30,8 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *  @author  Konrad Bernloehr 
  *  @date    initial version: August 2006
- *  @date    @verbatim CVS $Date: 2015/12/15 13:07:22 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.72 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/05/17 11:17:46 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.74 $ @endverbatim
  */
 
 #include <limits.h>
@@ -1693,6 +1693,404 @@ static void book_hist_global(AllHessData *hsdata)
       return;
 
    printf("Booking global histograms.\n");
+   
+   xylow[0] = xylow[1] = -2000.;
+   xyhigh[0] = xyhigh[1] = 2000.;
+   nbins[0] = nbins[1] = 200;
+   book_histogram(9100,
+      "Core position of event triggered with >= 1 tel.",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9101,
+      "Core position of event triggered with >= 1 tel. (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9102,
+      "Core position of event triggered with >= 1 tel. (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9103,
+      "Core position of event triggered with >= 1 tel. (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9104,
+      "Core position of event triggered with >= 1 tel. (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9105,
+      "Core position of event triggered with >= 1 tel. (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9106,
+      "Core position of event triggered with >= 1 tel. (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9107,
+      "Core position of event triggered with >= 1 tel. (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9108,
+      "Core position of event triggered with >= 1 tel. (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9109,
+      "Core position of event triggered with >= 1 tel. (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9110,
+      "Core position of event triggered with >= 1 tel. (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9111,
+      "Core position of event triggered with >= 1 tel. (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9112,
+      "Core position of event triggered with >= 1 tel. (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9113,
+      "Core position of event triggered with >= 1 tel. (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9114,
+      "Core position of event triggered with >= 1 tel. (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9115,
+      "Core position of event triggered with >= 1 tel. (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(9150,
+      "Core position of event seen with >= 1 image",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9151,
+      "Core position of event seen with >= 1 image (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9152,
+      "Core position of event seen with >= 1 image (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9153,
+      "Core position of event seen with >= 1 image (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9154,
+      "Core position of event seen with >= 1 image (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9155,
+      "Core position of event seen with >= 1 image (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9156,
+      "Core position of event seen with >= 1 image (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9157,
+      "Core position of event seen with >= 1 image (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9158,
+      "Core position of event seen with >= 1 image (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9159,
+      "Core position of event seen with >= 1 image (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9160,
+      "Core position of event seen with >= 1 image (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9161,
+      "Core position of event seen with >= 1 image (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9162,
+      "Core position of event seen with >= 1 image (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9163,
+      "Core position of event seen with >= 1 image (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9164,
+      "Core position of event seen with >= 1 image (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9165,
+      "Core position of event seen with >= 1 image (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(9200,
+      "Core position of events triggered with >= 2 tel.",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9201,
+      "Core position of event triggered with >= 2 tel. (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9202,
+      "Core position of event triggered with >= 2 tel. (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9203,
+      "Core position of event triggered with >= 2 tel. (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9204,
+      "Core position of event triggered with >= 2 tel. (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9205,
+      "Core position of event triggered with >= 2 tel. (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9206,
+      "Core position of event triggered with >= 2 tel. (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9207,
+      "Core position of event triggered with >= 2 tel. (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9208,
+      "Core position of event triggered with >= 2 tel. (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9209,
+      "Core position of event triggered with >= 2 tel. (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9210,
+      "Core position of event triggered with >= 2 tel. (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9211,
+      "Core position of event triggered with >= 2 tel. (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9212,
+      "Core position of event triggered with >= 2 tel. (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9213,
+      "Core position of event triggered with >= 2 tel. (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9214,
+      "Core position of event triggered with >= 2 tel. (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9215,
+      "Core position of event triggered with >= 2 tel. (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(9250,
+      "Core position of event seen with >= 2 images",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9251,
+      "Core position of event seen with >= 2 images (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9252,
+      "Core position of event seen with >= 2 images (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9253,
+      "Core position of event seen with >= 2 images (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9254,
+      "Core position of event seen with >= 2 images (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9255,
+      "Core position of event seen with >= 2 images (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9256,
+      "Core position of event seen with >= 2 images (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9257,
+      "Core position of event seen with >= 2 images (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9258,
+      "Core position of event seen with >= 2 images (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9259,
+      "Core position of event seen with >= 2 images (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9260,
+      "Core position of event seen with >= 2 images (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9261,
+      "Core position of event seen with >= 2 images (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9262,
+      "Core position of event seen with >= 2 images (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9263,
+      "Core position of event seen with >= 2 images (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9264,
+      "Core position of event seen with >= 2 images (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9265,
+      "Core position of event seen with >= 2 images (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(9300,
+      "Core position of events triggered with >= 3 tel.",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9301,
+      "Core position of event triggered with >= 3 tel. (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9302,
+      "Core position of event triggered with >= 3 tel. (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9303,
+      "Core position of event triggered with >= 3 tel. (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9304,
+      "Core position of event triggered with >= 3 tel. (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9305,
+      "Core position of event triggered with >= 3 tel. (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9306,
+      "Core position of event triggered with >= 3 tel. (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9307,
+      "Core position of event triggered with >= 3 tel. (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9308,
+      "Core position of event triggered with >= 3 tel. (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9309,
+      "Core position of event triggered with >= 3 tel. (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9310,
+      "Core position of event triggered with >= 3 tel. (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9311,
+      "Core position of event triggered with >= 3 tel. (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9312,
+      "Core position of event triggered with >= 3 tel. (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9313,
+      "Core position of event triggered with >= 3 tel. (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9314,
+      "Core position of event triggered with >= 3 tel. (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9215,
+      "Core position of event triggered with >= 3 tel. (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(9350,
+      "Core position of event seen with >= 3 images",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9351,
+      "Core position of event seen with >= 3 images (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9352,
+      "Core position of event seen with >= 3 images (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9353,
+      "Core position of event seen with >= 3 images (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9354,
+      "Core position of event seen with >= 3 images (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9355,
+      "Core position of event seen with >= 3 images (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9356,
+      "Core position of event seen with >= 3 images (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9357,
+      "Core position of event seen with >= 3 images (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9358,
+      "Core position of event seen with >= 3 images (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9359,
+      "Core position of event seen with >= 3 images (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9360,
+      "Core position of event seen with >= 3 images (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9361,
+      "Core position of event seen with >= 3 images (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9362,
+      "Core position of event seen with >= 3 images (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9363,
+      "Core position of event seen with >= 3 images (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9364,
+      "Core position of event seen with >= 3 images (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9365,
+      "Core position of event seen with >= 3 images (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+
+   book_histogram(9400,
+      "Core position of events triggered with >= 4 tel.",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9401,
+      "Core position of event triggered with >= 4 tel. (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9402,
+      "Core position of event triggered with >= 4 tel. (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9403,
+      "Core position of event triggered with >= 4 tel. (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9404,
+      "Core position of event triggered with >= 4 tel. (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9405,
+      "Core position of event triggered with >= 4 tel. (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9406,
+      "Core position of event triggered with >= 4 tel. (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9407,
+      "Core position of event triggered with >= 4 tel. (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9408,
+      "Core position of event triggered with >= 4 tel. (1.26-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9409,
+      "Core position of event triggered with >= 4 tel. (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9410,
+      "Core position of event triggered with >= 4 tel. (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9411,
+      "Core position of event triggered with >= 4 tel. (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9412,
+      "Core position of event triggered with >= 4 tel. (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9413,
+      "Core position of event triggered with >= 4 tel. (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9414,
+      "Core position of event triggered with >= 4 tel. (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9415,
+      "Core position of event triggered with >= 4 tel. (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+   book_histogram(9450,
+      "Core position of event seen with >= 4 images",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9451,
+      "Core position of event seen with >= 4 images (10-20 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9452,
+      "Core position of event seen with >= 4 images (20-40 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9453,
+      "Core position of event seen with >= 4 images (40-80 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9454,
+      "Core position of event seen with >= 4 images (80-160 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9455,
+      "Core position of event seen with >= 4 images (160-316 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9456,
+      "Core position of event seen with >= 4 images (316-631 GeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9457,
+      "Core position of event seen with >= 4 images (0.631-1.26 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9458,
+      "Core position of event seen with >= 4 images (1.25-2.5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9459,
+      "Core position of event seen with >= 4 images (2.5-5 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9460,
+      "Core position of event seen with >= 4 images (5-10 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9461,
+      "Core position of event seen with >= 4 images (10-20 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9462,
+      "Core position of event seen with >= 4 images (20-40 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9463,
+      "Core position of event seen with >= 4 images (40-80 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9464,
+      "Core position of event seen with >= 4 images (80-160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+   book_histogram(9465,
+      "Core position of event seen with >= 4 images (>160 TeV)",
+      "D", 2, xylow, xyhigh, nbins);
+
+
 
    xylow[0] = -0.5; xyhigh[0] = hsdata->run_header.ntel+0.5; nbins[0] = hsdata->run_header.ntel+1;
    book_histogram(10001,
@@ -2821,8 +3219,21 @@ static void user_event_fill (AllHessData *hsdata, int stage)
 	 }
 
       if ( num_trg > 0 )
-       for ( itel=0; itel<hsdata->run_header.ntel; itel++)
-          fill_histogram_by_ident(10002, hsdata->event.teldata[itel].tel_id, num_trg, ewt);
+      {
+         int itrg, ie = -1;
+         for ( itel=0; itel<hsdata->run_header.ntel; itel++)
+            fill_histogram_by_ident(10002, hsdata->event.teldata[itel].tel_id, num_trg, ewt);
+         if ( E_true > 0.01 )
+            ie = (int)(10.*log10(E_true/0.01)/3.) + 1; /* Ten bins per three decades in energy */
+         if ( ie > 15 )
+            ie = 15;
+         for ( itrg=1; itrg<=num_trg && itrg<=4; itrg++ )
+         {
+            fill_histogram_by_ident(9000+100*itrg, xc_true, yc_true, ewt);
+            if ( ie > 0 )
+               fill_histogram_by_ident(9000+100*itrg+ie, xc_true, yc_true, ewt);
+         }
+      }
 
       fill_histogram_by_ident(10001, num_trg, 0., ewt);
       fill_histogram_by_ident(10004, num_trg, 0., 1.0);
@@ -2963,6 +3374,21 @@ static void user_event_fill (AllHessData *hsdata, int stage)
                   }
                }
             }
+         }
+      }
+
+      if ( n_img > 0 )
+      {
+         int iimg, ie = -1;
+         if ( E_true > 0.01 )
+            ie = (int)(10.*log10(E_true/0.01)/3.) + 1; /* Ten bins per three decades in energy */
+         if ( ie > 15 )
+            ie = 15;
+         for ( iimg=1; iimg<=n_img && iimg<=4; iimg++ )
+         {
+            fill_histogram_by_ident(9050+100*iimg, xc_true, yc_true, ewt);
+            if ( ie > 0 )
+               fill_histogram_by_ident(9050+100*iimg+ie, xc_true, yc_true, ewt);
          }
       }
 
@@ -3472,7 +3898,7 @@ static void user_event_fill (AllHessData *hsdata, int stage)
             if ( mscrw < 0.7 && mscrl < 2.0 && 
                  mscrw > -2.0 && mscrl > -2.0 ) /* "hard cuts" */
                shape_cuts_ok = 1;
-               break;
+            break;
          case 3:
             if ( mscrw < 1.2 && mscrl < 2.0 && 
                  mscrw > -2.0 && mscrl > -2.0 ) /* "loose cuts" */

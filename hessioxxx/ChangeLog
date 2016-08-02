@@ -1,3 +1,309 @@
+2016-05-25 18:04  bernlohr
+
+	* hess/: io_hess.c (1.96), io_hess.h (1.98), read_hess.c (1.129),
+	  reconstruct.c (1.65): Fix bad use of zero_sup_mode bit 0x20 which
+	  waswhich was resulting in some empty images when both pulse
+	  integration and data cleaning are activated.
+
+2016-05-24 18:26  bernlohr
+
+	* hess/reconstruct.c (1.64): Make sure neighbour finding was done
+	  and that we don't try to access unknown neighbour lists.
+
+2016-05-24 17:39  bernlohr
+
+	* hess/reconstruct.c (1.63): Data cleaning also taking effect for
+	  PixelTiming and PixelCalibrated data.
+
+2016-05-23 16:40  bernlohr
+
+	* hess/: read_hess.c (1.128), reconstruct.c (1.62): More
+	  fine-grained data cleaning options (--cleaning 1 to 5).
+
+2016-05-20 18:08  bernlohr
+
+	* hess/: io_hess.c (1.95), read_hess.c (1.127), reconstruct.c
+	  (1.61), reconstruct.h (1.23): First working implementation of the
+	  data cleaning in read_hess.  Now disabling the use of pixel
+	  significance from the 'pixel timing', which was only used for
+	  prod1s data, as it is too noisy.
+
+2016-05-20 18:05  bernlohr
+
+	* hess/rh_dl0_test.c (1.4): What if the raw data traces were not
+	  summed up automatically?
+
+2016-05-17 13:17  bernlohr
+
+	* hess/user_analysis.c (1.74): Avoid warning with gcc 6.1
+
+2016-05-17 13:16  bernlohr
+
+	* eventio_basic/EventIO.hh (1.43): Avoid warnings with g++ 6.1
+
+2016-05-17 13:16  bernlohr
+
+	* EventioRegisteredNames.dat (1.6): Add more block type numbers
+	  with telescope event and tracking data.
+
+2016-05-03 16:00  bernlohr
+
+	* hess/merge_simtel.c (1.10): Report which events get ignored
+	  because triggered telescope are not distinct.
+
+2016-05-03 15:51  bernlohr
+
+	* hess/merge_simtel.c (1.9): Stereo triggers must by default be
+	  from distinct telescopes.
+
+2016-04-29 21:01  bernlohr
+
+	* hess/merge_simtel.c (1.8): Add options to get rid of some
+	  duplicated MC data.
+
+2016-04-29 18:02  bernlohr
+
+	* hess/user_analysis.c (1.73): Add lots of histograms to see in
+	  which areas events get triggered in different energy ranges.
+
+2016-04-29 18:00  bernlohr
+
+	* hess/merge_simtel.c (1.7): Cleaning of history also for
+	  merge_simtel, plus allowing to keep some of the first history
+	  blocks, for example with multi-step merging.
+
+2016-04-29 17:58  bernlohr
+
+	* hess/read_hess.c (1.126): Option was advertised as
+	  '--clean-history' but accepted only as '--clear-history'.
+	  Accepting both now.
+
+2016-04-29 17:54  bernlohr
+
+	* rht.cc (1.2): Allow calculation of threshold based on other
+	  analysis histograms.
+
+2016-04-11 12:08  bernlohr
+
+	* eventio_basic/eventio.c (1.48): Should fix reported problems with
+	  I/O blocks greater than 2 GB.
+
+2016-03-18 12:49  bernlohr
+
+	* hess/split_hessio.c (1.7): Also write the tracking data along the
+	  telescope event data in '-x' mode of split_hessio.
+
+2016-03-17 19:09  bernlohr
+
+	* hess/read_hess.c (1.125): Read stand-alone
+	  central/tracking/telescope event data and plot telescope image if
+	  requested.
+
+2016-03-17 16:36  bernlohr
+
+	* hess/read_hess.c (1.124): Start with larger I/O buffer, more
+	  appropriate for the typical CTA case, so we do not need to
+	  enlarge it afterwards again and again.
+
+2016-03-17 16:35  bernlohr
+
+	* hess/split_hessio.c (1.6): By default drop the compression for
+	  output files as this would launch more than 100 gzip pipes for
+	  the typical CTA case.
+
+2016-03-15 00:38  bernlohr
+
+	* common/initial.h (1.17), hess/read_hess.c (1.123): Fix new
+	  portability problem for snprintf and strcasecmp.
+
+2016-03-14 14:34  bernlohr
+
+	* eventio_basic/eventio.c (1.47), eventio_basic/io_basic.h (1.25),
+	  hess/io_hess.c (1.94): Playing with further bulk data speed
+	  improvements.
+
+2016-03-09 14:11  bernlohr
+
+	* common/initial.h (1.16): strings.h is not actually needed in
+	  initial.h as it is already included where functions like
+	  strncasecmp etc. get used.
+
+2016-03-08 17:07  bernlohr
+
+	* corsika/io_simtel.c (1.28), corsika/mc_tel.h (1.16),
+	  hess/io_hess.c (1.93), hess/io_hess.h (1.97), hess/read_hess.c
+	  (1.122): Add option to store number of photons hitting each pixel
+	  along with the list of photo-electrons (not activated by default
+	  for efficiency reasons).
+
+2016-03-08 01:53  bernlohr
+
+	* eventio_basic/eventio.c (1.46): Hard to tell with normal data
+	  which byteswapping method is more efficient when it is not
+	  normally needed as long as staying on architectures with the same
+	  byte order. Use -DNO_BYTESWAP if you want to turn off the new
+	  way.
+
+2016-03-08 01:51  bernlohr
+
+	* hess/io_hess.c (1.92): Use consistent ifdef OLD_CODE for timing
+	  comparison of new optimized raw data reading with the old way.
+
+2016-03-08 00:46  bernlohr
+
+	* hess/io_hess.c (1.91): Fix missing allocation/re-allocation of
+	  amplitudes array for the per-pixel photo-electron lists (the
+	  amplitudes never been used so far).
+
+2016-03-04 16:09  bernlohr
+
+	* eventio_basic/eventio.c (1.45): Restrict use of bswap functions
+	  to glibc systems (gcc >= 4.3 or clang compatible).
+
+2016-03-03 12:35  bernlohr
+
+	* eventio_basic/eventio.c (1.44), eventio_basic/io_basic.h (1.24),
+	  hess/io_hess.c (1.90): Optimize reading some of the very frequent
+	  data types, in particular the differential ADC samples and ADC
+	  sums.
+
+2016-03-03 12:30  bernlohr
+
+	* hess/rh_dl0_test.c (1.3): More flexible for producing also the
+	  requested histograms for MSTs etc.
+
+2016-03-03 12:28  bernlohr
+
+	* hess/read_hess.c (1.121): Get rid of dummy timezone structure
+	  (which may or may not have been necessary on some historical
+	  systems).
+
+2016-03-03 12:26  bernlohr
+
+	* common/: fileopen.c (1.23), hconfig.c (1.20), initial.h (1.15):
+	  Use of the swab() function for optimized copying and
+	  byte-swapping of vectors of 16-bit data required a few changes in
+	  includes.  Not sure if this breaks compatibility with historical
+	  systems like VAX/VMS or OS/9. If so, nobody is likely to
+	  complain.
+
+2016-03-03 12:18  bernlohr
+
+	* show_types.cc (1.2): Show a few more data types.
+
+2016-03-03 12:16  bernlohr
+
+	* eventio_basic/: TestIO.cc (1.26), testio.c (1.23): Use exit(1)
+	  for all cases of data mismatch, not just read errors.
+
+2016-02-24 16:54  bernlohr
+
+	* EventioRegisteredNames.dat (1.5), hess/io_hess.c (1.89),
+	  hess/read_hess.c (1.120), hess/split_hessio.c (1.5): Writing
+	  central-trigger data to a separate file in split_hessio may be
+	  useful for re-merging events later-on.  Read_hess initialising
+	  basic MC shower/event data in case of a mix of runs with and
+	  without MC data.  Documentation typos fixed in io_hess.c
+
+2016-02-24 14:30  bernlohr
+
+	* hess/split_hessio.c (1.4): Create two auxilliary data files
+	  instead of one. The 'telaux' file should be the same for each run
+	  with same setup, only the second one would differ (with disabled
+	  pixels, pedestals, calibration coefficients).
+
+2016-02-24 14:28  bernlohr
+
+	* hess/read_hess.c (1.119): Do not report maximum sizes with '-q'
+	  option.
+
+2016-02-18 17:46  bernlohr
+
+	* hess/rh_dl0_test.c (1.2): Add a few comments in code.
+
+2016-02-17 17:44  bernlohr
+
+	* hess/: cam2sky.c (1.1), extract_simtel.c (1.1), lpdist.c (1.1),
+	  rh_dl0_test.c (1.1): Add a couple of unused or test programs to
+	  CVS.
+
+2016-02-17 17:40  bernlohr
+
+	* Makefile (1.112), Makefile.xxx (1.15), eventio_basic/io_basic.h
+	  (1.23), hess/io_hess.h (1.96), hess/read_hess.c (1.118),
+	  hess/split_hessio.c (1.3): In addition to '--dst-level' option
+	  and '--raw-level' and associated options to read_hess, for
+	  rewriting raw data (optionally reducing the amounts of other
+	  types of data).
+
+2016-02-05 12:27  bernlohr
+
+	* hessio.dox (1.17): Excludes some test and other programs from
+	  generated doxygen documentation.
+
+2016-02-05 12:27  bernlohr
+
+	* EventioRegisteredNames.dat (1.4): Add more documented data types.
+
+2016-01-25 15:37  bernlohr
+
+	* hess/io_trgmask.c (1.6), corsika/io_simtel.c (1.27): Get rid of
+	  two compiler warnings (clang only, no problem).
+
+2015-12-21 18:27  bernlohr
+
+	* hessio.dox (1.16): Update version and file list for doxygen
+	  generated documentation.
+
+2015-12-15 18:48  bernlohr
+
+	* hess/read_hess.c (1.117): Finish with checking for memory leaks
+	  (none found) and keep de-allocation code as optional.
+
+2015-12-15 14:07  bernlohr
+
+	* hess/: read_hess.c (1.116), reconstruct.c (1.60), reconstruct.h
+	  (1.22), user_analysis.c (1.72): For checking that there are no
+	  memory leaks (with valgrind), release (almost) everything at the
+	  end. No leaks found.
+
+2015-12-09 19:24  bernlohr
+
+	* hess/: io_hess.c (1.88), io_hess.h (1.95), read_hess.c (1.115),
+	  reconstruct.c (1.59), user_analysis.c (1.71): - Fix reading of
+	  event data if current library supports fewer sectors	 per
+	  telescope than in recorded data.    The CTA_MAX version now
+	  supports 23310 sectors.  - New flexible pixel neighbour finding
+	  (needed for zero suppression)   re-activated after fixing a
+	  segmentation fault.  - Telescope type assignment without
+	  telescope ID (i.e. using mirror area,   focal length, pixels) was
+	  broken with prod-3 Paranal merged data   because the order of
+	  data blocks is less strict than in single   simulation data.
+	  Telescope types are now re-assigned when needed.  - Even when
+	  told to save memory the maximum number of slices can	 be as big
+	  as 96 (instead of 80) in CTA prod2/prod3/max settings.
+
+2015-10-30 14:37  bernlohr
+
+	* common/fileopen.c (1.22): Avoid the fflush before pclose in
+	  fileclose function for non-glibc-based systems since we do not
+	  know if it is an input or output pipe.
+
+2015-10-16 15:17  bernlohr
+
+	* hess/io_hess.h (1.94): Allow overriding maximum no. of
+	  telescopes, pixels, sectors, drawers, slices to tailor specific
+	  versions at compile-time without need for code modifications.
+
+2015-07-20 13:27  bernlohr
+
+	* hess/io_hess.h (1.93): The final change for prod-3, or hoping so.
+
+2015-07-20 13:25  bernlohr
+
+	* common/fileopen.c (1.21): fileopen handlers for tar and zip files
+	  (all content files to be read sequentially) working now.
+
 2015-07-15 21:47  bernlohr
 
 	* common/fileopen.c (1.20): Input files to fileopen (for reading)

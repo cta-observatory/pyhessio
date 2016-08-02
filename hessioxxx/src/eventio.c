@@ -25,8 +25,8 @@
  *   
  *  @author  Konrad Bernloehr
  *  @date    1991 to 2010
- *  @date    @verbatim CVS $Date: 2016/03/14 13:34:52 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.47 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/04/11 10:08:15 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.48 $ @endverbatim
     
 @verbatim
  ================ General comments to eventio.c ======================
@@ -4872,7 +4872,7 @@ int find_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 int read_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 {
    int rc = 0;
-   int length;
+   size_t length, rb = 0;
 
    if ( iobuf == (IO_BUFFER *) NULL || item_header == (IO_ITEM_HEADER *) NULL )
       return -1;
@@ -4893,58 +4893,73 @@ int read_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
       return -1;
    }
 #endif
+   /* Keep in mind that item_length[0] can be -1, resulting in a bad 'length', */
+   /* thus using this variable only where a size_t is needed anyway. */
    length = (size_t) iobuf->item_length[0];
 
    if ( iobuf->buffer == (BYTE *) NULL )
       return -1;
 
-   if ( iobuf->buflen < iobuf->item_length[0]+16 )
-   {
-      if ( extend_io_buffer(iobuf,0,
-           iobuf->item_length[0]+16-iobuf->buflen) == -1 )
-      {
-         Warning("I/O buffer too small; I/O block is skipped");
-         if ( (rc = skip_io_block(iobuf,item_header)) < 0 )
-            return rc;
-         else
-            return -3;
-      }
-   }
-
-   if ( length > 0 )
+   if ( iobuf->item_length[0] > 0 )
    {
       int e4 = (iobuf->item_extension[0]?4:0);
+
+      if ( iobuf->buflen < iobuf->item_length[0]+16+e4 )
+      {
+         if ( extend_io_buffer(iobuf,0,
+              iobuf->item_length[0]+16+e4-iobuf->buflen) == -1 )
+         {
+            Warning("I/O buffer too small; I/O block is skipped");
+            if ( (rc = skip_io_block(iobuf,item_header)) < 0 )
+               return rc;
+            else
+               return -3;
+         }
+      }
+
       if ( iobuf->input_fileno >= 0 || iobuf->input_file != (FILE *) NULL )
       {
+         /* Both read and fread return the number of bytes actually read */
          if ( iobuf->input_fileno >= 0 )
-            rc = READ_BYTES(iobuf->input_fileno,
+         {
+            rb = READ_BYTES(iobuf->input_fileno,
                (char *)(iobuf->buffer+16+e4),length);
-         else if ( (rc = fread((void *)(iobuf->buffer+16+e4),(size_t)1,(size_t)length,
+         }
+         else if ( (rb = fread((void *)(iobuf->buffer+16+e4),(size_t)1,(size_t)length,
               iobuf->input_file)) == 0 )
+         {
             if ( ferror(iobuf->input_file) )
                rc = -1;
-         if ( rc > 0 && rc != length )
+         }
+         if ( rb > 0 && rb != length )
          {
 	    char msg[256];
             sprintf(msg,
-              "Wrong number of bytes were read (%d instead of %d)",rc,length);
+              "Wrong number of bytes were read (%zu instead of %zu)",rb,length);
             Warning(msg);
             return -1;
          }
       }
       else if ( iobuf->user_function != NULL )
+      {
+         /* The user function returns codes like 0 (OK), -1 (error), -2 (EOF) */
          rc = (iobuf->user_function)(iobuf->buffer+16+e4,(long)length,3);
+         if ( rc == 0 )
+            rb = length;
+         else
+            rb = 0;
+      }
       else
          rc = -1;
    }
-   else if ( length < 0 )
+   else if ( iobuf->item_length[0] < 0 ) /* Blocks without data perhaps */
       rc = -1;
 
-   if ( rc <= 0 && length != 0 )  /* End-of-file or read error */
+   if ( rc < 0 || (rb == 0 && length != 0) )  /* End-of-file or read error */
    {
       item_header->type = 0;
       iobuf->item_length[0] = 0;
-      if ( rc == 0 ) /* EOF */
+      if ( rc == 0 || rc == -2 ) /* EOF */
          return -2;
       else           /* input error */
          return -1;
@@ -4977,8 +4992,9 @@ int read_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 {
    char tbuf[512];
-   long nbuf, ibuf, length;
-   int rbuf, rc = 0;
+   long nbuf, rbuf, ibuf, length;
+   int rc = 0;
+   size_t rb = 0;
 #ifndef FSTAT_NOT_AVAILABLE
    struct stat st;
 #endif
@@ -5010,9 +5026,9 @@ int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 #ifndef FSTAT_NOT_AVAILABLE
    if ( iobuf->regular >= 0 )
    {
-      if ( iobuf->input_fileno > 0 )
+      if ( iobuf->input_fileno > 0 ) /* Using low-level I/O */
       {
-         if ( iobuf->regular == 0 )
+         if ( iobuf->regular == 0 ) /* Don't know yet, need to find out */
          {
             fstat(iobuf->input_fileno,&st);
 #ifdef S_IFREG
@@ -5022,7 +5038,7 @@ int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 #endif
                iobuf->regular = -1;
          }
-         if ( iobuf->regular == 1 )
+         if ( iobuf->regular == 1 ) /* Regular file, can seek to skip data */
          {
 #ifdef __USE_LARGEFILE64
             /* Although blocks must be less than 2^31 bytes, we may */
@@ -5042,9 +5058,9 @@ int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
             return 0;
          }
       }
-      else if ( iobuf->input_file != (FILE *) NULL )
+      else if ( iobuf->input_file != (FILE *) NULL ) /* Using buffered I/O */
       {
-         if ( iobuf->regular == 0 )
+         if ( iobuf->regular == 0 ) /* Don't know yet, need to find out */
          {
             fstat(fileno(iobuf->input_file),&st);
 #ifdef S_IFREG
@@ -5054,7 +5070,7 @@ int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
 #endif
                iobuf->regular = -1;
          }
-         if ( iobuf->regular == 1 )
+         if ( iobuf->regular == 1 ) /* Regular file, can seek to skip data */
          {
 #ifdef __USE_LARGEFILE64
             /* Although blocks must be less than 2^31 bytes, we may */
@@ -5073,21 +5089,23 @@ int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
    }
 #endif
 
+   /* We come along here without user function and when we cannot seek, */
+   /* which is typically when reading from a pipe. Read and ignore the data. */
    nbuf = length/512;
    rbuf = length%512;
-   if ( iobuf->input_fileno >= 0 )
+   if ( iobuf->input_fileno >= 0 ) /* Using low-level I/O */
    {
       for ( ibuf=0; ibuf<nbuf; ibuf++ )
-         rc = READ_BYTES(iobuf->input_fileno,tbuf,512L);
+         rb = READ_BYTES(iobuf->input_fileno,tbuf,512L);
       if ( rbuf > 0 )
-         rc = READ_BYTES(iobuf->input_fileno,tbuf,rbuf);
+         rb = READ_BYTES(iobuf->input_fileno,tbuf,rbuf);
    }
-   else if ( iobuf->input_file != (FILE *) NULL )
+   else if ( iobuf->input_file != (FILE *) NULL ) /* Using buffered I/O */
    {
       for ( ibuf=0; ibuf<nbuf; ibuf++ )
-         rc = fread((void *)tbuf,(size_t)1,(size_t)512,iobuf->input_file);
+         rb = fread((void *)tbuf,(size_t)1,(size_t)512,iobuf->input_file);
       if ( rbuf > 0 )
-         rc = fread((void *)tbuf,(size_t)1,(size_t)rbuf,iobuf->input_file);
+         rb = fread((void *)tbuf,(size_t)1,(size_t)rbuf,iobuf->input_file);
       if ( ferror(iobuf->input_file) )
          rc = -1;
    }
@@ -5095,7 +5113,7 @@ int skip_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header)
    iobuf->item_length[0] = iobuf->sub_item_length[0] = -1;
    iobuf->data_pending = 0;
 
-   if ( rc <= 0 )  /* End-of-file or read error */
+   if ( rc < 0 || rb == 0 )  /* End-of-file or read error */
    {
       item_header->type = 0;
       if ( rc == 0 ) /* EOF */
@@ -5196,7 +5214,7 @@ int list_io_blocks (IO_BUFFER *iobuf, int verbosity)
 int copy_item_to_io_block (IO_BUFFER *iobuf2, IO_BUFFER *iobuf, 
    const IO_ITEM_HEADER *item_header)
 {
-   int length;
+   long length;
    int ilevel;
    int ie4 = 0;
 
@@ -5222,7 +5240,7 @@ int copy_item_to_io_block (IO_BUFFER *iobuf2, IO_BUFFER *iobuf,
       return -1;
    }
 #endif
-   if ( (length = (int) iobuf->item_length[ilevel]) < 0 )
+   if ( (length = iobuf->item_length[ilevel]) < 0 )
       return -1;
 
    reset_io_block(iobuf2);

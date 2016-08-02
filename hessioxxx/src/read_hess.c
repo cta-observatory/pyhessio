@@ -45,6 +45,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  3) and 4) Keep only user-defined events (with or without raw data).
  *
 @verbatim
+read_hess: A program for viewing and analyzing sim_telarray (sim_hessarray) data.
+
 Syntax: read_hess [ options ] [ - | input_fname ... ]
 Options:
    -p ps_filename  (Write a PostScript file with camera images.)
@@ -116,7 +118,8 @@ Options:
    --no-mc-data    (Discard MC shower and MC event data.)
    --broken-pixels-fraction (Add random broken/dead pixels on run-by-run basis.)
    --dead-time-fraction (Set telescopes randomly as dead from prior triggers.)
-   --integration-scheme n *(Set the integration scheme for sample-mode data.)
+   --integration-scheme n *(Set the integration scheme for sample-mode data.
+                   Use '--integration-scheme help' to show available schemes.)
    --integration-window w,o *(Set integration window width and offset.)
    --integration-treshold h[,l] *(Set significance thresholds for integration.)
    --integration-no-rescale *(Don't rescale pulse sum for integration with
@@ -131,7 +134,9 @@ Options:
    --off-axis-range a1,a2 (Only for diffuse mode, restricting range in deg.)
    --auto-lookup   (Automatically generate lookup table (gammas only).)
    --lookup-file name (Override automatic naming of lookup files.)
-   --cleaning n    (Imaging cleaning setting: 0=no, 1=sums, 2=samples, 3=both)
+   --cleaning n    (Imaging cleaning setting: 0=no, 1-5=yes, see '--cleaning help')
+   --zero-suppression n (Zero suppression scheme; 0: off, 3=auto)
+   -z              (Equivalent to '--zero-suppression auto')
    --dst-level n   (Level of data reduction when writing DST-type output.)
                    Valid levels: 0, 1, 2, 3, 10, 11, 12, 13.
                    Raw data is stripped off at all levels except 0 and 10.
@@ -141,26 +146,27 @@ Options:
                    level 3 has many config/calib blocks only once, not per run.
                    Levels 10-13 include only selected gamma-like events.
    --raw-level n   (Re-write original raw data or processed data, with possible
-                   reduction of other data according to level.)
+                   selection or reduction of other data according to level.)
                    Level 0 has all data written as available.
                    Level 1 has MC data only for triggerer events.
                    Level 2 has no MC data (--no-mc-data).
                    Level 3 has only raw data for telescopes and nothing else (--pure-raw).
                    Level 4 also cleans past history data (--clean-history).
    --dst-file name (Name of output file for DST-type output.)
+                   A DST file is needed for cleaning > 0 or DST level >= 0.
    --output-file   (Synonym to --dst-file)
    --histogram-file name (Name of histogram file.)
    -f fname        (Get list of input file names from fname.)
 
-Parameters followed by a '*' can be telescope-type-specific if preceded by a
+Parameters followed by a '*' can be type-specific if preceded by a
 '--type' option. Their interpretation is thus position-dependent.
 
 @endverbatim
  *
  *  @author Konrad Bernloehr
  *
- *  @date    @verbatim CVS $Date: 2016/03/17 18:09:16 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.125 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.129 $ @endverbatim
  */
 
 /** @defgroup read_hess_c The read_hess (aka read_simtel, read_cta) program */
@@ -558,7 +564,9 @@ static void syntax (char *program)
    printf("   --off-axis-range a1,a2 (Only for diffuse mode, restricting range in deg.)\n");
    printf("   --auto-lookup   (Automatically generate lookup table (gammas only).)\n");
    printf("   --lookup-file name (Override automatic naming of lookup files.)\n");
-   printf("   --cleaning n    (Imaging cleaning setting: 0=no, 1=sums, 2=samples, 3=both)\n");
+   printf("   --cleaning n    (Imaging cleaning setting: 0=no, 1-5=yes, see '--cleaning help')\n");
+   printf("   --zero-suppression n (Zero suppression scheme; 0: off, 3=auto)\n");
+   printf("   -z              (Equivalent to '--zero-suppression auto')\n");
    printf("   --dst-level n   (Level of data reduction when writing DST-type output.)\n");
    printf("                   Valid levels: 0, 1, 2, 3, 10, 11, 12, 13.\n");
    printf("                   Raw data is stripped off at all levels except 0 and 10.\n");
@@ -798,9 +806,9 @@ int main (int argc, char **argv)
    /* First pass over command line for switching to quiet mode */
    for ( iarg=1; iarg < argc; iarg++ )
    {
-      if ( strcmp(argv[iarg],"-q") == 0 )
+      if ( strcmp(argv[iarg],"-q") == 0 || strcmp(argv[iarg],"--quiet") == 0 )
          quiet = 1;
-      else if ( strcmp(argv[iarg],"-v") == 0 )
+      else if ( strcmp(argv[iarg],"-v") == 0 || strcmp(argv[iarg],"--verbose") == 0 )
          quiet = 0;
    }
    if ( ! quiet )
@@ -882,7 +890,7 @@ int main (int argc, char **argv)
 	 argv++;
 	 continue;
       }
-      else if ( strcmp(argv[1],"-v") == 0 )
+      else if ( strcmp(argv[1],"-v") == 0 || strcmp(argv[1],"--verbose") == 0 )
       {
        	 verbose = 1;
          quiet = 0;
@@ -943,6 +951,9 @@ int main (int argc, char **argv)
 #ifdef CTA_PROD3
          printf("   CTA_PROD3\n");
 #endif
+#ifdef CTA_PROD3_DEMO
+         printf("   CTA_PROD3_DEMO\n");
+#endif
 #ifdef CTA_PROD3_SC
          printf("   CTA_PROD3_SC\n");
 #endif
@@ -980,7 +991,7 @@ int main (int argc, char **argv)
 	 argv++;
 	 continue;
       }
-      else if ( strcmp(argv[1],"-q") == 0 )
+      else if ( strcmp(argv[1],"-q") == 0 || strcmp(argv[1],"--quiet") == 0 )
       {
        	 quiet = 1;
          verbose = 0;
@@ -995,7 +1006,8 @@ int main (int argc, char **argv)
 	 argv++;
 	 continue;
       }
-      else if ( strcmp(argv[1],"--clear-history") == 0 )
+      else if ( strcmp(argv[1],"--clean-history") == 0 ||
+                strcmp(argv[1],"--clear-history") == 0 )
       {
        	 clean_history = 1;
 	 argc--;
@@ -1076,20 +1088,6 @@ int main (int argc, char **argv)
        	 flag_amp_tm = 2; /* Use amplitude sums around local peaks if available. */
 	 argc--;
 	 argv++;
-	 continue;
-      }
-      else if ( strcmp(argv[1],"--cleaning") == 0 && argc > 2 )
-      {
-       	 cleaning = atoi(argv[2]);
-         if ( cleaning > 0 )
-         {
-            if ( reco_flag < 3 )
-               reco_flag = 3; /* Implied image cleaning needs reconstruction flag of at least 3. */
-            if ( zero_suppression <= 0 )
-               zero_suppression = 3; /* Implied auto zero suppression */
-         }
-	 argc -= 2;
-	 argv += 2;
 	 continue;
       }
       else if ( strcmp(argv[1],"--dst-level") == 0 && argc > 2 )
@@ -1257,6 +1255,54 @@ int main (int argc, char **argv)
          user_set_nxt_radius(rxt);
 	 argc -= 2;
 	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--cleaning") == 0 && argc > 2 )
+      {
+         if ( strcmp(argv[2],"help") == 0 )
+         {
+            printf("Known data cleaning values:\n"
+                   "   0: No cleaning, leave data as-is\n"
+                   "   1: Sums for clean+extension region but no traces\n"
+                   "   2: Sums for all pixels and traces only for clean+extension region\n"
+                   "   3: Sums and traces only for clean+extension region\n"
+                   "   4: Sums for clean+extension region, traces only for clean+nb region\n"
+                   "   5: Sums for clean+extension region, traces only for clean region\n"
+                   "Clean region includes pixels passing image cleaning, clean+nb also\n"
+                   "their neighbours, clean+extension the neighbours within --ext-radius\n"
+                   "rather than the normal neighbours.\n");
+            exit(1);
+         }
+       	 cleaning = atoi(argv[2]);
+         if ( cleaning > 0 )
+         {
+            if ( reco_flag < 3 )
+               reco_flag = 3; /* Implied image cleaning needs reconstruction flag of at least 3. */
+            if ( zero_suppression <= 0 )
+               zero_suppression = 3; /* Implied auto zero suppression */
+         }
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--zero-suppression") == 0 && argc > 2 )
+      {
+         if ( strcasecmp(argv[2],"auto") == 0 )
+            zero_suppression = 3;
+         else
+         {
+            zero_suppression = -1;
+            sscanf(argv[2], "%d", &zero_suppression);
+         }
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"-z") == 0 )
+      {
+         zero_suppression = 3;
+	 argc--;
+	 argv++;
 	 continue;
       }
       else if ( (strcmp(argv[1],"--dE-cut") == 0 ||
@@ -1772,26 +1818,6 @@ int main (int argc, char **argv)
             fprintf(stderr,"Calibration scale error %f is out of range and ignored.\n", s);
 	 argc -= 2;
 	 argv += 2;
-	 continue;
-      }
-      else if ( strcmp(argv[1],"--zero-suppression") == 0 && argc > 2 )
-      {
-         if ( strcasecmp(argv[2],"auto") == 0 )
-            zero_suppression = 3;
-         else
-         {
-            zero_suppression = -1;
-            sscanf(argv[2], "%d", &zero_suppression);
-         }
-	 argc -= 2;
-	 argv += 2;
-	 continue;
-      }
-      else if ( strcmp(argv[1],"-z") == 0 )
-      {
-         zero_suppression = 3;
-	 argc--;
-	 argv++;
 	 continue;
       }
       else if ( strcmp(argv[1],"--hess-standard-cuts") == 0 )
@@ -2861,7 +2887,7 @@ int main (int argc, char **argv)
             if ( reco_flag > 1 )
                reconstruct(hsdata, reco_flag, min_amp_tel, min_pix_tel,
 	       		tailcut_low_tel, tailcut_high_tel, lref_tel, minfrac_tel, 0 /* -2 */, 
-                        flag_amp_tm);
+                        flag_amp_tm, cleaning);
             if ( user_ana )
                do_user_ana(hsdata,item_header.type,1);
 
@@ -3105,7 +3131,7 @@ int main (int argc, char **argv)
                      if ( hsdata->event.teldata[itel].known &&
                           hsdata->event.teldata[itel].raw != NULL )
                      {
-                        hsdata->event.teldata[itel].raw->zero_sup_mode = zero_suppression;
+                        hsdata->event.teldata[itel].raw->zero_sup_mode = zero_suppression & 0x1f;
                      }
                }
                if ( dst_level == 0 )

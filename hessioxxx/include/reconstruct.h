@@ -25,10 +25,11 @@ extern "C" {
 
 int deallocate_nb_list(int itel);
 
-double line_point_distance(double xp1, double yp1, double zp1, double cx, double cy, double cz, double x, double y, double z);
+double line_point_distance(double xp1, double yp1, double zp1, 
+   double cx, double cy, double cz, double x, double y, double z);
 int reconstruct(AllHessData *hsdata, int reco_flag, 
    const double *min_amp, const size_t *min_pix, const double *tcl, const double *tch, 
-   const int *lref, const double *minfrac, int nimg, int flag_amp_tm);
+   const int *lref, const double *minfrac, int nimg, int flag_amp_tm, int clean_flag);
 int store_camera_radius(CameraSettings *camset, int itel);
 double get_camera_radius(int itel, int maxflag);
 void select_calibration_channel (int chn);
