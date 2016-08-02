@@ -569,13 +569,14 @@ uint8_t get_significant (int telescope_id, uint8_t * data){
 		if (itel == TEL_INDEX_NOT_VALID)
 			return TEL_INDEX_NOT_VALID;
 		AdcData *raw = hsdata->event.teldata[itel].raw;
-		if (raw != NULL && raw->known){	// If triggered telescopes
-			int ipix = 0.;
-			for (ipix = 0.; ipix < raw->num_pixels; ipix++){ 	//  loop over pixels
+		if (raw != NULL ){
+			int ipix = 0;
+			for (ipix = 0; ipix < raw->num_pixels; ipix++){ 	//  loop over pixels
 				*data++ = raw->significant[ipix];
 			}			// end of   loop over pixels
-		}			// end if triggered telescopes
-		return 0;
+			return 0;
+		}
+
 	}
 	return -1;
 }
@@ -787,7 +788,7 @@ int get_zero_sup_mode(int telescope_id,int* mode){
 		if (itel == TEL_INDEX_NOT_VALID)
 			return TEL_INDEX_NOT_VALID;
 		AdcData *raw = hsdata->event.teldata[itel].raw;
-		if (raw != NULL)		//&& raw->known   )
+		if (raw != NULL)
 		{
 			*mode = raw->zero_sup_mode;
 			return 0;
@@ -808,7 +809,7 @@ int get_data_red_mode(int telescope_id,int* mode){
 		if (itel == TEL_INDEX_NOT_VALID)
 			return TEL_INDEX_NOT_VALID;
 		AdcData *raw = hsdata->event.teldata[itel].raw;
-		if (raw != NULL)		//&& raw->known   )
+		if (raw != NULL)
 		{
 			*mode = raw->data_red_mode;
 			return 0;

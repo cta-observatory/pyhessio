@@ -560,19 +560,20 @@ def get_significant(telescope_id):
     """
     try:
         npix = get_num_pixels(telescope_id)
-
         data = np.zeros(npix,dtype=np.uint8)
         result = lib.get_significant(telescope_id ,data)
         if result == 0:
             return data
         elif result == TEL_INDEX_NOT_VALID:
-            raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+            raise(HessioTelescopeIndexError("no telescope with id " +
+                                str(telescope_id)))
         else:
-            raise(HessioGeneralError("adc sample not available for telescope "+
-                                   str(telescope_id) +
-                                   " and channel " + str(channel)))
+            raise(HessioGeneralError("significant not available for telescope "+
+                                str(telescope_id)))
 
-    except HessioTelescopeIndexError: raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    except HessioTelescopeIndexError: raise(HessioTelescopeIndexError(
+                                "significant not available for telescope " +
+                                str(telescope_id)))
 
 
 def get_num_samples(telescope_id):
@@ -622,11 +623,11 @@ def get_zero_sup_mode(telescope_id):
     """
     mode  = np.zeros(1,dtype=np.int32)
     result = lib.get_zero_sup_mode(telescope_id,mode)
-    if result >= 0: return mode[0]
+    if result == 0: return mode[0]
     elif result == TEL_INDEX_NOT_VALID:
         raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
     else:
-        raise(HessioGeneralError("ata->event.teldata[itel].raw->get_zero_sup_mode not available"))
+        raise(HessioGeneralError("get_zero_sup_mode not available"))
 
 def get_data_red_mode(telescope_id):
     """
@@ -648,11 +649,11 @@ def get_data_red_mode(telescope_id):
     """
     mode = np.zeros(1,dtype=np.int32)
     result = lib.get_data_red_mode(telescope_id,mode)
-    if result >= 0: return mode[0]
+    if result == 0: return mode[0]
     elif result == TEL_INDEX_NOT_VALID:
         raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
     else:
-        raise(HessioGeneralError("ata->event.teldata[itel].raw->get_zero_sup_mode not available"))
+        raise(HessioGeneralError("data_red_mode not available"))
 
 def get_adc_sample(telescope_id,channel):
     """
