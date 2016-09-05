@@ -34,8 +34,8 @@
  *  @author  Konrad Bernl&ouml;hr
  *  @date July 2000 (initial version)
  *
- *  @date    @verbatim CVS $Date: 2016/03/14 13:34:53 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.94 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.96 $ @endverbatim
  */
 
 /* ================================================================== */
@@ -5898,32 +5898,39 @@ int write_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
    /* Raw data is optional. */
    if ( raw != NULL && raw->known && (what & (RAWDATA_FLAG|RAWSUM_FLAG)) != 0 )
    {
-      if ( (te->readout_mode & 0xff) && (what & RAWDATA_FLAG) ) /* readout_mode is normally 0 (sum) or 1 (samples) or 2 (both) */
+      if ( (te->readout_mode & 0xff) && (what & RAWDATA_FLAG) ) /* readout_mode is normally 0 (sum) or 1 (samples) or >=2 (both) */
       {
 	 if ( raw->num_samples >= H_MAX_SLICES )
       	    raw->num_samples = H_MAX_SLICES;
-         if ( (te->readout_mode & 0xff) >= 2 ) 
-         { /* Write both which makes only sense with some zero suppression */
-            if ( (raw->zero_sup_mode & 0x20) == 0 )
+         if ( (te->readout_mode & 0xff) >= 2 ) /* Both sum and samples */
+         {
+            int zero_sup_mode = raw->zero_sup_mode;
+            /* Write both which makes only sense with some zero suppression */
+            if ( raw->zero_sup_mode != 0 && (raw->zero_sup_mode & 0x20) == 0 )
                raw->zero_sup_mode |= 0x20; /* Implied zero suppression for sample mode data */
-            if ( te->pixtm != NULL && te->pixtm->known )
+            if ( (te->readout_mode & 0xff) == 9 ) /* Not relying on proper cleaning */
             {
-               for (ipix=0; ipix<raw->num_pixels; ipix++)
+               /* Poor method of setting pixel significance from pixel timing no longer used */
+               if ( te->pixtm != NULL && te->pixtm->known )
                {
-                  if ( te->pixtm->timval[ipix][0] >= 0. )
-                     raw->significant[ipix] |= 0x20;
+                  for (ipix=0; ipix<raw->num_pixels; ipix++)
+                  {
+                     if ( te->pixtm->timval[ipix][0] >= 0. )
+                        raw->significant[ipix] |= 0x20;
+                  }
                }
-            }
-            else /* No timing analysis applied, use significance bits from sum mode */
-            {
-               for (ipix=0; ipix<raw->num_pixels; ipix++)
+               else /* No timing analysis applied, use significance bits from sum mode */
                {
-                  if ( raw->significant[ipix] )
-                     raw->significant[ipix] |= 0x20;
+                  for (ipix=0; ipix<raw->num_pixels; ipix++)
+                  {
+                     if ( raw->significant[ipix] )
+                        raw->significant[ipix] |= 0x20;
+                  }
                }
             }
             if ( (rc = write_hess_teladc_sums(iobuf,raw)) == 0 )
 	       rc = write_hess_teladc_samples(iobuf,raw);
+            raw->zero_sup_mode = zero_sup_mode; /* Reset temporary */
          }
          else /* Write only samples */
             rc = write_hess_teladc_samples(iobuf,raw);

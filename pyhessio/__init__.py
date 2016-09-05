@@ -13,7 +13,8 @@ __all__ = ['move_to_next_event','move_to_next_mc_event',
            'get_num_telescope','get_telescope_with_data_list',
            'get_teldata_list', 'get_telescope_position',
            'get_num_teldata','get_num_channel','get_num_pixels',
-           'get_num_samples','get_adc_sample','get_adc_sum',
+           'get_num_samples','get_adc_sample','get_adc_sum','get_zero_sup_mode',
+           'get_data_red_mode', 'get_significant',
            'get_pedestal','get_calibration','get_pixel_position',
            'get_pixel_timing_timval','get_pixel_shape','get_pixel_area',
            'get_mirror_area','get_pixel_timing_num_times_types',
@@ -43,6 +44,8 @@ lib.get_adc_sample.argtypes = [ctypes.c_int,ctypes.c_int,np.ctypeslib.ndpointer(
 lib.get_adc_sample.restype = ctypes.c_int
 lib.get_adc_sum.argtypes = [ctypes.c_int,ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_int32, flags="C_CONTIGUOUS")]
 lib.get_adc_sum.restype = ctypes.c_int
+lib.get_significant.argtypes =[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_uint8, flags="C_CONTIGUOUS")]
+lib.get_significant.restype = ctypes.c_int
 lib.get_calibration.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
 lib.get_calibration.restype=ctypes.c_int
 lib.get_pedestal.argtypes=[ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
@@ -56,6 +59,10 @@ lib.get_num_pixels.argtypes = [ctypes.c_int]
 lib.get_num_pixels.restype = ctypes.c_int
 lib.get_num_samples.argtypes = [ctypes.c_int]
 lib.get_num_samples.restype = ctypes.c_int
+lib.get_zero_sup_mode.argtypes = [ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_zero_sup_mode.restype = ctypes.c_int
+lib.get_data_red_mode.argtypes = [ctypes.c_int,np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_data_red_mode.restype = ctypes.c_int
 lib.get_num_teldata.restype = ctypes.c_int
 lib.get_num_telescope.restype = ctypes.c_int
 lib.get_num_tel_trig.restype = ctypes.c_int
@@ -440,6 +447,39 @@ def get_pixel_timing_num_times_types(telescope_id):
     else:
         raise(HessioGeneralError("hsdata->event.teldata[itel].pixtm->num_types  not available"))
 
+def get_significant(telescope_id):
+    """
+    Returns
+    -------
+    Was amplitude large enough to record it? Bit 0: sum, 1: samples.
+
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    try:
+        npix = get_num_pixels(telescope_id)
+        data = np.zeros(npix,dtype=np.uint8)
+        result = lib.get_significant(telescope_id ,data)
+        if result == 0:
+            return data
+        elif result == TEL_INDEX_NOT_VALID:
+            raise(HessioTelescopeIndexError("no telescope with id " +
+                                str(telescope_id)))
+        else:
+            raise(HessioGeneralError("significant not available for telescope "+
+                                str(telescope_id)))
+
+    except HessioTelescopeIndexError: raise(HessioTelescopeIndexError(
+                                "significant not available for telescope " +
+                                str(telescope_id)))
+
 
 def get_num_samples(telescope_id):
     """
@@ -457,6 +497,59 @@ def get_num_samples(telescope_id):
     else:
         raise(HessioGeneralError("ata->event.teldata[itel].raw->num->samples not available"))
 
+
+
+def get_zero_sup_mode(telescope_id):
+    """
+    Returns
+    -------
+    The desired or used zero suppression mode.
+
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+    HessioGeneralError
+    data->event.teldata[itel].raw->num->samples not available
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    mode  = np.zeros(1,dtype=np.int32)
+    result = lib.get_zero_sup_mode(telescope_id,mode)
+    if result == 0: return mode[0]
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    else:
+        raise(HessioGeneralError("get_zero_sup_mode not available"))
+
+def get_data_red_mode(telescope_id):
+    """
+    Returns
+    -------
+    The desired or used data reduction mode.
+
+    Parameters
+    ----------
+    telescope_id: int
+
+    Raises
+    ------
+    HessioGeneralError
+    data->event.teldata[itel].raw->num->samples not available
+
+    HessioTelescopeIndexError
+    if no telescope exist with this id
+    """
+    mode = np.zeros(1,dtype=np.int32)
+    result = lib.get_data_red_mode(telescope_id,mode)
+    if result == 0: return mode[0]
+    elif result == TEL_INDEX_NOT_VALID:
+        raise(HessioTelescopeIndexError("no telescope with id " + str(telescope_id)))
+    else:
+        raise(HessioGeneralError("data_red_mode not available"))
 
 def get_adc_sample(telescope_id,channel):
     """

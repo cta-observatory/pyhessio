@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /** @file reconstruct.c
  *  @short Second moments type image analysis.
  *
- *  @date    @verbatim CVS $Revision: 1.60 $ @endverbatim
- *  @version @verbatim CVS $Date: 2015/12/15 13:07:22 $ @endverbatim
+ *  @date    @verbatim CVS $Revision: 1.65 $ @endverbatim
+ *  @version @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
  */
 
 #include "initial.h"      /* This file includes others as required. */
@@ -467,10 +467,22 @@ static int find_neighbours(CameraSettings *camset, int itel)
    }
 
 #ifdef DEBUG_PIXEL_NB
-   for (i=0; i<npix; i++)
+   for (i=0; i<npix && i<30; i++)
    {
       printf("Pixel %d has %d direct neighbours, %d in second set, %d in third set, %d in extension list.\n",
          i, nnb[0][i], nnb[1][i], nnb[2][i], nxt[i]);
+#ifdef DEBUG_PIXEL_NB2
+      { int j;
+        if ( nnb[0][i] > 0 )
+        { printf("   direct:"); for (j=0; j<nnb[0][i]; j++) printf(" %d", nb[0][i][j]); printf("\n"); }
+        if ( nnb[1][i] > 0 )
+        { printf("   second:"); for (j=0; j<nnb[1][i]; j++) printf(" %d", nb[1][i][j]); printf("\n"); }
+        if ( nnb[2][i] > 0 )
+        { printf("   third:"); for (j=0; j<nnb[2][i]; j++) printf(" %d", nb[2][i][j]); printf("\n"); }
+        if ( nxt[i] > 0 )
+        { printf("   extension:"); for (j=0; j<nxt[i]; j++) printf(" %d", xt[i][j]); printf("\n"); }
+      }
+#endif
    }
 #endif
 
@@ -549,6 +561,33 @@ static int find_neighbours(CameraSettings *camset, int itel)
       ext_list[itel].npix = npix;
       ext_list[itel].nbsize = 0;
    }
+
+#ifdef DEBUG_PIXEL_NB
+   for (i=0; i<npix && i<30; i++)
+   {
+      printf("Pixel %d has packed %d direct neighbours, %d in second set, %d in third set, %d in extension list.\n",
+         i, nb_lists[itel][0].nbsize>0 ? nb_lists[itel][0].pix_num_nb[i] : 0, 
+         nb_lists[itel][1].nbsize>0 ? nb_lists[itel][1].pix_num_nb[i] : 0, 
+         nb_lists[itel][2].nbsize>0 ? nb_lists[itel][2].pix_num_nb[i] : 0, 
+         ext_list[itel].nbsize>0 ? ext_list[itel].pix_num_nb[i] : 0);
+#ifdef DEBUG_PIXEL_NB2
+      { int j;
+        if ( nb_lists[itel][0].nbsize>0 && nb_lists[itel][0].pix_num_nb[i] > 0 )
+        { printf("   direct:"); for (j=0; j<nb_lists[itel][0].pix_num_nb[i]; j++) 
+            printf(" %d", nb_lists[itel][0].nblist[nb_lists[itel][0].pix_first_nb[i]+j]); printf("\n"); }
+        if ( nb_lists[itel][1].nbsize>0 && nb_lists[itel][1].pix_num_nb[i] > 0 )
+        { printf("   second:"); for (j=0; j<nb_lists[itel][1].pix_num_nb[i]; j++) 
+            printf(" %d", nb_lists[itel][1].nblist[nb_lists[itel][1].pix_first_nb[i]+j]); printf("\n"); }
+        if ( nb_lists[itel][2].nbsize>0 && nb_lists[itel][2].pix_num_nb[i] > 0 )
+        { printf("   third:"); for (j=0; j<nb_lists[itel][2].pix_num_nb[i]; j++) 
+            printf(" %d", nb_lists[itel][2].nblist[nb_lists[itel][2].pix_first_nb[i]+j]); printf("\n"); }
+        if ( ext_list[itel].nbsize>0 && ext_list[itel].pix_num_nb[i] > 0 )
+        { printf("   extension:"); for (j=0; j<ext_list[itel].pix_num_nb[i]; j++) 
+            printf(" %d", ext_list[itel].nblist[ext_list[itel].pix_first_nb[i]+j]); printf("\n"); }
+      }
+#endif
+   }
+#endif
 
    return 0;
 }
@@ -1544,7 +1583,8 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
       find_neighbours(&hsdata->camera_set[itel],itel);
    }
    
-   if ( nb_lists[itel][0].nbsize <= 0 )
+   if ( nb_lists[itel][0].nblist == NULL || 
+        nb_lists[itel][0].nbsize <= 0 )
       return -1;
    nbl = &nb_lists[itel][0];
 
@@ -2399,6 +2439,278 @@ static int image_reconstruct(AllHessData *hsdata, int itel, int cut_id,
 }
 
 
+/* ------------------------- clean_raw_data ------------------------------- */
+
+int clean_raw_data (AllHessData *hsdata, int itel, int clean_flag, 
+   int tcl, int tch, struct user_parameters *up);
+   
+int clean_raw_data (AllHessData *hsdata, int itel, int clean_flag, 
+   int tcl, int tch, struct user_parameters *up)
+{
+   int siglev[H_MAX_PIX];
+   TelEvent *teldata = &hsdata->event.teldata[itel];
+   CameraSettings *camset = &hsdata->camera_set[itel];
+   AdcData *raw = teldata->raw;
+   PixelTiming *pixtm = teldata->pixtm;
+   PixelCalibrated *pixcal = teldata->pixcal;
+   int npix = camset->num_pixels;
+   int nimg = teldata->image_pixels.pixels;
+   int ipix, j, k, kpix;
+   int nsig = 0, nstr = 0;
+//   int siglist[H_MAX_PIX];
+   int have_nb = 1, have_ext = 1;
+   
+#ifdef CLEAN_DEBUG
+printf("Cleaning data in event %d telescope ID %d with method %d\n",
+   teldata->glob_count, teldata->tel_id, clean_flag);
+#endif
+
+   if ( clean_flag == 9 ) /* Poor man's solution: rely on pixel timing significance */
+   {
+      teldata->readout_mode = 9; /* Not advertized and not competitive in most cases */
+      return 0;
+   }
+
+   /* Was the neighbour finding done yet? */
+   if ( nb_lists[itel][0].nblist == NULL )
+   {
+      find_neighbours(&hsdata->camera_set[itel],itel);
+   }
+
+   if ( nb_lists[itel][0].nblist == NULL ||
+        nb_lists[itel][0].pix_num_nb == NULL || nb_lists[itel][0].nbsize == 0 )
+   {
+#ifdef CLEAN_DEBUG
+      printf("No neighbour list for telescope ID %d", hsdata->camera_set[itel].tel_id);
+      if ( nb_lists[itel][0].nblist != NULL )
+         printf(" (npix=%d, nbsize=%d)\n", nb_lists[itel][0].npix, nb_lists[itel][0].nbsize);
+      else
+         printf(" (NULL)\n");
+#endif
+      have_nb = 0;
+   }
+   if ( ext_list[itel].nblist == NULL || 
+        ext_list[itel].pix_num_nb == NULL || ext_list[itel].nbsize == 0 )
+   {
+#ifdef CLEAN_DEBUG
+      printf("No extension neighbour list for telescope ID %d\n", hsdata->camera_set[itel].tel_id);
+#endif
+      have_ext = 0;
+   }
+
+   /* Default is not to be in cleaned up data */
+   for ( ipix=0; ipix<npix; ipix++ )
+   {
+      siglev[ipix] = 0;
+   }
+#ifdef CLEAN_DEBUG
+printf("** Pixels in image(s): %d\n",teldata->image_pixels.pixels);
+#endif
+   /* Pixels passing image cleaning form the core of the cleaned list, */
+   /* adding all extension neighbours of those. */
+   for ( j=0; j<nimg; j++ )
+   {
+      int nx, bx;
+      ipix = teldata->image_pixels.pixel_list[j];
+#ifdef CLEAN_DEBUG
+      if ( ipix < 0 || ipix >= npix )
+        printf("Pixel outside range\n");
+#endif
+      siglev[ipix] = 1; /* Pixel is in set passing image cleaning */
+
+      if ( have_ext && ipix<ext_list[itel].npix )
+      { 
+         nx = ext_list[itel].pix_num_nb[ipix];
+         bx = ext_list[itel].pix_first_nb[ipix];
+         if ( bx+nx <= ext_list[itel].nbsize )
+         for ( k=0; k<nx; k++ )
+         {
+            kpix = ext_list[itel].nblist[bx+k];
+            if ( siglev[kpix] == 0 )
+               siglev[kpix] = 4; /* Pixel is an extended neighbour of a cleaned image pixel */
+         }
+         else
+           printf("Extension pixels outside range\n");
+      }
+      if ( (clean_flag%10) == 4 )
+      {
+         if ( have_nb && ipix<nb_lists[itel][0].npix )
+         {
+            nx = nb_lists[itel][0].pix_num_nb[ipix];
+            bx = nb_lists[itel][0].pix_first_nb[ipix];
+            if ( bx+nx <= nb_lists[itel][0].nbsize )
+            for ( k=0; k<nx; k++ )
+            {
+               kpix = nb_lists[itel][0].nblist[bx+k];
+               siglev[kpix] |= 2; /* Pixel is a normal neighbour of a cleaned image pixel */
+            }
+         else
+           printf("Neighbour pixels outside range\n");
+         }
+      }
+   }
+   
+   /* Disabled pixels (like HV off, no signal) remain off the list */
+   if ( any_disabled[itel] )
+   {
+      for ( ipix=0; ipix<npix; ipix++ )
+      {
+         if ( pixel_disabled[itel][ipix] && siglev[ipix] )
+            siglev[ipix] = 0;
+      }
+   }
+   /* This should contain these pixels as well but make sure we get them all. */
+   for ( j=0; j<hsdata->pixel_disabled[itel].num_HV_disabled; j++ )
+   {
+      ipix = hsdata->pixel_disabled[itel].HV_disabled[j];
+      if ( ipix < 0 || ipix >= npix )
+        printf("Pixel outside range\n");
+      siglev[ipix] = 0;
+   }   
+   
+   /* We may have pixel intensities in 'raw' (AdcData), 'pixtm' (PixelTiming),
+      and/or 'pixcal' (PixelCalibrated). Reset the available but now 
+      insignificant ones. */
+   if ( raw != NULL )
+      raw->list_known = raw->list_size = 0;
+   for ( ipix=0; ipix<npix; ipix++ )
+   {
+      /* Now mark the selected pixels everywhere possible as significant */
+      if ( siglev[ipix] )
+      {
+//         siglist[nsig] = ipix;
+         if ( raw != NULL )
+         {
+            int known = 0;
+            for ( j=0; j<raw->num_gains; j++ )
+               if ( raw->adc_known[j][ipix] )
+                  known = 1;
+            if ( !known )
+            {
+               raw->significant[ipix] = 0;
+               continue;
+            }
+            raw->adc_list[nsig] = ipix;
+            if ( (clean_flag%10) == 1 )      /* Sums for clean+extension but no traces */
+               raw->significant[ipix] = 1;
+            else if ( (clean_flag%10) == 2 ) /* Sums for all pixels and traces only for clean+extension */
+            {
+               raw->significant[ipix] = 0x21;
+               nstr++;
+            }
+            else if ( (clean_flag%10) == 3 ) /* Sums and traces only for clean+extension */
+            {
+               raw->significant[ipix] = 0x21;
+               nstr++;
+            }
+            else if ( (clean_flag%10) == 4 ) /* Sums for clean+extension, traces only for clean+nb */
+            {
+               if ( (siglev[ipix] & 0x03) )
+               {
+                  raw->significant[ipix] = 0x21; /* both if part of cleaned image */
+                  nstr++;
+               }
+               else
+                  raw->significant[ipix] = 1; /* only sum if in extension */
+            }
+            else if ( (clean_flag%10) == 5 ) /* Sums for clean+extension, traces only for clean */
+            {
+               if ( siglev[ipix] == 1 )
+               {
+                  raw->significant[ipix] = 0x21; /* both if part of cleaned image */
+                  nstr++;
+               }
+               else
+                  raw->significant[ipix] = 1; /* only sum if in extension */
+            }
+            nsig++;
+         }
+      }
+      else
+      {
+         if ( raw != NULL )
+         {
+            if ( (clean_flag%10) == 2 ) /* Sums for all pixels and traces only for clean+extension */
+            {
+               int known = 0;
+               for ( j=0; j<raw->num_gains; j++ )
+                  if ( raw->adc_known[j][ipix] )
+                     known = 1;
+               if ( known )
+               {
+                  raw->significant[ipix] = 1;
+                  raw->adc_list[nsig] = ipix; /* only sum */
+//                  siglist[nsig] = ipix;
+                  nsig++;
+               }
+            }
+            else /* Nothing stored outside of clean+extension */
+               raw->significant[ipix] = 0;
+         }
+      }
+   }
+   raw->list_size = nsig;
+   raw->list_known = 1;
+#ifdef CLEAN_DEBUG
+printf("** Telescope %d has %d significant pixels after cleaning (%d with traces)\n",
+raw->tel_id, nsig, nstr);
+#endif
+   if ( (clean_flag%10) >= 2 && (teldata->readout_mode & 0xff) < 2 &&
+         raw->num_samples > 1 )
+      teldata->readout_mode = 2;
+   if ( (clean_flag%10) == 1 && (teldata->readout_mode & 0xff) > 0 )
+      teldata->readout_mode = 0;
+   if ( nstr == 0 ) /* With no significant pixels for traces, turn off storing samples. */
+      teldata->readout_mode = 0;
+
+   if ( pixtm != NULL && pixtm->known )
+   {
+      int igain, ntm = 0;
+      pixtm->list_type = pixtm->list_size = 0;
+      for ( ipix=0; ipix<npix; ipix++ )
+      {
+         if ( siglev[ipix] == 0 )
+         {
+            pixtm->timval[ipix][0] = -1;
+            for ( igain=0; igain < pixtm->num_gains; igain++ )
+            {
+               pixtm->pulse_sum_loc[igain][ipix] = 0;
+               pixtm->pulse_sum_glob[igain][ipix] = 0;
+            }
+         }
+         else if ( pixtm->timval[ipix][0] != -1 )
+            ntm++;
+      }
+      if ( ntm == 0 ) /* If nothing left, no need to write a pixel timing block */
+         pixtm->known = 0;
+   }
+   
+   if ( pixcal != NULL && pixcal->known )
+   {
+      int ncal = 0;
+      pixcal->list_known = 0;
+      for ( ipix=0; ipix<npix; ipix++ )
+      {
+         if ( pixcal->significant[ipix] )
+         {
+            if ( siglev[ipix] )
+            {
+               pixcal->pixel_list[ncal++] = ipix;
+            }
+            else
+               pixcal->significant[ipix] = 0;
+         }
+      }
+      pixcal->list_size = ncal;
+      pixcal->list_known = 1;
+      if ( ncal == 0 )
+         pixcal->known = 0;
+   }
+
+   return 0;
+}
+
+
 /* ----------------------------- shower_reconstruct ----------------------- */
 
 /** Shower reconstruction (geometrical reconstruction only) */
@@ -2630,11 +2942,11 @@ if ( verbosity > 0 )
 
 int reconstruct (AllHessData *hsdata, int reco_flag, 
       const double *min_amp, const size_t *min_pix, const double *tcl, const double *tch, 
-      const int *lref, const double *minfrac, int nimg, int flag_amp_tm);
+      const int *lref, const double *minfrac, int nimg, int flag_amp_tm, int clean_flag);
 
 int reconstruct (AllHessData *hsdata, int reco_flag, 
       const double *min_amp, const size_t *min_pix, const double *tcl, const double *tch, 
-      const int *lref, const double *minfrac, int nimg, int flag_amp_tm)
+      const int *lref, const double *minfrac, int nimg, int flag_amp_tm, int clean_flag)
 {
    int itel, cut_id = 0;
    if ( min_amp == NULL || min_pix == NULL || 
@@ -2692,6 +3004,11 @@ printf("Reconstruct data\n");
                   image_reconstruct(hsdata, itel, cut_id, 
                      tcl[itel], tch[itel], lref[itel], minfrac[itel], 
                      nimg, flag_amp_tm, clip_amp);
+               }
+               
+               if ( clean_flag )
+               {
+                  clean_raw_data(hsdata, itel, clean_flag, tcl[itel], tch[itel], up);
                }
             }
          }
