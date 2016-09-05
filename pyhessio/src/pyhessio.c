@@ -653,15 +653,15 @@ int get_pedestal (int telescope_id, double *pedestal)
 		TelMoniData monitor = hsdata->tel_moni[itel];
 		unsigned int num_gain = monitor.num_gains;
 		unsigned int num_pixels = hsdata->camera_set[itel].num_pixels;
-		unsigned int ipix = 0.;
-		for (ipix = 0.; ipix < num_pixels; ipix++)	// loop over pixels
+		unsigned int igain = 0.;
+        for (igain = 0; igain < num_gain; igain++) // loop over channel
 		{
-		unsigned int igain = 0;
-		for (igain = 0; igain < num_gain; igain++)
-			{
-			*pedestal++ = monitor.pedestal[igain][ipix];
-			}			// end loop gain
-		}			// end of   loop over pixels
+    		unsigned int ipix = 0;
+    		for (ipix = 0.; ipix < num_pixels; ipix++)
+    			{
+    			*pedestal++ = monitor.pedestal[igain][ipix];
+    			}
+		}			
 		return 0;
 		}
 	return -1;

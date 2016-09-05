@@ -647,7 +647,7 @@ def get_calibration(telescope_id):
     """
     :param  telescope_id: telescope's id
     :type telescope_id: int
-    :return: calibration numpy array (num_gain dimention)
+    :return: calibration numpy array (ngain*npix dimention)
     :rtype: nupy.array(ngain,npix,dtype=np.double)
     :raise: HessioGeneralError: when data not available for this telescope
     :raise: HessioTelescopeIndexError: when no telescope exist with this id
@@ -673,7 +673,7 @@ def get_pedestal(telescope_id):
     """
     :param  telescope_id: telescope's id
     :type telescope_id: int
-    :return: pedestal
+    :return: pedestal numpy array (ngain*npix dimention)
     :rtype: numpy.ndarray(ngain,npix,dtype=np.double)
     :raise: HessioGeneralError: when data not available for this telescope
     :raise: HessioTelescopeIndexError: when no telescope exist with this id
