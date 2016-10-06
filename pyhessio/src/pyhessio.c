@@ -57,6 +57,7 @@ int get_tel_event_gps_time (int telescope_id, long *seconds,
 			    long *nanoseconds);
 int get_central_event_gps_time (long *seconds, long *nanoseconds);
 int get_central_event_teltrg_list (int *tel_list);
+int get_central_event_teltrg_time (float *teltrg_time);
 int get_num_tel_trig (void);
 int get_ref_shapes (int telescope_id, int channel, double *ref_shapes);
 int get_nrefshape (int telescope_id);
@@ -235,7 +236,7 @@ int get_num_tel_trig (){
 		return -1;
 }
 //-------------------------------------------
-// Set List of IDs of triggered telescopes.
+// Get List of IDs of triggered telescopes.
 //-------------------------------------------
 int get_central_event_teltrg_list (int *tel_list){
 	if (hsdata != NULL)
@@ -244,6 +245,23 @@ int get_central_event_teltrg_list (int *tel_list){
 		int loop = 0;
 		for (loop = 0; loop < num_teltrig; loop++){
 			*tel_list++ = hsdata->event.central.teltrg_list[loop];
+		}
+		return 0;
+	}
+	return -1;
+}
+//-------------------------------------------
+// Get List of relative time of trigger signal
+// after correction for nominal delay (in ns) for each 
+// triggered telescope
+//-------------------------------------------
+int get_central_event_teltrg_time (float *teltrg_time){
+	if (hsdata != NULL)
+	{
+		int num_teltrig = get_num_tel_trig ();
+		int loop = 0;
+		for (loop = 0; loop < num_teltrig; loop++){
+			*teltrg_time++ = hsdata->event.central.teltrg_time[loop];
 		}
 		return 0;
 	}

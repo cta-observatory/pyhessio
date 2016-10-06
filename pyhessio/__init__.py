@@ -7,29 +7,29 @@ import numpy as np
 import os
 import ctypes
 
-__all__ = ['move_to_next_event','move_to_next_mc_event',
-           'file_open','file_close', 'close_file',
-           'get_global_event_count','get_run_number',
-           'get_num_telescope','get_telescope_with_data_list',
+__all__ = ['move_to_next_event', 'move_to_next_mc_event',
+           'file_open', 'file_close', 'close_file',
+           'get_global_event_count', 'get_run_number',
+           'get_num_telescope', 'get_telescope_with_data_list',
            'get_teldata_list', 'get_telescope_position',
-           'get_num_teldata','get_num_channel','get_num_pixels',
-           'get_num_samples','get_adc_sample','get_adc_sum','get_zero_sup_mode',
+           'get_num_teldata', 'get_num_channel', 'get_num_pixels',
+           'get_num_samples', 'get_adc_sample', 'get_adc_sum', 'get_zero_sup_mode',
            'get_data_red_mode', 'get_significant',
-           'get_pedestal','get_calibration','get_pixel_position',
-           'get_pixel_timing_timval','get_pixel_shape','get_pixel_area',
-           'get_mirror_area','get_pixel_timing_num_times_types',
-           'get_pixel_timing_threshold','get_pixel_timing_peak_global',
-           'get_mc_shower_primary_id','get_mc_shower_h_first_int',
-           'get_mc_event_xcore', 'get_mc_event_ycore' ,'get_mc_shower_energy',
-           'get_mc_event_offset_fov','get_mc_number_photon_electron',
-           'get_mc_shower_azimuth' ,'get_mc_shower_altitude','get_adc_known',
-           'get_ref_shape' ,'get_ref_step','get_time_slice',
-           'get_ref_shapes',  'get_nrefshape' ,'get_lrefshape',
-           'get_tel_event_gps_time' ,'get_tel_event_gps_time',
-           'get_central_event_teltrg_list','get_num_tel_trig',
-           'get_central_event_gps_time','get_camera_rotation_angle',
+           'get_pedestal', 'get_calibration', 'get_pixel_position',
+           'get_pixel_timing_timval', 'get_pixel_shape', 'get_pixel_area',
+           'get_mirror_area', 'get_pixel_timing_num_times_types',
+           'get_pixel_timing_threshold', 'get_pixel_timing_peak_global',
+           'get_mc_shower_primary_id', 'get_mc_shower_h_first_int',
+           'get_mc_event_xcore', 'get_mc_event_ycore', 'get_mc_shower_energy',
+           'get_mc_event_offset_fov', 'get_mc_number_photon_electron',
+           'get_mc_shower_azimuth', 'get_mc_shower_altitude', 'get_adc_known',
+           'get_ref_shape', 'get_ref_step', 'get_time_slice',
+           'get_ref_shapes', 'get_nrefshape', 'get_lrefshape',
+           'get_tel_event_gps_time', 'get_tel_event_gps_time',
+           'get_central_event_teltrg_list', 'get_central_event_teltrg_time', 'get_num_tel_trig',
+           'get_central_event_gps_time', 'get_camera_rotation_angle',
            'get_mirror_number', 'get_optical_foclen', 'get_telescope_ids',
-           'HessioChannelIndexError', 'HessioTelescopeIndexError','HessioGeneralError']
+           'HessioChannelIndexError', 'HessioTelescopeIndexError', 'HessioGeneralError']
 
 
 
@@ -121,6 +121,8 @@ lib.get_central_event_gps_time.restype = ctypes.c_int
 lib.get_central_event_gps_time.argtypes =  [np.ctypeslib.ndpointer(ctypes.c_long, flags="C_CONTIGUOUS"), np.ctypeslib.ndpointer(ctypes.c_long, flags="C_CONTIGUOUS")]
 lib.get_central_event_teltrg_list.restype = ctypes.c_int
 lib.get_central_event_teltrg_list.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
+lib.get_central_event_teltrg_time.restype = ctypes.c_int
+lib.get_central_event_teltrg_time.argtypes = [np.ctypeslib.ndpointer(ctypes.c_float, flags="C_CONTIGUOUS")]
 lib.get_camera_rotation_angle.argtypes = [ctypes.c_int]
 lib.get_camera_rotation_angle.restype = ctypes.c_double
 lib.get_mirror_number.restype = ctypes.c_int
@@ -981,6 +983,21 @@ def get_central_event_teltrg_list():
     if num_teltrig >= 0:
         array = np.zeros(num_teltrig,dtype=np.int32)
         lib.get_central_event_teltrg_list(array)
+        return array
+    else:
+        raise(HessioGeneralError("hsdata is not available"))
+
+
+def get_central_event_teltrg_time():
+    """
+    :return: List of relative time of trigger signal after correction for nominal delay (in ns) for each triggered telescope
+    :rtype: np.ndarray(num_teltrig,dtype=np.float32)
+    :raise: HessioGeneralError: when information is not available
+    """
+    num_teltrig= lib.get_num_tel_trig()
+    if num_teltrig >= 0:
+        array = np.zeros(num_teltrig,dtype=np.float32)
+        lib.get_central_event_teltrg_time(array)
         return array
     else:
         raise(HessioGeneralError("hsdata is not available"))
