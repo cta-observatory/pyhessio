@@ -313,7 +313,8 @@ def test_hessio():
     num_tel_trig = get_num_tel_trig()
     assert(num_tel_trig == 2 )
 
-    assert(np.array_equal(get_central_event_teltrg_list() ,[38, 47]) == True)
+    assert(np.array_equal(get_central_event_teltrg_list(), [38, 47]) == True)
+    assert(np.array_equal(get_central_event_teltrg_time(), np.array([3.75554633, 0.0], dtype=np.float32)) == True)
 
     """
     size 80 ref_shapes [  1.37252808e-02   1.89666748e-02   2.69622803e-02   3.62854004e-02
