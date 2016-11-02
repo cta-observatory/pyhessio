@@ -8,6 +8,8 @@ def test_hessio():
     """
     v move_to_next_event(limit=0):
     v move_to_next_mc_event(limit=0):
+    v fill_next_event
+    v fill_next_mc_event
     v open_file(filename):
     v close_file():
     v get_global_event_count():
@@ -46,11 +48,11 @@ def test_hessio():
     tel_id = 47
     channel = 0
 
-    with open('pyhessio-extra/datasets/gamma_test.simtel.gz') as hessio:
-    # test exception by using getter before read the first event
+    with open_hessio('pyhessio-extra/datasets/gamma_test.simtel.gz') as hessio:
+# test exception by using getter before read the first event
         try:
-            print("DEBUG", hessio.get_num_pixels(1))
-            assert()
+            hessio.get_num_pixels(1)
+            raise
         except HessioGeneralError: pass
 
         try:
@@ -58,28 +60,29 @@ def test_hessio():
             raise HessioError('You cannot open 2 file simultaneity')
         except HessioError:
             pass
-        run_id, event_id = next(hessio.move_to_next_event())
-
-        assert run_id == 31964
-        assert event_id == 408
+        event_id = next(hessio.move_to_next_event())
 
         assert hessio.get_run_number() == 31964
-        assert hessio.get_global_event_count() == 408
+        assert hessio.get_global_event_count() == 408 == event_id
         assert hessio.get_num_telescope() == 126
         assert hessio.get_num_teldata() == 2
         assert len(hessio.get_telescope_ids()) == 126
         assert hessio.get_telescope_ids()[100] == 101
 
-        #get_num_channel
+    with open_hessio('pyhessio-extra/datasets/gamma_test.simtel.gz') as hessio:
+        event_id = hessio.fill_next_event()
+        assert hessio.get_global_event_count() == 408 == event_id
         assert hessio.get_num_channel(tel_id) == 1
         try:
             hessio.get_num_channel(-1)
-            assert()
-        except HessioTelescopeIndexError: pass
+            raise
+        except HessioTelescopeIndexError:
+            pass
         try:
             hessio.get_num_channel(1)
-            assert()
-        except HessioGeneralError: pass
+            raise
+        except HessioGeneralError:
+            pass
 
         assert set(hessio.get_teldata_list()) == set([38, 47])
 
@@ -87,8 +90,9 @@ def test_hessio():
         assert hessio.get_num_pixels(tel_id)== 2048
         try:
             hessio.get_num_pixels(4000)
-            assert()
-        except HessioTelescopeIndexError: pass
+            raise
+        except HessioTelescopeIndexError:
+            pass
 
         #get_adc_sample
         data_ch = hessio.get_adc_sample(tel_id, channel)
@@ -96,31 +100,35 @@ def test_hessio():
 
         try:
             hessio.get_adc_sample(-1, 0)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         try:
             data_ch = hessio.get_adc_sample(47, 5)
-            assert()
-        except HessioChannelIndexError: pass
+            raise
+        except HessioChannelIndexError:
+            pass
 
         #get_significant
         data_sig = hessio.get_significant(tel_id)
         model = np.ones(2048)
-        assert np.array_equal(data_sig,model) == True
+        assert np.array_equal(data_sig, model) is True
 
         #get_adc_sum
         data_ch_sum = hessio.get_adc_sum(tel_id,channel)
-        assert  np.array_equal(data_ch_sum[0:10], [451, 550,505,465,519,467,505,496,501,478]) == True
+        assert np.array_equal(data_ch_sum[0:10], [451, 550, 505, 465, 519,
+                                                  467, 505, 496, 501, 478]) \
+               is True
 
         try:
-            data_ch_sum = hessio.get_adc_sum(-1,channel)
-            assert()
-        except HessioTelescopeIndexError: pass
+            data_ch_sum = hessio.get_adc_sum(-1, channel)
+            raise
+        except HessioTelescopeIndexError:
+            pass
 
         try:
-            data_ch_sum = hessio.get_adc_sum(47,2)
-            assert()
+            data_ch_sum = hessio.get_adc_sum(47, 2)
+            raise
         except HessioChannelIndexError: pass
 
 
@@ -130,15 +138,16 @@ def test_hessio():
         assert nb_sample == 25
         try:
             hessio.get_num_samples(70000)
-            assert()
-        except HessioTelescopeIndexError:pass
+            raise
+        except HessioTelescopeIndexError:
+            pass
 
         #get_zero_sup_mode
         mode = hessio.get_zero_sup_mode(tel_id)
         assert mode == 0
         try:
             hessio.get_zero_sup_mode(70000)
-            assert()
+            raise
         except HessioTelescopeIndexError:pass
 
         #get_data_red_mode
@@ -146,7 +155,7 @@ def test_hessio():
         assert mode == 0
         try:
             hessio.get_data_red_mode(70000)
-            assert()
+            raise
         except HessioTelescopeIndexError:pass
 
         #get_calibration
@@ -154,7 +163,7 @@ def test_hessio():
         assert calibration[0][2] ==  0.086124487221240997
         try :
             hessio.get_calibration(0)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         #get_pedestal
@@ -162,7 +171,7 @@ def test_hessio():
         assert pedestal[0][0] == 457.36550903320312
         try :
             hessio.get_pedestal(0)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
 
@@ -172,7 +181,7 @@ def test_hessio():
         assert pos_y[2] == -0.14880000054836273
         try:
             hessio.get_pixel_position(0)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         assert(np.array_equal(hessio.get_telescope_with_data_list() , [38, 47]) == True)
@@ -183,7 +192,7 @@ def test_hessio():
         assert len(shape) == 2048
         try:
             hessio.get_pixel_shape(0)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         #get_pixel_area
@@ -191,42 +200,42 @@ def test_hessio():
         assert p_area[0] == 3.3640000765444711e-05
         try:
             hessio.get_pixel_area(0)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         #get_camera_rotation_angle
         assert(float(hessio.get_camera_rotation_angle(tel_id)) == 0.0)
         try:
             hessio.get_camera_rotation_angle(-1)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         #get_mirror_area
         assert(hessio.get_mirror_area(tel_id) ==  14.562566757202148)
         try:
             hessio.get_mirror_area(-1)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         #get_mirror_number
         assert(hessio.get_mirror_number(tel_id) == 2)
         try:
             hessio.get_mirror_number(-1)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         # get_optical_foclen
         assert(float(hessio.get_optical_foclen(tel_id)) == float(2.1500000953674316))
         try:
             hessio.get_optical_foclen(-1)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
 
         # get_pixel_timing_num_times_types
         assert(hessio.get_pixel_timing_num_times_types(tel_id) == 7)
         try:
             hessio.get_pixel_timing_num_times_types(4000)
-            assert()
+            raise
         except HessioTelescopeIndexError: pass
         assert(hessio.get_pixel_timing_num_times_types(1) == 0)
 
@@ -235,21 +244,21 @@ def test_hessio():
         assert(hessio.get_pixel_timing_threshold(tel_id)== -6)
         try:
             hessio.get_pixel_timing_threshold(-1)
-            assert()
+            raise
         except  HessioTelescopeIndexError: pass
 
         #get_pixel_timing_peak_global
         assert(float(hessio.get_pixel_timing_peak_global(tel_id)) == float(9.740449905395508))
         try:
             hessio.get_pixel_timing_peak_global(1000)
-            assert()
+            raise
         except HessioTelescopeIndexError:
             pass
 
         assert(float(hessio.get_pixel_timing_timval(tel_id)[8][0]) == float(11.069999694824219) )
         try:
             hessio.get_pixel_timing_timval(-1)
-            assert()
+            raise
         except HessioTelescopeIndexError:
             pass
 
@@ -260,7 +269,7 @@ def test_hessio():
         assert(float(tel_z) == float(5.0))
         try:
             hessio.get_telescope_position(-1)
-            assert()
+            raise
         except HessioTelescopeIndexError:
             pass
 
@@ -331,15 +340,14 @@ def test_hessio():
         assert(hessio.get_lrefshape(38) == 80)
 
         hessio.close_file()
-
         hessio.open_file("pyhessio-extra/datasets/gamma_test.simtel.gz")
-
-
         # Testing move_to_next_mc_event iterator
-        run_id, event_id = next(hessio.move_to_next_mc_event())
+        #event_id = next(hessio.move_to_next_mc_event())
+        event_id = hessio.fill_next_mc_event()
+        run_number = hessio.get_run_number()
 
-        assert run_id == 31964
-        assert event_id == 100 # Different from before
+        assert run_number == 31964
+        assert event_id == 100
 
         # Configuration is the same
         assert len(hessio.get_telescope_ids()) == 126

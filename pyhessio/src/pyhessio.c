@@ -97,7 +97,6 @@ int file_open (const char *filename){
 	if (filename)
 	{
 		if (file_is_opened){
-			//close_file ();
 			return -2;
 		}
 		/* Check assumed limits with the ones compiled into the library. */
@@ -128,7 +127,6 @@ int move_to_next_event (int *event_id){
 	while (rc != IO_TYPE_HESS_EVENT){
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
-			//close_file ();
 			return -1;
 		}
 	}
@@ -145,7 +143,6 @@ int move_to_next_mc_event (int *event_id){
 	while (rc != IO_TYPE_HESS_MC_EVENT)	{
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
-			close_file ();
 			return -1;
 		}
 	}

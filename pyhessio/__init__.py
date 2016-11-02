@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 __all__ = ['HessioError', 'HessioChannelIndexError',
            'HessioTelescopeIndexError', 'HessioGeneralError',
-           'HessioFile', 'open', 'close_file']
+           'HessioFile', 'open_hessio', 'close_file']
 
 
 TEL_INDEX_NOT_VALID = -2
@@ -34,7 +34,7 @@ class HessioChannelIndexError(HessioError):
 
 
 @contextmanager
-def open(filename):
+def open_hessio(filename):
     """
     Context manager
     Parameters
@@ -244,23 +244,24 @@ class HessioFile:
         Data can be then access with other available functions in this module
         Returns
         -------
-        tuple (self, run_id, event_number)
+        event_number
         Raises
         ------
         HessioError: when error occurs while reading next event
         """
         event_number = np.zeros(1, dtype=np.int32)
         run_id = self.lib.move_to_next_event(event_number)
-        if run_id == -1 and event_number == -1:
+        if run_id == -1 or event_number[0] == -1:
             raise HessioError("Error while reading next event")
-        return run_id, event_number
+        return event_number[0]
 
     def move_to_next_event(self, limit=0):
         """
         Read data from input file and fill corresponding container.
         Data can be then access with other available functions in
-        this module
+        this module.
         By default all events are computed
+
 
         Parameters
         ----------
@@ -268,7 +269,7 @@ class HessioFile:
             limit the number of event generated
         Yields
         ------
-        run number and event id
+        event id
         Raises
         ------
         HessioError: When input file is not open
@@ -276,13 +277,30 @@ class HessioFile:
         if not self.__opened_filename:
             raise HessioError('input file is not open')
         result = np.zeros(1, dtype=np.int32)
-        res = 0
+        run_id = 0
         evt_num = 0
-        while res >= 0 and (limit == 0 or evt_num < limit):
-            res = self.lib.move_to_next_event(result)
-            if res != -1:
-                yield res, result[0]
+        while run_id >= 0 and (limit == 0 or evt_num < limit):
+            run_id = self.lib.move_to_next_event(result)
+            if run_id != -1:
+                yield result[0]
                 evt_num += 1
+
+    def fill_next_mc_event(self):
+        """
+        Fill corresponding container with the next MC event in file.
+        Data can be then access with other available functions in this module
+        Returns
+        -------
+        event_number
+        Raises
+        ------
+        HessioError: when error occurs while reading next event
+        """
+        event_number = np.zeros(1, dtype=np.int32)
+        run_id = self.lib.move_to_next_mc_event(event_number)
+        if run_id == -1 or event_number == -1:
+            raise HessioError("Error while reading next event")
+        return event_number[0]
 
     def move_to_next_mc_event(self, limit=0):
         """
@@ -298,7 +316,7 @@ class HessioFile:
             limit the number of event generated
         Yields
         ------
-          run number and event id
+          event id
         Raises
         ------
         HessioError: When input file is not open
@@ -306,13 +324,13 @@ class HessioFile:
         if not self.__opened_filename:
             raise HessioError('input file is not open')
         result = np.zeros(1, dtype=np.int32)
-        res = 0
+        run_id = 0
         sim_evt_num = 0
-        while res >= 0 and (limit == 0 or sim_evt_num < limit):
-            res = self.lib.move_to_next_mc_event(result)
-            if res != -1:
-                yield res, result[0]
-                sim_evt_num +=1
+        while run_id >= 0 and (limit == 0 or sim_evt_num < limit):
+            run_id = self.lib.move_to_next_mc_event(result)
+            if run_id != -1:
+                yield result[0]
+                sim_evt_num += 1
 
     def open_file(self, filename):
         """
@@ -338,6 +356,14 @@ class HessioFile:
         """
         self.lib.close_file()
         self.__opened_filename = None
+
+    def get_event_id(self):
+        """
+        Returns
+        -------
+        int : current event id
+        """
+        return self._event_id
 
     def get_global_event_count(self):
         """
