@@ -89,12 +89,15 @@ int get_telescope_index (int telescope_id){
 //----------------------------------
 //Read input file and fill hsdata
 // and item_header global var
+// Return :
+//    -1 if filename is does not exit
+//    -2 if a file is already opened
 //----------------------------------
 int file_open (const char *filename){
 	if (filename)
 	{
 		if (file_is_opened){
-			close_file ();
+			return -2;
 		}
 		/* Check assumed limits with the ones compiled into the library. */
 		H_CHECK_MAX();
@@ -124,7 +127,6 @@ int move_to_next_event (int *event_id){
 	while (rc != IO_TYPE_HESS_EVENT){
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
-			//close_file ();
 			return -1;
 		}
 	}
@@ -141,7 +143,6 @@ int move_to_next_mc_event (int *event_id){
 	while (rc != IO_TYPE_HESS_MC_EVENT)	{
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
-			close_file ();
 			return -1;
 		}
 	}
@@ -150,7 +151,9 @@ int move_to_next_mc_event (int *event_id){
 /*--------------------------------*/
 //  Cleanly close iobuf
 //----------------------------------
-void close_file (){
+void close_file(){
+    if (iobuf == NULL || file_is_opened == 0) return;
+
 	if (iobuf->input_file != NULL && iobuf->input_file != stdin && file_is_opened)
 	{
 		fileclose (iobuf->input_file);
@@ -158,10 +161,10 @@ void close_file (){
 		iobuf->input_file = NULL;
 		reset_io_block (iobuf);
 		free_io_buffer(iobuf);
-		file_is_opened = 0;
 	}
-	if (iobuf->output_file != NULL) fileclose (iobuf->output_file);
+	if (iobuf->output_file != NULL) fileclose(iobuf->output_file);
 	iobuf = NULL;
+	file_is_opened = 0;
 
 }
 //------------------------------------------

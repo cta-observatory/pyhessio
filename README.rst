@@ -68,3 +68,21 @@ ________________________
 ::
 
     python setup.py develop
+
+
+Using pyhessio
+--------------
+### Simple python wrapper for hessioxxx c library.
+#### Warnings: only ONE simtelarray file could be open at once.
+1. This wrapper uses ugly global static variables for development simplicity reason,
+and because it is a temporally solution until CTA MC data format exists.
+
+2. PROD3 MC use udge amount of memory, and memory is only free when close_file
+is executed. To force close_file execution, we force to use context manager
+to instantiate object:
+
+
+```python
+with pyhessio.open('pyhessio-extra/datasets/gamma_test.simtel.gz') as f:
+    f.fill_next_event()
+```
