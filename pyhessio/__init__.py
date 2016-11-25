@@ -184,6 +184,10 @@ class HessioFile:
         self.lib.get_mc_run_array_direction.argtypes = [
             np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
         self.lib.get_mc_run_array_direction.restype = ctypes.c_int
+        self.lib.get_azimuth_raw.argtypes = [ctypes.c_int]
+        self.lib.get_azimuth_raw.restype = ctypes.c_double
+        self.lib.get_altitude_raw.argtypes = [ctypes.c_int]
+        self.lib.get_altitude_raw.restype = ctypes.c_double
         self.lib.get_azimuth_cor.argtypes = [ctypes.c_int]
         self.lib.get_azimuth_cor.restype = ctypes.c_double
         self.lib.get_altitude_cor.argtypes = [ctypes.c_int]
@@ -1091,6 +1095,32 @@ class HessioFile:
             return direction
         else:
             raise(HessioGeneralError("hsdata is not available"))
+
+
+    def get_azimuth_raw(self, telescope_id):
+        """
+        Returns the Raw azimuth angle [radians from N->E] for the telescope
+         If telescope_id is not valid return 0.
+        Parameters
+        ----------
+        telescope_id: int
+            telescope's id
+        Returns double
+        """
+        return self.lib.get_azimuth_raw(telescope_id)
+
+
+    def get_altitude_raw(self, telescope_id):
+        """
+        Returns the Raw altitude angle [radians] for the telescope
+         If telescope_id is not valid return 0.
+        Parameters
+        ----------
+        telescope_id: int
+            telescope's id
+        Returns double
+        """
+        return self.lib.get_altitude_raw(telescope_id)
 
 
     def get_azimuth_cor(self, telescope_id):
