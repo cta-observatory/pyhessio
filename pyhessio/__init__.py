@@ -181,6 +181,13 @@ class HessioFile:
         self.lib.move_to_next_mc_event.restype = ctypes.c_int
         self.lib.get_mc_event_xcore.restype = ctypes.c_double
         self.lib.get_mc_event_ycore.restype = ctypes.c_double
+        self.lib.get_mc_run_array_direction.argtypes = [
+            np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
+        self.lib.get_mc_run_array_direction.restype = ctypes.c_int
+        self.lib.get_azimuth_cor.argtypes = [ctypes.c_int]
+        self.lib.get_azimuth_cor.restype = ctypes.c_double
+        self.lib.get_altitude_cor.argtypes = [ctypes.c_int]
+        self.lib.get_altitude_cor.restype = ctypes.c_double
         self.lib.get_mc_event_offset_fov.argtypes = [
             np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
         self.lib.get_mc_event_offset_fov.restype = ctypes.c_int
@@ -1060,6 +1067,56 @@ class HessioFile:
         float
         """
         return self.lib.get_mc_event_ycore()
+
+
+    def get_mc_run_array_direction(self):
+        """
+        Returns the tracking/pointing direction in [radians]. Depending on
+        "tracking_mode" this either contains:
+        [0]=Azimuth, [1]=Altitude in mode 0,
+            OR
+        [0]=R.A., [1]=Declination in mode 1.
+
+        Returns
+        -------
+        numpy.ndarray(2,dtype=np.double)
+        Raises
+        ------
+        HessioGeneralError: when information is not available
+        """
+        direction = np.zeros(2,dtype=np.double)
+
+        result = self.lib.get_mc_run_array_direction(direction)
+        if result == 0:
+            return direction
+        else:
+            raise(HessioGeneralError("hsdata is not available"))
+
+
+    def get_azimuth_cor(self, telescope_id):
+        """
+        Returns the tracking Azimuth corrected for pointing errors for the telescope
+         If telescope_id is not valid return 0.
+        Parameters
+        ----------
+        telescope_id: int
+            telescope's id
+        Returns double
+        """
+        return self.lib.get_azimuth_cor(telescope_id)
+
+
+    def get_altitude_cor(self, telescope_id):
+        """
+        Returns the tracking Altitude corrected for pointing errors for the telescope
+         If telescope_id is not valid return 0.
+        Parameters
+        ----------
+        telescope_id: int
+            telescope's id
+        Returns double
+        """
+        return self.lib.get_altitude_cor(telescope_id)
 
 
     def get_mc_event_offset_fov(self):
