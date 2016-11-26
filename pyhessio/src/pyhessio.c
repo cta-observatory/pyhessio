@@ -42,6 +42,11 @@ int move_to_next_event (int *event_id);
 int move_to_next_mc_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
+int get_mc_run_array_direction (double *dir);
+double get_azimuth_raw (int telescope_id);
+double get_altitude_raw (int telescope_id);
+double get_azimuth_cor (int telescope_id);
+double get_altitude_cor (int telescope_id);
 int get_mc_event_offset_fov (double *off);
 double get_mc_shower_energy (void);
 double get_mc_shower_azimuth (void);
@@ -520,6 +525,83 @@ double get_mc_event_ycore ()
 		return hsdata->mc_event.ycore;
 	}
 	return -0.;
+}
+//----------------------------------------------------------------
+// Returns the tracking/pointing direction in [radians]. Depending on
+// "tracking_mode" this either contains:
+//   [0]=Azimuth, [1]=Altitude in mode 0,
+//   OR
+//   [0]=R.A., [1]=Declination in mode 1.
+// -1 if hsdata == NULL
+//----------------------------------------------------------------
+int get_mc_run_array_direction (double *dir){
+	if (hsdata != NULL){
+		int loop = 0;
+		for (loop = 0; loop < 2; ++loop)  // loop over coordinates
+			*dir++ = hsdata->run_header.direction[loop];
+		return 0;
+	}
+	return -1;
+}
+//----------------------------------------------------------------
+// Returns the Raw azimuth angle [radians from N->E] for the telescope
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+double get_azimuth_raw (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
+		int itel = get_telescope_index (telescope_id);
+        if (itel == TEL_INDEX_NOT_VALID)
+            return TEL_INDEX_NOT_VALID;
+        return hsdata->event.trackdata[itel].azimuth_raw;
+		}
+	return -1;
+}
+//----------------------------------------------------------------
+// Returns the Raw altitude angle [radians] for the telescope
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+double get_altitude_raw (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
+		int itel = get_telescope_index (telescope_id);
+        if (itel == TEL_INDEX_NOT_VALID)
+            return TEL_INDEX_NOT_VALID;
+        return hsdata->event.trackdata[itel].altitude_raw;
+		}
+	return -1;
+}
+//----------------------------------------------------------------
+// Returns the tracking Azimuth corrected for pointing errors for the telescope
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+double get_azimuth_cor (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
+		int itel = get_telescope_index (telescope_id);
+        if (itel == TEL_INDEX_NOT_VALID)
+            return TEL_INDEX_NOT_VALID;
+        return hsdata->event.trackdata[itel].azimuth_cor;
+		}
+	return -1;
+}
+//----------------------------------------------------------------
+// Returns the tracking Altitude corrected for pointing errors for the telescope
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+double get_altitude_cor (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
+		int itel = get_telescope_index (telescope_id);
+        if (itel == TEL_INDEX_NOT_VALID)
+            return TEL_INDEX_NOT_VALID;
+        return hsdata->event.trackdata[itel].altitude_cor;
+		}
+	return -1;
 }
 //----------------------------------------------------------------
 // Returns the offset of pointing direction in camera f.o.v.

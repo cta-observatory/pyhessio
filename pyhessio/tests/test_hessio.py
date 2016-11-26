@@ -273,6 +273,14 @@ def test_hessio():
         except HessioTelescopeIndexError:
             pass
 
+        az, alt = hessio.get_mc_run_array_direction()
+        assert(float(az) == float(0.0))
+        assert(float(alt) == float(1.2217304706573486))
+        assert(float(hessio.get_azimuth_raw(tel_id)) == float(0.0))
+        assert(float(hessio.get_altitude_raw(tel_id)) == float(1.2217304706573486))
+        assert(float(hessio.get_azimuth_cor(tel_id)) == float(0.0))
+        assert(float(hessio.get_altitude_cor(tel_id)) == float(0.0))
+
         mc_offset_x, mc_offset_y = hessio.get_mc_event_offset_fov()
         assert(mc_offset_x == 0)
         assert(mc_offset_y == 0)
