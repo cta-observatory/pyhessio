@@ -786,89 +786,87 @@ class HessioFile:
         else:
             raise(HessioGeneralError("data_red_mode not available"))
 
-    def get_adc_sample(self, telescope_id,channel):
+    def get_adc_sample(self, telescope_id):
         """
         Parameters
         ----------
-        telescope_id: iny
+        telescope_id: int
             telescope's id
-        channel: int
-            (0->HI_GAIN, 1->LOW_GAIN)
         Returns
         -------
-            numpy.array(npix,ntimeslices,dtype=np.uint16)
-            pulses sampled
+        ndarray
 
         Raises
         ------
         HessioGeneralError: when information is not available
         HessioTelescopeIndexError when no telescope exist with this id
-        HessioChannelIndexError when channel does not exist for this telescope
         """
-        if channel > self.get_num_channel(telescope_id)-1:
-            raise(HessioChannelIndexError("telescope " + str(telescope_id) +
-                                          " has not got channel " +
-                                          str(channel)))
+        n_chan = self.get_num_channel(telescope_id)
+        n_pix = self.get_num_pixels(telescope_id)
+        n_samples = self.get_num_samples(telescope_id)
+
+        if not n_samples > 0:
+            return np.zeros(0)
+        data = np.zeros((n_chan, n_pix, n_samples), dtype=np.uint16)
         try:
-            npix = self.get_num_pixels(telescope_id)
-            ntimeslices = self.get_num_samples(telescope_id)
-            if ( ntimeslices > 0):
-                data = np.zeros(npix*ntimeslices, dtype=np.uint16)
-                result = self.lib.get_adc_sample(telescope_id, channel, data)
+            for chan in range(n_chan):  # (0->HI_GAIN, 1->LOW_GAIN)
+                result = self.lib.get_adc_sample(telescope_id, chan,
+                                                 data[chan])
                 if result == 0:
-                    d_data = data.reshape(npix, ntimeslices)
-                    return d_data
+                    return data
                 elif result == TEL_INDEX_NOT_VALID:
-                    raise(HessioTelescopeIndexError("no telescope with id " +
-                                                    str(telescope_id)))
+                    raise (HessioTelescopeIndexError("no telescope with id " +
+                                                     str(telescope_id)))
                 else:
-                    raise(HessioGeneralError("adc sample not available"
-                                             " for telescope " +
-                                             str(telescope_id) +
-                                             " and channel " + str(channel)))
-            else:
-                return np.zeros(0)
+                    raise (HessioGeneralError("adc sample not available"
+                                              " for telescope " +
+                                              str(telescope_id) +
+                                              " and channel " + str(chan)))
         except HessioTelescopeIndexError:
             raise(HessioTelescopeIndexError("no telescope with id " +
                                             str(telescope_id)))
         except HessioGeneralError:
             raise (HessioGeneralError("adc sample not available for telescope "
-                                      + str(telescope_id) +
-                                      " and channel " + str(channel)))
+                                      + str(telescope_id)))
 
-    def get_adc_sum(self, telescope_id,channel):
+    def get_adc_sum(self, telescope_id):
         """
         Parameters
         ----------
-        telescope_id: iny
+        telescope_id: int
             telescope's id
-        channel: int
-            (0->HI_GAIN, 1->LOW_GAIN)
         Returns
         -------
-            sum of ADC values : np.zeros(npix,dtype=np.int32)
+        ndarray
 
         Raises
         ------
-        HessioGeneralError: when No adc_sum for telescope
-        HessioTelescopeIndexError: when no telescope exist with this id
-        HessioChannelIndexError: when channel does not exist for this telescope
+        HessioGeneralError: when information is not available
+        HessioTelescopeIndexError when no telescope exist with this id
         """
-        if channel > self.get_num_channel(telescope_id)-1:
-            raise(HessioChannelIndexError("telescope " + str(telescope_id) +
-                                          " has not got channel " +
-                                          str(channel)))
-        npix = self.get_num_pixels(telescope_id)
-        data = np.zeros(npix, dtype=np.int32)
-        result = self.lib.get_adc_sum(telescope_id, channel, data)
-        if result == 0:
-            return data
-        elif result == TEL_INDEX_NOT_VALID:
+        n_chan = self.get_num_channel(telescope_id)
+        n_pix = self.get_num_pixels(telescope_id)
+
+        data = np.zeros((n_chan, n_pix), dtype=np.int32)
+        try:
+            for chan in range(n_chan):  # (0->HI_GAIN, 1->LOW_GAIN)
+                result = self.lib.get_adc_sum(telescope_id, chan, data[chan])
+                if result == 0:
+                    return data
+                elif result == TEL_INDEX_NOT_VALID:
+                    raise (HessioTelescopeIndexError("no telescope with id " +
+                                                     str(telescope_id)))
+                else:
+                    raise (HessioGeneralError("adc sample not available"
+                                              " for telescope " +
+                                              str(telescope_id) +
+                                              " and channel " + str(chan)))
+        except HessioTelescopeIndexError:
             raise(HessioTelescopeIndexError("no telescope with id " +
                                             str(telescope_id)))
-        else:
-            raise(HessioGeneralError("No adc_sum for telescope " +
-                                     str(telescope_id)))
+        except HessioGeneralError:
+            raise (HessioGeneralError("adc sample not available for telescope "
+                                      + str(telescope_id)))
 
     def get_pixel_timing_timval(self, telescope_id):
         """
@@ -915,15 +913,13 @@ class HessioFile:
         HessioTelescopeIndexError: when no telescope exist with this id
         """
         npix = self.get_num_pixels(telescope_id)
-
         ngain = self.get_num_channel(telescope_id)
-        ngain = 2
-        calibration = np.zeros(ngain*npix, dtype=np.double)
+
+        calibration = np.zeros((ngain, npix), dtype=np.double)
 
         result = self.lib.get_calibration(telescope_id, calibration)
         if result == 0:
-            d_cal = calibration.reshape(ngain, npix)
-            return d_cal
+            return calibration
         elif result == TEL_INDEX_NOT_VALID:
             raise(HessioTelescopeIndexError("no telescope with id " +
                                             str(telescope_id)))
@@ -947,14 +943,13 @@ class HessioFile:
         HessioTelescopeIndexError: when no telescope exist with this id
         """
         npix = self.get_num_pixels(telescope_id)
-
         ngain = self.get_num_channel(telescope_id)
-        pedestal = np.zeros(ngain*npix, dtype=np.double)
+
+        pedestal = np.zeros((ngain, npix), dtype=np.double)
 
         result = self.lib.get_pedestal(telescope_id, pedestal)
         if result == 0:
-            d_ped = pedestal.reshape(ngain, npix)
-            return d_ped
+            return pedestal
         elif result == TEL_INDEX_NOT_VALID:
             raise(HessioTelescopeIndexError("no telescope with id " +
                                             str(telescope_id)))
@@ -1271,28 +1266,31 @@ class HessioFile:
         """
         return self.lib.get_ref_shape(telescope_id, channel, fshape)
 
-
-    def get_ref_shapes(self, telescope_id,channel):
+    def get_ref_shapes(self, telescope_id):
         """
         Returns Array of Reference pulse shape(s).
         Parameters
         ----------
         telescope_id: int
             telescope's id
+        Returns
+        -------
+        ndarray
 
-        channel: int
-            HI_GAIN, LOW_GAIN
-
-        Returns numpy.array(num_shapes,dtype=np.double)
+        Raises
+        ------
+        HessioGeneralError: when information is not available
         """
-        num_shapes = self.get_lrefshape(telescope_id)
-        if num_shapes >= 0:
-            array = np.zeros(num_shapes, dtype=np.double)
-            self.lib.get_ref_shapes(telescope_id, channel, array)
-            return array
-        else:
-            raise(HessioGeneralError("PixelTimming pulse shape(s) not"
-                                     " available"))
+        n_chan = self.get_nrefshape(telescope_id)
+        n_samples = self.get_lrefshape(telescope_id)
+
+        if not n_samples > 0:
+            raise (HessioGeneralError("Pulse reference shape(s) not "
+                                      "available"))
+        data = np.zeros((n_chan, n_samples), dtype=np.double)
+        for chan in range(n_chan):  # (0->HI_GAIN, 1->LOW_GAIN)
+            self.lib.get_ref_shapes(telescope_id, chan, data[chan])
+        return data
 
     def get_nrefshape(self, telescope_id):
         """
