@@ -304,18 +304,16 @@ int get_central_event_gps_time (long *seconds, long *nanoseconds){
 // Returns the number of different gains per pixel for a telscope id
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
 //----------------------------------------------------------------
-int get_num_channel (int telescope_id){
-if (hsdata != NULL)
-	{
+int get_num_channel (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
 		int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
-			return TEL_INDEX_NOT_VALID;
-		AdcData *raw = hsdata->event.teldata[itel].raw;
-		if (raw != NULL && raw->known){
-			return raw->num_gains;
+		return TEL_INDEX_NOT_VALID;
+		return hsdata->camera_org[itel].num_gains;
 		}
-	}
-return -1;
+	return -1;
 }
 //----------------------------------------------------------------
 // Returns Width of readout time slice (i.e. one sample) [ns].

@@ -555,7 +555,7 @@ class HessioFile:
 
         Raises
         ------
-        HessioGeneralError: when hsdata->event.teldata[itel].raw
+        HessioGeneralError: when hsdata->camera_org[itel].num_gains
         HessioTelescopeIndexError: when no telescope exist with this id
         """
         result = self.lib.get_num_channel(telescope_id)
