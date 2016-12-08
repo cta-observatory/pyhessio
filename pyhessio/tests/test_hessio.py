@@ -78,11 +78,6 @@ def test_hessio():
             raise
         except HessioTelescopeIndexError:
             pass
-        try:
-            hessio.get_num_channel(1)
-            raise
-        except HessioGeneralError:
-            pass
 
         assert set(hessio.get_teldata_list()) == set([38, 47])
 
