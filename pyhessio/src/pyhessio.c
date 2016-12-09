@@ -22,7 +22,7 @@ int get_global_event_count (void);
 int get_mirror_area (int telescope_id, double *mirror_area);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
-int get_num_samples (int telescope_id);
+int get_event_num_samples (int telescope_id);
 int get_zero_sup_mode(int telescope_id,int* result);
 int get_data_red_mode(int telescope_id,int* result);
 int get_num_teldata (void);
@@ -866,11 +866,13 @@ int  get_mirror_area (int telescope_id, double *result)
 	return -1.;
 }
 //-----------------------------------------------------
-// Returns the number of samples (time slices) recorded
+// Returns the number of samples (time slices) recorded.
+// Only contains the number of samples for the telescopes that have
+// data in the current event.
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
 // Otherwise 0
 //-----------------------------------------------------
-int get_num_samples (int telescope_id)
+int get_event_num_samples (int telescope_id)
 {
 	if (hsdata != NULL)
 		{

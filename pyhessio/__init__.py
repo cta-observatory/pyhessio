@@ -121,8 +121,8 @@ class HessioFile:
         self.lib.get_num_channel.restype = ctypes.c_int
         self.lib.get_num_pixels.argtypes = [ctypes.c_int]
         self.lib.get_num_pixels.restype = ctypes.c_int
-        self.lib.get_num_samples.argtypes = [ctypes.c_int]
-        self.lib.get_num_samples.restype = ctypes.c_int
+        self.lib.get_event_num_samples.argtypes = [ctypes.c_int]
+        self.lib.get_event_num_samples.restype = ctypes.c_int
         self.lib.get_zero_sup_mode.argtypes = [ctypes.c_int,
                                           np.ctypeslib.ndpointer(ctypes.c_int,
                                                                  flags="C_CONTIGUOUS")]
@@ -708,9 +708,12 @@ class HessioFile:
                                     "significant not available for telescope " +
                                     str(telescope_id)))
 
-    def get_num_samples(self, telescope_id):
+    def get_event_num_samples(self, telescope_id):
         """
-        Returns the number of samples (time slices) recorded
+        Returns the number of samples (time slices) recorded.
+        Only contains the number of samples for the telescopes that have
+        data in the current event.
+
         Parameters
         ----------
         telescope_id : int
@@ -721,7 +724,7 @@ class HessioFile:
          available
         HessioTelescopeIndexError: when no telescope exist with this id
         """
-        result = self.lib.get_num_samples(telescope_id)
+        result = self.lib.get_event_num_samples(telescope_id)
         if result >= 0: return result
         elif result == TEL_INDEX_NOT_VALID:
             raise(HessioTelescopeIndexError("no telescope with id " +
@@ -803,7 +806,7 @@ class HessioFile:
         """
         n_chan = self.get_num_channel(telescope_id)
         n_pix = self.get_num_pixels(telescope_id)
-        n_samples = self.get_num_samples(telescope_id)
+        n_samples = self.get_event_num_samples(telescope_id)
 
         if not n_samples > 0:
             return np.zeros(0)
