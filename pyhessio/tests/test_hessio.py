@@ -19,7 +19,7 @@ def test_hessio():
     v get_num_teldata():
     v get_num_channel(telescope_id):
     v get_num_pixels(telescope_id):
-    v get_num_samples(telescope_id):
+    v get_event_num_samples(telescope_id):
     v get_zero_sup_mode(telescope_id):
     v get_data_red_mode(telescope_id):
     v get_adc_sample(telescope_id):
@@ -115,11 +115,11 @@ def test_hessio():
         except HessioTelescopeIndexError:
             pass
 
-        #get_num_sample
-        nb_sample = hessio.get_num_samples(tel_id)
+        #get_event_num_samples
+        nb_sample = hessio.get_event_num_samples(tel_id)
         assert nb_sample == 25
         try:
-            hessio.get_num_samples(70000)
+            hessio.get_event_num_samples(70000)
             raise
         except HessioTelescopeIndexError:
             pass
