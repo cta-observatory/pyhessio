@@ -22,7 +22,7 @@ int get_global_event_count (void);
 int get_mirror_area (int telescope_id, double *mirror_area);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
-int get_num_samples (int telescope_id);
+int get_event_num_samples (int telescope_id);
 int get_zero_sup_mode(int telescope_id,int* result);
 int get_data_red_mode(int telescope_id,int* result);
 int get_num_teldata (void);
@@ -304,18 +304,16 @@ int get_central_event_gps_time (long *seconds, long *nanoseconds){
 // Returns the number of different gains per pixel for a telscope id
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
 //----------------------------------------------------------------
-int get_num_channel (int telescope_id){
-if (hsdata != NULL)
-	{
+int get_num_channel (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
 		int itel = get_telescope_index (telescope_id);
 		if (itel == TEL_INDEX_NOT_VALID)
-			return TEL_INDEX_NOT_VALID;
-		AdcData *raw = hsdata->event.teldata[itel].raw;
-		if (raw != NULL && raw->known){
-			return raw->num_gains;
+		return TEL_INDEX_NOT_VALID;
+		return hsdata->camera_org[itel].num_gains;
 		}
-	}
-return -1;
+	return -1;
 }
 //----------------------------------------------------------------
 // Returns Width of readout time slice (i.e. one sample) [ns].
@@ -868,11 +866,13 @@ int  get_mirror_area (int telescope_id, double *result)
 	return -1.;
 }
 //-----------------------------------------------------
-// Returns the number of samples (time slices) recorded
+// Returns the number of samples (time slices) recorded.
+// Only contains the number of samples for the telescopes that have
+// data in the current event.
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
 // Otherwise 0
 //-----------------------------------------------------
-int get_num_samples (int telescope_id)
+int get_event_num_samples (int telescope_id)
 {
 	if (hsdata != NULL)
 		{

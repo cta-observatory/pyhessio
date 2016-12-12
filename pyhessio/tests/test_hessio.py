@@ -19,11 +19,11 @@ def test_hessio():
     v get_num_teldata():
     v get_num_channel(telescope_id):
     v get_num_pixels(telescope_id):
-    v get_num_samples(telescope_id):
+    v get_event_num_samples(telescope_id):
     v get_zero_sup_mode(telescope_id):
     v get_data_red_mode(telescope_id):
-    v get_adc_sample(telescope_id,channel):
-    v get_adc_sum(telescope_id,channel):
+    v get_adc_sample(telescope_id):
+    v get_adc_sum(telescope_id):
     v get_significant(telescope_id):
     v get_data_for_calibration(telescope_id):
     v get_pixel_position(telescope_id):
@@ -78,11 +78,6 @@ def test_hessio():
             raise
         except HessioTelescopeIndexError:
             pass
-        try:
-            hessio.get_num_channel(1)
-            raise
-        except HessioGeneralError:
-            pass
 
         assert set(hessio.get_teldata_list()) == set([38, 47])
 
@@ -95,19 +90,13 @@ def test_hessio():
             pass
 
         #get_adc_sample
-        data_ch = hessio.get_adc_sample(tel_id, channel)
+        data_ch = hessio.get_adc_sample(tel_id)[channel]
         assert np.array_equal(data_ch[10:11],[[22,20,21,24,22,19,22,27,22,21,20,22,21,20,19,22,23,20,22,20,20,23,20,20,22]]) == True
 
         try:
-            hessio.get_adc_sample(-1, 0)
+            data_ch = hessio.get_adc_sample(-1)[channel]
             raise
         except HessioTelescopeIndexError: pass
-
-        try:
-            data_ch = hessio.get_adc_sample(47, 5)
-            raise
-        except HessioChannelIndexError:
-            pass
 
         #get_significant
         data_sig = hessio.get_significant(tel_id)
@@ -115,29 +104,22 @@ def test_hessio():
         assert np.array_equal(data_sig, model) is True
 
         #get_adc_sum
-        data_ch_sum = hessio.get_adc_sum(tel_id,channel)
+        data_ch_sum = hessio.get_adc_sum(tel_id)[channel]
         assert np.array_equal(data_ch_sum[0:10], [451, 550, 505, 465, 519,
                                                   467, 505, 496, 501, 478]) \
                is True
 
         try:
-            data_ch_sum = hessio.get_adc_sum(-1, channel)
+            data_ch_sum = hessio.get_adc_sum(-1)[channel]
             raise
         except HessioTelescopeIndexError:
             pass
 
-        try:
-            data_ch_sum = hessio.get_adc_sum(47, 2)
-            raise
-        except HessioChannelIndexError: pass
-
-
-
-        #get_num_sample
-        nb_sample = hessio.get_num_samples(tel_id)
+        #get_event_num_samples
+        nb_sample = hessio.get_event_num_samples(tel_id)
         assert nb_sample == 25
         try:
-            hessio.get_num_samples(70000)
+            hessio.get_event_num_samples(70000)
             raise
         except HessioTelescopeIndexError:
             pass
@@ -341,7 +323,7 @@ def test_hessio():
 
         """
 
-        ref_shapes = hessio.get_ref_shapes(38, 0)
+        ref_shapes = hessio.get_ref_shapes(38)[channel]
         assert(float(ref_shapes[0]) == float(0.01372528076171875))
         assert(float(ref_shapes[79]) == float(0.0009870529174804688))
         assert(hessio.get_nrefshape(38) == 1)
