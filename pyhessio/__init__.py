@@ -50,7 +50,7 @@ def open_hessio(filename):
     hessfile = HessioFile(filename, enter_by_context_mng=True)
     try:
         yield hessfile
-    finally:  
+    finally:
         hessfile.close_file()
 
 _path = os.path.dirname(__file__)
@@ -528,7 +528,7 @@ class HessioFile:
         """
         Returns
         -------
-        int: 
+        int:
             number of telescopes for which we actually have data
         Raises
         ------
@@ -853,9 +853,10 @@ class HessioFile:
         data = np.zeros((n_chan, n_pix), dtype=np.int32)
         try:
             for chan in range(n_chan):  # (0->HI_GAIN, 1->LOW_GAIN)
+                print(chan, n_chan, n_pix)
                 result = self.lib.get_adc_sum(telescope_id, chan, data[chan])
                 if result == 0:
-                    return data
+                    continue
                 elif result == TEL_INDEX_NOT_VALID:
                     raise (HessioTelescopeIndexError("no telescope with id " +
                                                      str(telescope_id)))
@@ -870,6 +871,7 @@ class HessioFile:
         except HessioGeneralError:
             raise (HessioGeneralError("adc sample not available for telescope "
                                       + str(telescope_id)))
+        return data
 
     def get_pixel_timing_timval(self, telescope_id):
         """
