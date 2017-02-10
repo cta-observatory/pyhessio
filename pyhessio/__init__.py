@@ -816,7 +816,7 @@ class HessioFile:
                 result = self.lib.get_adc_sample(telescope_id, chan,
                                                  data[chan])
                 if result == 0:
-                    return data
+                    continue
                 elif result == TEL_INDEX_NOT_VALID:
                     raise (HessioTelescopeIndexError("no telescope with id " +
                                                      str(telescope_id)))
@@ -831,6 +831,7 @@ class HessioFile:
         except HessioGeneralError:
             raise (HessioGeneralError("adc sample not available for telescope "
                                       + str(telescope_id)))
+        return data
 
     def get_adc_sum(self, telescope_id):
         """
@@ -853,7 +854,6 @@ class HessioFile:
         data = np.zeros((n_chan, n_pix), dtype=np.int32)
         try:
             for chan in range(n_chan):  # (0->HI_GAIN, 1->LOW_GAIN)
-                print(chan, n_chan, n_pix)
                 result = self.lib.get_adc_sum(telescope_id, chan, data[chan])
                 if result == 0:
                     continue
