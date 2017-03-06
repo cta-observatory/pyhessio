@@ -46,7 +46,7 @@ def test_hessio():
     v get_mc_event_offset_fov()
     """
     tel_id = 47
-    channel = 0
+
 
     with open_hessio('pyhessio-extra/datasets/gamma_test.simtel.gz') as hessio:
 # test exception by using getter before read the first event
@@ -89,31 +89,12 @@ def test_hessio():
         except HessioTelescopeIndexError:
             pass
 
-        #get_adc_sample
-        data_ch = hessio.get_adc_sample(tel_id)[channel]
-        assert np.array_equal(data_ch[10:11],[[22,20,21,24,22,19,22,27,22,21,20,22,21,20,19,22,23,20,22,20,20,23,20,20,22]]) == True
 
-        try:
-            data_ch = hessio.get_adc_sample(-1)[channel]
-            raise
-        except HessioTelescopeIndexError: pass
 
         #get_significant
         data_sig = hessio.get_significant(tel_id)
         model = np.ones(2048)
         assert np.array_equal(data_sig, model) is True
-
-        #get_adc_sum
-        data_ch_sum = hessio.get_adc_sum(tel_id)[channel]
-        assert np.array_equal(data_ch_sum[0:10], [451, 550, 505, 465, 519,
-                                                  467, 505, 496, 501, 478]) \
-               is True
-
-        try:
-            data_ch_sum = hessio.get_adc_sum(-1)[channel]
-            raise
-        except HessioTelescopeIndexError:
-            pass
 
         #get_event_num_samples
         nb_sample = hessio.get_event_num_samples(tel_id)
@@ -142,7 +123,7 @@ def test_hessio():
 
         #get_calibration
         calibration = hessio.get_calibration(tel_id)
-        assert calibration[0][2] ==  0.086124487221240997
+        assert np.isclose(calibration[0][2], 0.086124487221240997)
         try :
             hessio.get_calibration(0)
             raise
@@ -150,7 +131,7 @@ def test_hessio():
 
         #get_pedestal
         pedestal = hessio.get_pedestal(tel_id)
-        assert pedestal[0][0] == 457.36550903320312
+        assert np.isclose(pedestal[0][0], 457.36550903320312)
         try :
             hessio.get_pedestal(0)
             raise
@@ -158,15 +139,16 @@ def test_hessio():
 
 
         #get_pixel_position
-        pos_x,pos_y = hessio.get_pixel_position(tel_id)
-        assert pos_x[2] == -0.085799999535083771
-        assert pos_y[2] == -0.14880000054836273
+        pos_x, pos_y = hessio.get_pixel_position(tel_id)
+        assert np.isclose(pos_x[2], -0.085799999535083771)
+
+        assert np.isclose(pos_y[2], -0.14880000054836273)
         try:
             hessio.get_pixel_position(0)
             raise
         except HessioTelescopeIndexError: pass
 
-        assert(np.array_equal(hessio.get_telescope_with_data_list() , [38, 47]) == True)
+        assert(np.array_equal(hessio.get_telescope_with_data_list(), [38, 47]))
 
         #get_pixel_shape
         shape = hessio.get_pixel_shape(tel_id)
@@ -193,7 +175,7 @@ def test_hessio():
         except HessioTelescopeIndexError: pass
 
         #get_mirror_area
-        assert(hessio.get_mirror_area(tel_id) ==  14.562566757202148)
+        assert(np.isclose(hessio.get_mirror_area(tel_id), 14.562566757202148))
         try:
             hessio.get_mirror_area(-1)
             raise
@@ -207,7 +189,7 @@ def test_hessio():
         except HessioTelescopeIndexError: pass
 
         # get_optical_foclen
-        assert(float(hessio.get_optical_foclen(tel_id)) == float(2.1500000953674316))
+        assert(np.isclose((hessio.get_optical_foclen(tel_id)),2.1500000953674316))
         try:
             hessio.get_optical_foclen(-1)
             raise
@@ -323,11 +305,7 @@ def test_hessio():
 
         """
 
-        ref_shapes = hessio.get_ref_shapes(38)[channel]
-        assert(float(ref_shapes[0]) == float(0.01372528076171875))
-        assert(float(ref_shapes[79]) == float(0.0009870529174804688))
-        assert(hessio.get_nrefshape(38) == 1)
-        assert(hessio.get_lrefshape(38) == 80)
+
 
         hessio.close_file()
         hessio.open_file("pyhessio-extra/datasets/gamma_test.simtel.gz")
@@ -352,3 +330,69 @@ def test_hessio():
         assert(float(hessio.get_mc_event_ycore()) == float(1080.77392578125))
 
         close_file()
+
+
+# Test data on 2 channels event
+def test_hessio_two_channels():
+    tel_id = 2
+
+    with open_hessio('pyhessio-extra/datasets/gamma_test_large.simtel.gz') as hessio:
+        # read an event containing 2 channels telscopes
+
+        for loop in range(4):
+            next(hessio.move_to_next_event())
+
+        # get_adc_sample
+            data_ch = hessio.get_adc_sample(tel_id)
+        #get_adc_sample channel 0
+        channel = 0
+        assert np.array_equal(data_ch[channel][10:11], [[292, 302, 295, 283, 256, 237, 249, 253, 250,
+                                                291, 287, 307, 276, 274, 288, 351, 319, 300,
+                                                294, 306, 365, 364, 357, 293, 267, 288, 294,
+                                                345, 378, 365]]) == True
+        #get_adc_sample channel 1
+        channel = 1
+        assert np.array_equal(data_ch[channel][10:11], [[300, 296, 298, 298, 296, 299, 298, 296, 299,
+                                                298, 299, 302, 297, 296, 296, 303, 299, 299,
+                                                299, 302, 301, 302, 304, 302, 300, 295, 300,
+                                                300, 309, 301]]) == True
+
+        #  get_adc_sample on wrong tel_id
+        try:
+            data_ch = hessio.get_adc_sample(-1)[channel]
+            raise
+        except HessioTelescopeIndexError:
+            pass
+
+        # get_adc_sum
+        data_ch_sum = hessio.get_adc_sum(tel_id)
+
+        #get_adc_sum channel 0
+        channel = 0
+        assert np.array_equal(data_ch_sum[channel][0:10], [8893, 8605, 8031, 9105, 9957,
+                                                  8451, 8820, 9578, 8010, 9091]) is True
+        #get_adc_sum channel 1
+        channel = 1
+        assert np.array_equal(data_ch_sum[channel][0:10], [8988, 8950, 8970, 8949, 9028,
+                                                  8988, 8965, 8969, 8880, 8997]) is True
+
+        try:
+            data_ch_sum = hessio.get_adc_sum(-1)[channel]
+            raise
+        except HessioTelescopeIndexError:
+            pass
+
+        #get_ref_shapes channel 0
+        channel = 0
+        ref_shapes = hessio.get_ref_shapes(tel_id)[channel]
+        assert (np.isclose(ref_shapes[0], 2.980232238769531e-07))
+        assert (np.isclose(ref_shapes[79], 0.64013671875))
+
+        # get_ref_shapes channel 1
+        channel = 1
+        ref_shapes = hessio.get_ref_shapes(tel_id)[channel]
+        assert (np.isclose(ref_shapes[0], 2.980232238769531e-07))
+        assert (np.isclose(ref_shapes[79], 0.64013671875))
+
+        assert(hessio.get_nrefshape(tel_id) == 2)
+        assert(hessio.get_lrefshape(tel_id) == 250)
