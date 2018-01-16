@@ -54,6 +54,35 @@ double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
 double get_mc_shower_h_first_int(void);
 int get_mc_number_photon_electron(int telescope_id, int* pe);
+double get_spectral_index(void);
+double get_mc_obsheight(void);
+int get_mc_num_showers(void);
+int get_mc_num_use(void);
+int get_mc_core_pos_mode(void);
+double get_mc_core_range_X(void);
+double get_mc_core_range_Y(void);
+double get_mc_alt_range_Min(void);
+double get_mc_alt_range_Max(void);
+double get_mc_az_range_Min(void);
+double get_mc_az_range_Max(void);
+double get_mc_viewcone_Min(void);
+double get_mc_viewcone_Max(void);
+double get_mc_E_range_Min(void);
+double get_mc_E_range_Max(void);
+double get_B_total(void);
+double get_B_inclination(void);
+double get_B_declination(void);
+double get_atmosphere(void);
+double get_corsika_iact_options(void);
+double get_corsika_low_E_model(void);
+double get_corsika_high_E_model(void);
+double get_corsika_bunchsize(void);
+double get_corsika_wlen_min(void);
+double get_corsika_wlen_max(void);
+double get_corsika_low_E_detail(void);
+double get_corsika_high_E_detail(void);
+int get_mc_diffuse(void);
+double get_mc_injection_height(void);
 uint8_t get_adc_known (int telescope_id, int channel, int pixel_id);
 double get_ref_shape (int telescope_id, int channel, int fshape);
 double get_ref_step (int telescope_id);
@@ -260,7 +289,7 @@ int get_central_event_teltrg_list (int *tel_list){
 }
 //-------------------------------------------
 // Get List of relative time of trigger signal
-// after correction for nominal delay (in ns) for each 
+// after correction for nominal delay (in ns) for each
 // triggered telescope
 //-------------------------------------------
 int get_central_event_teltrg_time (float *teltrg_time){
@@ -525,6 +554,337 @@ double get_mc_event_ycore ()
 	return -0.;
 }
 //----------------------------------------------------------------
+// Returns B_total
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_B_total() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->B_total;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns B_inclination
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_B_inclination() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->B_inclination;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns B_declination
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_B_declination() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->B_declination;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns atmosphere
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_atmosphere() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->atmosphere;
+  }
+  return -1;
+}
+//----------------------------------------------------------------
+// Returns corsika_iact_options
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_iact_options() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_iact_options;
+  }
+  return -1;
+}
+//----------------------------------------------------------------
+// Returns corsika_low_E_model
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_low_E_model() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_low_E_model;
+  }
+  return -1;
+}
+//----------------------------------------------------------------
+// Returns corsika_high_E_model
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_high_E_model() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_high_E_model;
+  }
+  return -1;
+}
+//----------------------------------------------------------------
+// Returns corsika_bunchsize
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_bunchsize() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_bunchsize;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns corsika_wlen_min
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_wlen_min() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_wlen_min;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns corsika_wlen_max
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_wlen_max() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_wlen_max;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns corsika_low_E_detail
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_low_E_detail() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_low_E_detail;
+  }
+  return -1;
+}
+//----------------------------------------------------------------
+// Returns corsika_high_E_detail
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_corsika_high_E_detail() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->corsika_high_E_detail;
+  }
+  return -1;
+}
+
+//----------------------------------------------------------------
+// Returns spectral index
+// normaly -2
+//----------------------------------------------------------------
+double get_spectral_index() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->spectral_index;
+  }
+  return 0.0;
+}
+
+//----------------------------------------------------------------
+// Returns height
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_obsheight() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->obsheight;
+  }
+  return -1.0;
+}
+
+//----------------------------------------------------------------
+// Returns mc_num_showers
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+int get_mc_num_showers() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->num_showers;
+  }
+  return -1;
+}
+
+//----------------------------------------------------------------
+// Returns mc_num_use
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+int get_mc_num_use() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->num_use;
+  }
+  return -1;
+}
+
+//----------------------------------------------------------------
+// Returns mc_core_pos_mode
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+int get_mc_core_pos_mode() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->core_pos_mode;
+  }
+  return -1;
+}
+
+//----------------------------------------------------------------
+// Returns mc_core_range_X bzw mc_core_range_min
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_core_range_X() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->core_range[0];
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns mc_core_range_Y bzw. mc_core_range_max
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_core_range_Y() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->core_range[1];
+  }
+  return -1.0;
+}
+
+//----------------------------------------------------------------
+// Returns mc_alt_range_Min
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_alt_range_Min() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->alt_range[0];
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns mc_alt_range_Max
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_alt_range_Max() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->alt_range[1];
+  }
+  return -1.0;
+}
+
+//----------------------------------------------------------------
+// Returns mc_az_range_Min
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_az_range_Min() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->az_range[0];
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns mc_az_range_Max
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_az_range_Max() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->az_range[1];
+  }
+  return -1.0;
+}
+
+//----------------------------------------------------------------
+// Returns mc_viewcone_Min
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_viewcone_Min() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->viewcone[0];
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns mc_viewcone_Max
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_viewcone_Max() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->viewcone[1];
+  }
+  return -1.0;
+}
+
+//----------------------------------------------------------------
+// Returns mc_E_range_Min
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_E_range_Min() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->E_range[0];
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns mc_E_range_Max
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_E_range_Max() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->E_range[1];
+  }
+  return -1.0;
+}
+
+//----------------------------------------------------------------
+// Returns mc_diffuse
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+int get_mc_diffuse() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->diffuse;
+  }
+  return -1;
+}
+
+//----------------------------------------------------------------
+// Returns mc_injection_height
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+double get_mc_injection_height() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->injection_height;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
 // Returns the tracking/pointing direction in [radians]. Depending on
 // "tracking_mode" this either contains:
 //   [0]=Azimuth, [1]=Altitude in mode 0,
@@ -762,7 +1122,7 @@ int get_pedestal (int telescope_id, double *pedestal)
     			{
     			*pedestal++ = monitor.pedestal[igain][ipix];
     			}
-		}			
+		}
 		return 0;
 		}
 	return -1;
@@ -1330,7 +1690,6 @@ void free_hsdata(void)
 //-----------------------------------
 // Returns Camera rotation angle (counter-clock-wise from back side for prime focus camera)
 //-----------------------------------
-
 double get_camera_rotation_angle(int telescope_id)
 {
 	if ( hsdata != NULL ){

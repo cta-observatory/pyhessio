@@ -209,6 +209,35 @@ class HessioFile:
         self.lib.get_mc_shower_altitude.restype = ctypes.c_double
         self.lib.get_mc_shower_primary_id.restype = ctypes.c_int
         self.lib.get_mc_shower_h_first_int.restype = ctypes.c_double
+        self.lib.get_spectral_index.restype = ctypes.c_double
+        self.lib.get_mc_obsheight.restype = ctypes.c_double
+        self.lib.get_mc_num_showers.restype = ctypes.c_int
+        self.lib.get_mc_num_use.restype = ctypes.c_int
+        self.lib.get_mc_core_pos_mode.restype = ctypes.c_int
+        self.lib.get_mc_core_range_X.restype = ctypes.c_double
+        self.lib.get_mc_core_range_Y.restype = ctypes.c_double
+        self.lib.get_mc_alt_range_Min.restype = ctypes.c_double
+        self.lib.get_mc_alt_range_Max.restype = ctypes.c_double
+        self.lib.get_mc_az_range_Min.restype = ctypes.c_double
+        self.lib.get_mc_az_range_Max.restype = ctypes.c_double
+        self.lib.get_mc_viewcone_Min.restype = ctypes.c_double
+        self.lib.get_mc_viewcone_Max.restype = ctypes.c_double
+        self.lib.get_mc_E_range_Min.restype = ctypes.c_double
+        self.lib.get_mc_E_range_Max.restype = ctypes.c_double
+        self.lib.get_mc_diffuse.restype = ctypes.c_int
+        self.lib.get_mc_injection_height.restype = ctypes.c_double
+        self.lib.get_B_total.restype = ctypes.c_double
+        self.lib.get_B_inclination.restype = ctypes.c_double
+        self.lib.get_B_declination.restype = ctypes.c_double
+        self.lib.get_atmosphere.restype = ctypes.c_int
+        self.lib.get_corsika_iact_options.restype = ctypes.c_int
+        self.lib.get_corsika_low_E_model.restype = ctypes.c_int
+        self.lib.get_corsika_high_E_model.restype = ctypes.c_int
+        self.lib.get_corsika_bunchsize.restype = ctypes.c_double
+        self.lib.get_corsika_wlen_min.restype = ctypes.c_double
+        self.lib.get_corsika_wlen_max.restype = ctypes.c_double
+        self.lib.get_corsika_low_E_detail.restype = ctypes.c_int
+        self.lib.get_corsika_high_E_detail.restype = ctypes.c_int
         self.lib.get_adc_known.restype = ctypes.c_int
         self.lib.get_adc_known.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
         self.lib.get_ref_shape.restype = ctypes.c_double
@@ -1241,6 +1270,267 @@ class HessioFile:
         float
         """
         return self.lib.get_mc_shower_h_first_int()
+
+    def get_spectral_index(self):
+        """
+        Returns spectral_index.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_spectral_index()
+
+    def get_mc_obsheight(self):
+        """
+        Returns mc_obsheight.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_obsheight()
+
+    def get_mc_num_showers(self):
+        """
+        Returns mc_num_showers.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_mc_num_showers()
+
+    def get_mc_num_use(self):
+        """
+        Returns mc_num_use.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_mc_num_use()
+
+    def get_mc_core_pos_mode(self):
+        """
+        Returns mc_core_pos_mode.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_mc_core_pos_mode()
+
+    def get_mc_core_range_X(self):
+        """
+        Returns mc_core_range_X.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_core_range_X()
+
+    def get_mc_core_range_Y(self):
+        """
+        Returns mc_core_range_Y.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_core_range_Y()
+
+    def get_mc_alt_range_Min(self):
+        """
+        Returns mc_alt_range_Min.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_alt_range_Min()
+
+    def get_mc_alt_range_Max(self):
+        """
+        Returns mc_alt_range_Max.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_alt_range_Max()
+
+    def get_mc_az_range_Min(self):
+        """
+        Returns mc_az_range_Min.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_az_range_Min()
+
+    def get_mc_az_range_Max(self):
+        """
+        Returns mc_az_range_Max.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_az_range_Max()
+
+    def get_mc_viewcone_Min(self):
+        """
+        Returns mc_viewcone_Min.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_viewcone_Min()
+
+    def get_mc_viewcone_Max(self):
+        """
+        Returns mc_viewcone_Max.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_viewcone_Max()
+
+    def get_mc_E_range_Min(self):
+        """
+        Returns mc_E_range_Min.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_E_range_Min()
+
+    def get_mc_E_range_Max(self):
+        """
+        Returns mc_E_range_Max.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_E_range_Max()
+
+    def get_mc_diffuse(self):
+        """
+        Returns mc_diffuse.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_mc_diffuse()
+
+    def get_mc_injection_height(self):
+        """
+        Returns mc_injection_height.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_injection_height()
+
+    def get_B_total(self):
+        """
+        Returns B_total.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_B_total()
+
+    def get_B_inclination(self):
+        """
+        Returns B_inclination.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_B_inclination()
+
+    def get_B_declination(self):
+        """
+        Returns B_declination.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_B_declination()
+
+    def get_atmosphere(self):
+        """
+        Returns atmosphere.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_atmosphere()
+
+    def get_corsika_iact_options(self):
+        """
+        Returns corsika_iact_options.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_corsika_iact_options()
+
+    def get_corsika_low_E_model(self):
+        """
+        Returns corsika_low_E_model.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_corsika_low_E_model()
+
+    def get_corsika_high_E_model(self):
+        """
+        Returns corsika_high_E_model.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_corsika_high_E_model()
+
+    def get_corsika_bunchsize(self):
+        """
+        Returns corsika_bunchsize.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_corsika_bunchsize()
+
+    def get_corsika_wlen_min(self):
+        """
+        Returns corsika_wlen_min.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_corsika_wlen_min()
+
+    def get_corsika_wlen_max(self):
+        """
+        Returns corsika_wlen_max.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_corsika_wlen_max()
+
+    def get_corsika_low_E_detail(self):
+        """
+        Returns corsika_low_E_detail.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_corsika_low_E_detail()
+
+    def get_corsika_high_E_detail(self):
+        """
+        Returns corsika_high_E_detail.
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_corsika_high_E_detail()
 
     def get_adc_known(self, telescope_id, channel, pixel_id):
         """
