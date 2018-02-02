@@ -35,6 +35,14 @@ build and install
 Installation for an anaconda env 
 ________________________________ 
 
+Binary installation:
+
+::
+
+    conda install -c cta-observatory pyhessio
+
+Building from source:
+
 ::
 
     conda create -n cta python=3.5
@@ -63,17 +71,19 @@ ________________________
 
 Using pyhessio
 --------------
-### Simple python wrapper for hessioxxx c library.
-#### Warnings: only ONE simtelarray file could be open at once.
-1. This wrapper uses ugly global static variables for development simplicity reason,
+
+Warnings: 
+
+1. only ONE simtelarray file could be open at once.
+
+2. This wrapper uses ugly global static variables for development simplicity reason,
 and because it is a temporally solution until CTA MC data format exists.
 
-2. PROD3 MC use udge amount of memory, and memory is only free when close_file
+3. PROD3 MC use udge amount of memory, and memory is only free when close_file
 is executed. To force close_file execution, we force to use context manager
 to instantiate object:
 
+.. code-block:: python
+  with pyhessio.open('pyhessio-extra/datasets/gamma_test.simtel.gz') as f:
+      f.fill_next_event()
 
-```python
-with pyhessio.open('pyhessio-extra/datasets/gamma_test.simtel.gz') as f:
-    f.fill_next_event()
-```
