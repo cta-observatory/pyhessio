@@ -84,6 +84,7 @@ is executed. To force close_file execution, we force to use context manager
 to instantiate object:
 
 .. code-block:: python
+
   with pyhessio.open('pyhessio-extra/datasets/gamma_test.simtel.gz') as f:
       f.fill_next_event()
 
