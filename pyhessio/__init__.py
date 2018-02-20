@@ -231,6 +231,7 @@ class HessioFile:
         self.lib.get_B_declination.restype = ctypes.c_double
         self.lib.get_atmosphere.restype = ctypes.c_int
         self.lib.get_corsika_version.restype = ctypes.c_int
+        self.lib.get_simtel_version.restype = ctypes.c_int
         self.lib.get_corsika_iact_options.restype = ctypes.c_int
         self.lib.get_corsika_low_E_model.restype = ctypes.c_int
         self.lib.get_corsika_high_E_model.restype = ctypes.c_int
