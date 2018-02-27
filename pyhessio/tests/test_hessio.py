@@ -89,7 +89,9 @@ def test_hessio():
         except HessioTelescopeIndexError:
             pass
 
-
+        # test the trigger data
+        assert (hessio.get_num_trig_pixels(tel_id) == 3)
+        assert (np.array_equal(hessio.get_trig_pixels(tel_id), [68, 1242, 1338]) == True)
 
         #get_significant
         data_sig = hessio.get_significant(tel_id)
@@ -328,12 +330,6 @@ def test_hessio():
         assert(hessio.get_mc_shower_primary_id() == 0)
         assert(float(hessio.get_mc_event_xcore()) == float(-591.63360595703125))
         assert(float(hessio.get_mc_event_ycore()) == float(1080.77392578125))
-
-        # test the trigger data
-        assert(hessio.get_num_trig_pixels(tel_id) == 3)
-        assert(np.array_equal(hessio.get_trig_pixels(tel_id), [68, 1242, 1338]) == True)
-
-
 
         close_file()
 
