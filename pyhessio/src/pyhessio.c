@@ -1212,6 +1212,10 @@ int get_num_pixels (int telescope_id)
 	return -1;
 }
 
+//----------------------------------------------------------------
+// Returns the number of pixels used in the camera trigger
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
 int get_num_trig_pixels (int telescope_id)
 {
 	if (hsdata != NULL)
