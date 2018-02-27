@@ -329,6 +329,12 @@ def test_hessio():
         assert(float(hessio.get_mc_event_xcore()) == float(-591.63360595703125))
         assert(float(hessio.get_mc_event_ycore()) == float(1080.77392578125))
 
+        # test the trigger data
+        assert(hessio.get_num_trig_pixels(tel_id) == 3)
+        assert(np.array_equal(hessio.get_trig_pixels(tel_id), [68, 1242, 1338]) == True)
+
+
+
         close_file()
 
 
