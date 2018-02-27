@@ -1240,7 +1240,8 @@ int get_trig_pixels (int telescope_id, int *trigpix)
 		    if (itel == TEL_INDEX_NOT_VALID)
                 return TEL_INDEX_NOT_VALID;
             int npix = hsdata->event.teldata[itel].trigger_pixels.pixels;
-            for (int ipix=0.; ipix < npix; ipix++)
+            int ipix = 0;
+            for (ipix=0.; ipix < npix; ipix++)
             {
                 *trigpix++ = hsdata->event.teldata[itel].trigger_pixels.pixel_list[ipix];
             }
