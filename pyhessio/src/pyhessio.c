@@ -34,6 +34,8 @@ int get_pixel_timing_timval (int telescope_id, float *data);
 int get_pixel_timine_peak_global (int telescope_id, float *peak);
 int get_pixel_shape(int telescope_id, double *pixel_shape);
 int get_pixel_area(int telescope_id, double *pixel_area);
+int get_corsika_version (void);
+int get_simtel_version (void);
 int get_run_number (void);
 int get_telescope_with_data_list (int *list);
 int get_telescope_position (int telescope_id, double *pos);
@@ -503,6 +505,28 @@ double get_mc_shower_h_first_int(){
 		return hsdata->mc_shower.h_first_int;
 		}
 	return -0.;
+}
+//----------------------------------------------------------------
+// Returns CORSIKA version  *1000
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+int get_corsika_version() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->shower_prog_vers;
+  }
+  return -1.0;
+}
+//----------------------------------------------------------------
+// Returns sim_telarray version  *1000
+// Returns -1 if data is not accessible
+//----------------------------------------------------------------
+int get_simtel_version() {
+  if (hsdata != NULL) {
+    MCRunHeader *mcrh = &(hsdata)->mc_run_header;
+    return mcrh->detector_prog_vers;
+  }
+  return -1.0;
 }
 //----------------------------------------------------------------
 // Returns shower altitude [rad]

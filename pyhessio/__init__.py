@@ -230,6 +230,8 @@ class HessioFile:
         self.lib.get_B_inclination.restype = ctypes.c_double
         self.lib.get_B_declination.restype = ctypes.c_double
         self.lib.get_atmosphere.restype = ctypes.c_int
+        self.lib.get_corsika_version.restype = ctypes.c_int
+        self.lib.get_simtel_version.restype = ctypes.c_int
         self.lib.get_corsika_iact_options.restype = ctypes.c_int
         self.lib.get_corsika_low_E_model.restype = ctypes.c_int
         self.lib.get_corsika_high_E_model.restype = ctypes.c_int
@@ -408,6 +410,22 @@ class HessioFile:
         int : current event id
         """
         return self._event_id
+
+    def get_corsika_version(self):
+        """
+        Returns
+        -------
+        int : CORSIKA version (x1000)
+        """
+        return self.lib.get_corsika_version()
+
+    def get_simtel_version(self):
+        """
+        Returns
+        -------
+        int : sim_telarray version (x1000)
+        """
+        return self.lib.get_simtel_version()
 
     def get_global_event_count(self):
         """
