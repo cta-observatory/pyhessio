@@ -89,7 +89,9 @@ def test_hessio():
         except HessioTelescopeIndexError:
             pass
 
-
+        # test the trigger data
+        assert (hessio.get_num_trig_pixels(tel_id) == 3)
+        assert (np.array_equal(hessio.get_trig_pixels(tel_id), [68, 1242, 1338]) == True)
 
         #get_significant
         data_sig = hessio.get_significant(tel_id)

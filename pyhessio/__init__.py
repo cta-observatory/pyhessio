@@ -125,6 +125,12 @@ class HessioFile:
         self.lib.get_num_channel.restype = ctypes.c_int
         self.lib.get_num_pixels.argtypes = [ctypes.c_int]
         self.lib.get_num_pixels.restype = ctypes.c_int
+        self.lib.get_num_trig_pixels.argtypes = [ctypes.c_int]
+        self.lib.get_num_trig_pixels.restype = ctypes.c_int
+        self.lib.get_trig_pixels.argtypes = [ctypes.c_int,
+                                                     np.ctypeslib.ndpointer(ctypes.c_int32,
+                                                         flags="C_CONTIGUOUS")]
+        self.lib.get_trig_pixels.restype = ctypes.c_int
         self.lib.get_event_num_samples.argtypes = [ctypes.c_int]
         self.lib.get_event_num_samples.restype = ctypes.c_int
         self.lib.get_zero_sup_mode.argtypes = [ctypes.c_int,
@@ -644,6 +650,60 @@ class HessioFile:
         else:
             raise(HessioGeneralError("hsdata->camera_set[itel]."
                                      "num_pixels not available"))
+
+    def get_num_trig_pixels(self, telescope_id):
+        """
+        Parameters
+        ----------
+        int:
+            telescope_id: telescope's id
+        Returns
+        -------
+        int:
+            the number of trigger pixels in the camera
+
+        Raises
+        ------
+        HessioGeneralError: when hsdata->camera_set[itel].num_pixels
+        HessioTelescopeIndexError: when no telescope exist with this id
+        """
+        result = self.lib.get_num_trig_pixels(telescope_id)
+        if result >= 0 :
+            return result
+        elif result == TEL_INDEX_NOT_VALID:
+            raise(HessioTelescopeIndexError("no telescope with id " +
+                                            str(telescope_id)))
+        else:
+            raise(HessioGeneralError("hsdata->camera_set[itel]."
+                                     "num_pixels not available"))
+
+    def get_trig_pixels(self, telescope_id):
+        """
+        Parameters
+        ----------
+        int:
+            telescope_id: telescope's id
+        Returns
+        -------
+        int:
+            the list of trigger pixels in the camera
+
+        Raises
+        ------
+        HessioGeneralError: when hsdata->camera_set[itel].num_pixels
+        HessioTelescopeIndexError: when no telescope exist with this id
+        """
+        npix = self.get_num_trig_pixels(telescope_id)
+        trig_pixels = np.zeros(npix, dtype=np.int32)
+        result = self.lib.get_trig_pixels(telescope_id,trig_pixels)
+        if result == 0:
+            return trig_pixels
+        elif result == TEL_INDEX_NOT_VALID:
+            raise(HessioTelescopeIndexError("no telescope with id " +
+                                            str(telescope_id)))
+        else:
+            raise(HessioGeneralError("no pixel trigger for telescope "
+                                     + str(telescope_id)))
 
     def get_pixel_timing_threshold(self, telescope_id):
         """

@@ -22,6 +22,8 @@ int get_global_event_count (void);
 int get_mirror_area (int telescope_id, double *mirror_area);
 int get_num_channel (int telescope_id);
 int get_num_pixels (int telescope_id);
+int get_num_trig_pixels (int telescope_id);
+int get_trig_pixels (int telescope_id, int *trigpix);
 int get_event_num_samples (int telescope_id);
 int get_zero_sup_mode(int telescope_id,int* result);
 int get_data_red_mode(int telescope_id,int* result);
@@ -1233,6 +1235,45 @@ int get_num_pixels (int telescope_id)
 		}
 	return -1;
 }
+
+//----------------------------------------------------------------
+// Returns the number of pixels used in the camera trigger
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+int get_num_trig_pixels (int telescope_id)
+{
+	if (hsdata != NULL)
+		{
+		    int itel = get_telescope_index (telescope_id);
+		    if (itel == TEL_INDEX_NOT_VALID)
+                return TEL_INDEX_NOT_VALID;
+            return hsdata->event.teldata[itel].trigger_pixels.pixels;
+		}
+    return -1;
+}
+
+//----------------------------------------------------------------
+// Returns a list of pixels used in the camera trigger
+// Returns TEL_INDEX_NOT_VALID if telescope index is not valid
+//----------------------------------------------------------------
+int get_trig_pixels (int telescope_id, int *trigpix)
+{
+	if (hsdata != NULL)
+		{
+		    int itel = get_telescope_index (telescope_id);
+		    if (itel == TEL_INDEX_NOT_VALID)
+                return TEL_INDEX_NOT_VALID;
+            int npix = hsdata->event.teldata[itel].trigger_pixels.pixels;
+            int ipix = 0;
+            for (ipix=0.; ipix < npix; ipix++)
+            {
+                *trigpix++ = hsdata->event.teldata[itel].trigger_pixels.pixel_list[ipix];
+            }
+            return 0;
+        }
+    return -1;
+}
+
 //----------------------------------------------------------------
 // Returns total area of individual mirrors corrected   for inclination [m^2].
 // Returns TEL_INDEX_NOT_VALID if telescope index is not valid
