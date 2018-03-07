@@ -101,7 +101,7 @@ class HessioFile:
                                                               flags="C_CONTIGUOUS")]
         self.lib.get_adc_sample.restype = ctypes.c_int
         self.lib.get_adc_sum.argtypes = [ctypes.c_int, ctypes.c_int,
-                                    np.ctypeslib.ndpointer(ctypes.c_int32,
+                                    np.ctypeslib.ndpointer(ctypes.c_uint32,
                                                            flags="C_CONTIGUOUS")]
         self.lib.get_adc_sum.restype = ctypes.c_int
         self.lib.get_significant.argtypes = [ctypes.c_int,
@@ -962,7 +962,7 @@ class HessioFile:
         n_chan = self.get_num_channel(telescope_id)
         n_pix = self.get_num_pixels(telescope_id)
 
-        data = np.zeros((n_chan, n_pix), dtype=np.int32)
+        data = np.zeros((n_chan, n_pix), dtype=np.uint32)
         try:
             for chan in range(n_chan):  # (0->HI_GAIN, 1->LOW_GAIN)
                 result = self.lib.get_adc_sum(telescope_id, chan, data[chan])
