@@ -16,8 +16,8 @@ int fill_hsdata (int *event_id);
 int get_adc_sample (int telescope_id, int channel, uint16_t * data);
 int get_adc_sum (int telescope_id, int channel, uint32_t * data);
 uint8_t get_significant (int telescope_id, uint8_t * data);
-int get_pedestal (int telescope_id, double *pedestal);
-int get_calibration (int telescope_id, double *calib);
+int get_pedestal (int telescope_id, float *pedestal);
+int get_calibration (int telescope_id, float *calib);
 int get_global_event_count (void);
 int get_mirror_area (int telescope_id, double *mirror_area);
 int get_num_channel (int telescope_id);
@@ -1102,7 +1102,7 @@ int get_adc_sum (int telescope_id, int channel, uint32_t * data){
 //  double calib[H_MAX_GAINS][H_MAX_PIX]; /**< ADC to laser/LED p.e. conversion,
 // Returns  0 for success,  TEL_INDEX_NOT_VALID if telescope index is not valid
 //
-int get_calibration (int telescope_id, double *calib)
+int get_calibration (int telescope_id, float *calib)
 //----------------------------------------------------------------
 {
 	if (hsdata != NULL)
@@ -1117,7 +1117,7 @@ int get_calibration (int telescope_id, double *calib)
 		for (igain = 0; igain < num_gain; igain++) {
 			unsigned int ipix = 0.;
 			for (ipix = 0.; ipix < num_pixels; ipix++) {	// loop over pixels
-				*calib++ = calibration.calib[igain][ipix];
+				*calib++ = (float)calibration.calib[igain][ipix];
 			}// end loop pixels
 		}// end of   loop over gains
 		return 0;
@@ -1129,7 +1129,7 @@ int get_calibration (int telescope_id, double *calib)
 //  double pedestal[H_MAX_GAINS][H_MAX_PIX];  ///< Average pedestal on ADC sums
 // Returns 0 for success TEL_INDEX_NOT_VALID if telescope index is not valid
 //
-int get_pedestal (int telescope_id, double *pedestal)
+int get_pedestal (int telescope_id, float *pedestal)
 //----------------------------------------------------------------
 {
 	if (hsdata != NULL)
@@ -1146,7 +1146,7 @@ int get_pedestal (int telescope_id, double *pedestal)
     		unsigned int ipix = 0;
     		for (ipix = 0.; ipix < num_pixels; ipix++)
     			{
-    			*pedestal++ = monitor.pedestal[igain][ipix];
+    			*pedestal++ = (float)monitor.pedestal[igain][ipix];
     			}
 		}
 		return 0;

@@ -109,11 +109,11 @@ class HessioFile:
                                                                flags="C_CONTIGUOUS")]
         self.lib.get_significant.restype = ctypes.c_int
         self.lib.get_calibration.argtypes = [ctypes.c_int,
-                                        np.ctypeslib.ndpointer(ctypes.c_double,
+                                        np.ctypeslib.ndpointer(ctypes.c_float,
                                                                flags="C_CONTIGUOUS")]
         self.lib.get_calibration.restype = ctypes.c_int
         self.lib.get_pedestal.argtypes = [ctypes.c_int,
-                                     np.ctypeslib.ndpointer(ctypes.c_double,
+                                     np.ctypeslib.ndpointer(ctypes.c_float,
                                                             flags="C_CONTIGUOUS")]
         self.lib.get_pedestal.restype = ctypes.c_int
         self.lib.get_global_event_count.restype = ctypes.c_int
@@ -1031,7 +1031,7 @@ class HessioFile:
         npix = self.get_num_pixels(telescope_id)
         ngain = self.get_num_channel(telescope_id)
 
-        calibration = np.zeros((ngain, npix), dtype=np.double)
+        calibration = np.zeros((ngain, npix), dtype=np.float32)
 
         result = self.lib.get_calibration(telescope_id, calibration)
         if result == 0:
@@ -1061,7 +1061,7 @@ class HessioFile:
         npix = self.get_num_pixels(telescope_id)
         ngain = self.get_num_channel(telescope_id)
 
-        pedestal = np.zeros((ngain, npix), dtype=np.double)
+        pedestal = np.zeros((ngain, npix), dtype=np.float32)
 
         result = self.lib.get_pedestal(telescope_id, pedestal)
         if result == 0:
