@@ -211,6 +211,7 @@ class HessioFile:
                                                           flags="C_CONTIGUOUS")]
         self.lib.get_mc_number_photon_electron.restype = ctypes.c_int
         self.lib.get_mc_shower_energy.restype = ctypes.c_double
+        self.lib.get_mc_shower_xmax.restype = ctypes.c_double
         self.lib.get_mc_shower_azimuth.restype = ctypes.c_double
         self.lib.get_mc_shower_altitude.restype = ctypes.c_double
         self.lib.get_mc_shower_primary_id.restype = ctypes.c_int
@@ -1311,6 +1312,15 @@ class HessioFile:
         float
         """
         return self.lib.get_mc_shower_energy()
+
+    def get_mc_shower_xmax(self):
+        """
+        Returns shower primary energy [TeV]
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_shower_xmax()
 
     def get_mc_shower_azimuth(self):
         """

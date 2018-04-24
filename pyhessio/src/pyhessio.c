@@ -53,7 +53,7 @@ double get_azimuth_cor (int telescope_id);
 double get_altitude_cor (int telescope_id);
 int get_mc_event_offset_fov (double *off);
 double get_mc_shower_energy (void);
-double get_mc_shower_hmax (void);
+double get_mc_shower_xmax (void);
 double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
