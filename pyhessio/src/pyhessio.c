@@ -53,6 +53,7 @@ double get_azimuth_cor (int telescope_id);
 double get_altitude_cor (int telescope_id);
 int get_mc_event_offset_fov (double *off);
 double get_mc_shower_energy (void);
+double get_mc_shower_xmax (void);
 double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
@@ -555,6 +556,15 @@ double get_mc_shower_azimuth (){
 double get_mc_shower_energy () {
 	if (hsdata != NULL){
 		return hsdata->mc_shower.energy;
+	}
+	return -0.;
+}
+//----------------------------------------------------------------
+// Returns shower Xmax
+//----------------------------------------------------------------
+double get_mc_shower_xmax () {
+	if (hsdata != NULL){
+		return hsdata->mc_shower.xmax;
 	}
 	return -0.;
 }
