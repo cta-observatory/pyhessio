@@ -44,6 +44,7 @@ int get_telescope_position (int telescope_id, double *pos);
 int get_telescope_index (int telescope_id);
 int move_to_next_event (int *event_id);
 int move_to_next_mc_event (int *event_id);
+int move_to_next_calib_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
 int get_mc_run_array_direction (double *dir);
@@ -180,6 +181,20 @@ int move_to_next_mc_event (int *event_id){
 	if (!file_is_opened) return -1;
 	int rc = 0;
 	while (rc != IO_TYPE_HESS_MC_EVENT)	{
+		rc = fill_hsdata (event_id);
+		if (rc < 0){
+			return -1;
+		}
+	}
+	return get_run_number ();
+}
+//----------------------------------
+// Scan all calibration events
+//----------------------------------
+int move_to_next_calib_event (int *event_id){
+	if (!file_is_opened) return -1;
+	int rc = 0;
+	while (rc != IO_TYPE_HESS_CALIBEVENT)	{
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
 			return -1;
@@ -1628,7 +1643,9 @@ int fill_hsdata (int *event_id)	//,int *header_readed)
 		/* =================================================== */
 		case IO_TYPE_HESS_CALIBEVENT:
 		{
-			printf ("RDLR: CALIBEVENT!\n");
+                        int type = -1;
+			rc = read_hess_calib_event(iobuf, &(hsdata)->event, -1, &type);
+			*event_id = item_header.ident;
 		}
 		break;
 		/* =================================================== */

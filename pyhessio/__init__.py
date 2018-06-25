@@ -189,6 +189,9 @@ class HessioFile:
         self.lib.move_to_next_mc_event.argtypes = [
             np.ctypeslib.ndpointer(ctypes.c_int)]
         self.lib.move_to_next_mc_event.restype = ctypes.c_int
+        self.lib.move_to_next_calib_event.argtypes = [
+            np.ctypeslib.ndpointer(ctypes.c_int)]
+        self.lib.move_to_next_calib_event.restype = ctypes.c_int
         self.lib.get_mc_event_xcore.restype = ctypes.c_double
         self.lib.get_mc_event_ycore.restype = ctypes.c_double
         self.lib.get_mc_run_array_direction.argtypes = [
@@ -381,6 +384,36 @@ class HessioFile:
         sim_evt_num = 0
         while run_id >= 0 and (limit == 0 or sim_evt_num < limit):
             run_id = self.lib.move_to_next_mc_event(result)
+            if run_id != -1:
+                yield result[0]
+                sim_evt_num += 1
+
+    def move_to_next_calib_event(self, limit=0):
+        """
+        Read calibration data form input file and fill corresponding container
+        Data can be then access with other available functions in
+        this module.
+        This iterator scans all the simulated events, not only the triggered
+        ones. By default all events are computed
+
+        Parameters
+        ----------
+        limit: int, optional
+            limit the number of event generated
+        Yields
+        ------
+          event id
+        Raises
+        ------
+        HessioError: When input file is not open
+        """
+        if not self.__opened_filename:
+            raise HessioError('input file is not open')
+        result = np.zeros(1, dtype=np.int32)
+        run_id = 0
+        sim_evt_num = 0
+        while run_id >= 0 and (limit == 0 or sim_evt_num < limit):
+            run_id = self.lib.move_to_next_calib_event(result)
             if run_id != -1:
                 yield result[0]
                 sim_evt_num += 1
