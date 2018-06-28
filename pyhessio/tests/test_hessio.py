@@ -9,7 +9,6 @@ def test_hessio():
     v move_to_next_event(limit=0):
     v move_to_next_mc_event(limit=0):
     v fill_next_event
-    v fill_next_mc_event
     v open_file(filename):
     v close_file():
     v get_global_event_count():
@@ -313,7 +312,7 @@ def test_hessio():
         hessio.open_file("pyhessio-extra/datasets/gamma_test.simtel.gz")
         # Testing move_to_next_mc_event iterator
         #event_id = next(hessio.move_to_next_mc_event())
-        event_id = hessio.fill_next_mc_event()
+        event_id = hessio.fill_next_event( EventType.MC.value )
         run_number = hessio.get_run_number()
 
         assert run_number == 31964
