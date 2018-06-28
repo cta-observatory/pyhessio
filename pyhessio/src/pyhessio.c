@@ -42,7 +42,7 @@ int get_run_number (void);
 int get_telescope_with_data_list (int *list);
 int get_telescope_position (int telescope_id, double *pos);
 int get_telescope_index (int telescope_id);
-int move_to_next_event (int *event_id);
+int move_to_next_event (int *event_id, int event_type );
 int move_to_next_mc_event (int *event_id);
 int move_to_next_calib_event (int *event_id);
 double get_mc_event_xcore (void);
@@ -160,16 +160,16 @@ int file_open (const char *filename){
 //Read input file and fill hsdata
 // and item_header global var
 //----------------------------------
-int move_to_next_event (int *event_id){
+int move_to_next_event (int *event_id, int event_type ){
 	if (!file_is_opened)
 		return -1;
 	int rc = 0;
-	while (rc != IO_TYPE_HESS_EVENT){
+	while (rc != event_type){
 		rc = fill_hsdata (event_id);
 		if (rc < 0){
 			return -1;
 		}
-	}
+	} 
 	return get_run_number ();
 }
 //----------------------------------
