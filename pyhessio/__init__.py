@@ -11,7 +11,7 @@ from enum import Enum
 
 __all__ = ['HessioError', 'HessioChannelIndexError',
            'HessioTelescopeIndexError', 'HessioGeneralError',
-           'HessioFile', 'open_hessio', 'close_file']
+           'HessioFile', 'open_hessio', 'close_file', 'EventType' ]
 
 __version__ = '2.0.1'
 
