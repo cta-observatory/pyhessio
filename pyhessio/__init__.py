@@ -7,19 +7,29 @@ import numpy as np
 import os
 import ctypes
 from contextlib import contextmanager
+from enum import Enum
 
 __all__ = ['HessioError', 'HessioChannelIndexError',
            'HessioTelescopeIndexError', 'HessioGeneralError',
-           'HessioFile', 'open_hessio', 'close_file']
+           'HessioFile', 'open_hessio', 'close_file', 'EventType' ]
 
 __version__ = '2.0.1'
 
 TEL_INDEX_NOT_VALID = -2
 PIXEL_INDEX_NOT_VALID = -3
 
-
-
-
+class EventType(Enum):
+    """
+    Event type definition
+    ----------
+    follows definition in hessioxxx/include/io_hess.h
+    ----------
+    Default: CHERENKOV
+    """
+    CHERENKOV = 2010
+    PEDESTAL = 2028
+    LASER = 2023
+    MC = 2021
 
 class HessioError(Exception):
     pass
@@ -35,7 +45,6 @@ class HessioTelescopeIndexError(HessioError):
 
 class HessioChannelIndexError(HessioError):
     pass
-
 
 @contextmanager
 def open_hessio(filename):
@@ -186,9 +195,6 @@ class HessioFile:
         self.lib.get_telescope_position.restype = ctypes.c_int
         self.lib.move_to_next_event.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int)]
         self.lib.move_to_next_event.restype = ctypes.c_int
-        self.lib.move_to_next_mc_event.argtypes = [
-            np.ctypeslib.ndpointer(ctypes.c_int)]
-        self.lib.move_to_next_mc_event.restype = ctypes.c_int
         self.lib.get_mc_event_xcore.restype = ctypes.c_double
         self.lib.get_mc_event_ycore.restype = ctypes.c_double
         self.lib.get_mc_run_array_direction.argtypes = [
@@ -291,10 +297,11 @@ class HessioFile:
             np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
         self.lib.get_telescope_ids.restype = ctypes.c_int
 
-    def fill_next_event(self):
+    def fill_next_event(self, event_type = EventType.CHERENKOV.value ):
         """
         Fill corresponding container with the next event in file.
         Data can be then access with other available functions in this module
+        event_type can be CHERENKOV, MC, PEDESTAL, LASER
         Returns
         -------
         event_number
@@ -303,18 +310,18 @@ class HessioFile:
         HessioError: when error occurs while reading next event
         """
         event_number = np.zeros(1, dtype=np.int32)
-        run_id = self.lib.move_to_next_event(event_number)
+        run_id = self.lib.move_to_next_event(event_number, event_type)
         if run_id == -1 or event_number[0] == -1:
             raise HessioError("Error while reading next event")
         return event_number[0]
 
-    def move_to_next_event(self, limit=0):
+    def move_to_next_event(self, limit=0, event_type = EventType.CHERENKOV.value ):
         """
         Read data from input file and fill corresponding container.
         Data can be then access with other available functions in
         this module.
+        event_type can be CHERENKOV, MC, PEDESTAL, LASER
         By default all events are computed
-
 
         Parameters
         ----------
@@ -333,57 +340,10 @@ class HessioFile:
         run_id = 0
         evt_num = 0
         while run_id >= 0 and (limit == 0 or evt_num < limit):
-            run_id = self.lib.move_to_next_event(result)
+            run_id = self.lib.move_to_next_event(result, event_type)
             if run_id != -1:
                 yield result[0]
                 evt_num += 1
-
-    def fill_next_mc_event(self):
-        """
-        Fill corresponding container with the next MC event in file.
-        Data can be then access with other available functions in this module
-        Returns
-        -------
-        event_number
-        Raises
-        ------
-        HessioError: when error occurs while reading next event
-        """
-        event_number = np.zeros(1, dtype=np.int32)
-        run_id = self.lib.move_to_next_mc_event(event_number)
-        if run_id == -1 or event_number == -1:
-            raise HessioError("Error while reading next event")
-        return event_number[0]
-
-    def move_to_next_mc_event(self, limit=0):
-        """
-        Read MC data form input file and fill corresponding container
-        Data can be then access with other available functions in
-        this module.
-        This iterator scans all the simulated events, not only the triggered
-        ones. By default all events are computed
-
-        Parameters
-        ----------
-        limit: int, optional
-            limit the number of event generated
-        Yields
-        ------
-          event id
-        Raises
-        ------
-        HessioError: When input file is not open
-        """
-        if not self.__opened_filename:
-            raise HessioError('input file is not open')
-        result = np.zeros(1, dtype=np.int32)
-        run_id = 0
-        sim_evt_num = 0
-        while run_id >= 0 and (limit == 0 or sim_evt_num < limit):
-            run_id = self.lib.move_to_next_mc_event(result)
-            if run_id != -1:
-                yield result[0]
-                sim_evt_num += 1
 
     def open_file(self, filename):
         """
