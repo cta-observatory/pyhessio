@@ -330,7 +330,7 @@ def test_hessio():
         close_file()
 
     # test calibration events
-    open_hessio('pyhessio-extra/datasets/calibevents_test.simtel.gz') as calib_hessio:
+    with open_hessio('pyhessio-extra/datasets/calibevents_test.simtel.gz') as calib_hessio:
         try:
             calib_run_id = calib_hessio.fill_next_event( EventType.PEDESTAL.value )
             calib_tel_with_data = calib_hessio.len(event.get_telescope_with_data_list())
