@@ -332,7 +332,8 @@ def test_hessio():
     # test calibration events
     with open_hessio('pyhessio-extra/datasets/calibevents_test.simtel.gz') as calib_hessio:
         try:
-            calib_run_id = calib_hessio.fill_next_event( EventType.PEDESTAL.value )
+            calib_hessio.fill_next_event( EventType.PEDESTAL.value )
+            calib_run_id = event.get_run_number()
             calib_tel_with_data = len(calib_hessio.get_telescope_with_data_list())
             calib_numsamples = calib_hessio.get_event_num_samples(47)
             calib_sample = calib_hessio.get_adc_sample(47)
