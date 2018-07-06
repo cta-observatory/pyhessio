@@ -6,9 +6,8 @@ from pyhessio import *
 
 def test_hessio():
     """
-    v move_to_next_event(limit=0):
-    v move_to_next_mc_event(limit=0):
-    v fill_next_event
+    v move_to_next_event(limit=0, event_type = EventType.CHERENKOV.value):
+    v fill_next_event():
     v open_file(filename):
     v close_file():
     v get_global_event_count():
@@ -310,8 +309,6 @@ def test_hessio():
 
         hessio.close_file()
         hessio.open_file("pyhessio-extra/datasets/gamma_test.simtel.gz")
-        # Testing move_to_next_mc_event iterator
-        #event_id = next(hessio.move_to_next_mc_event())
         event_id = hessio.fill_next_event( EventType.MC.value )
         run_number = hessio.get_run_number()
 
@@ -331,6 +328,24 @@ def test_hessio():
         assert(float(hessio.get_mc_event_ycore()) == float(1080.77392578125))
 
         close_file()
+
+    # test calibration events
+    with open_hessio('pyhessio-extra/datasets/calibevents_test.simtel.gz') as calib_hessio:
+        try:
+            calib_hessio.fill_next_event( EventType.PEDESTAL.value )
+            calib_run_id = calib_hessio.get_run_number()
+            calib_tel_with_data = len(calib_hessio.get_telescope_with_data_list())
+            calib_numsamples = calib_hessio.get_event_num_samples(47)
+            calib_sample = calib_hessio.get_adc_sample(47)
+            calib_sample_v = calib_sample[0,455,20]
+
+            assert calib_run_id == 22
+            assert calib_tel_with_data == 99
+            assert calib_numsamples == 50
+            assert calib_sample_v == 39
+        except HessioTelescopeIndexError:
+            pass
+
 
 
 # Test data on 2 channels event

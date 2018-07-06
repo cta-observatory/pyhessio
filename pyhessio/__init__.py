@@ -296,6 +296,7 @@ class HessioFile:
         self.lib.get_telescope_ids.argtypes = [
             np.ctypeslib.ndpointer(ctypes.c_int, flags="C_CONTIGUOUS")]
         self.lib.get_telescope_ids.restype = ctypes.c_int
+        self.lib.show_history.restype = ctypes.c_int
 
     def fill_next_event(self, event_type = EventType.CHERENKOV.value ):
         """
@@ -344,6 +345,14 @@ class HessioFile:
             if run_id != -1:
                 yield result[0]
                 evt_num += 1
+
+    def show_history(self):
+        """
+        show how sim_telarray was run and configured
+        """
+        self.lib.show_history()
+        return 1
+
 
     def open_file(self, filename):
         """
@@ -1854,3 +1863,4 @@ class HessioFile:
         else:
             raise(HessioGeneralError("hsdata->run_header.tel_id is not"
                                      " available"))
+

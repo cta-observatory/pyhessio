@@ -7,6 +7,7 @@
 #include "initial.h"
 #include "io_basic.h"
 #include "io_hess.h"
+#include "io_history.h"
 #include "fileopen.h"
 #include "stdio.h"
 void close_file (void);
@@ -106,11 +107,13 @@ int get_mirror_number(int telescope_id);
 double get_camera_rotation_angle(int telescope_id);
 double get_optical_foclen(int telescope_id);
 int get_telescope_ids(int* list);
+int show_history(void);
 
 static AllHessData *hsdata = NULL;
 static IO_ITEM_HEADER item_header;
 static IO_BUFFER *iobuf = NULL;
 static int file_is_opened = 0;
+static int showhistory = 0;
 #define TEL_INDEX_NOT_VALID -2
 #define PIXEL_INDEX_NOT_VALID -3
 //-----------------------------------
@@ -202,6 +205,21 @@ int move_to_next_calib_event (int *event_id){
 	}
 	return get_run_number ();
 }
+/* 
+ * show how sim_telarray was run and configured
+*/
+int show_history(){
+    if (!file_is_opened) return -1;
+    int rc = 0;
+    int *event_id = 0;
+    showhistory = 1;
+    while (rc >=0 ) {
+        rc = fill_hsdata (event_id);
+    }
+    showhistory = 0;
+    return 1;
+}
+
 /*--------------------------------*/
 //  Cleanly close iobuf
 //----------------------------------
@@ -1547,6 +1565,9 @@ int fill_hsdata (int *event_id)	//,int *header_readed)
 			break;
 		/* =================================================== */
 		case 70:			/* How sim_hessarray was run and how it was configured. */
+                        if ( showhistory ) 
+                            list_history(iobuf,NULL);
+                            rc = 70;
 			break;
 		/* =================================================== */
 		case IO_TYPE_HESS_CAMSETTINGS:
