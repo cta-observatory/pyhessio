@@ -13,7 +13,7 @@ __all__ = ['HessioError', 'HessioChannelIndexError',
            'HessioTelescopeIndexError', 'HessioGeneralError',
            'HessioFile', 'open_hessio', 'close_file', 'EventType' ]
 
-__version__ = '2.0.1'
+__version__ = '2.1.0'
 
 TEL_INDEX_NOT_VALID = -2
 PIXEL_INDEX_NOT_VALID = -3
