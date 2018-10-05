@@ -11,7 +11,8 @@ from enum import Enum
 
 __all__ = ['HessioError', 'HessioChannelIndexError',
            'HessioTelescopeIndexError', 'HessioGeneralError',
-           'HessioFile', 'open_hessio', 'close_file', 'EventType' ]
+           'HessioFile', 'open_hessio', 'close_file', 'EventType',
+           'count_mc_generated_events']
 
 __version__ = '2.1.0'
 
@@ -77,6 +78,14 @@ def close_file():
     this method to force C library to properly close file a free memory
     """
     lib_close.close_file()
+
+def count_mc_generated_events(filename):
+    """
+    """
+    lib_path = os.path.dirname(__file__)
+    lib = np.ctypeslib.load_library('pyhessioc', lib_path)
+    b_filename = filename.encode('utf-8')
+    return lib.get_mc_num_generated_events(b_filename)
 
 
 class HessioFile:
