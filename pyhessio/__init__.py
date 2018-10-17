@@ -211,6 +211,7 @@ class HessioFile:
         self.lib.get_mc_event_offset_fov.argtypes = [
             np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
         self.lib.get_mc_event_offset_fov.restype = ctypes.c_int
+        self.lib.get_mc_event_num.restype = ctypes.c_int
         self.lib.get_mc_event_shower_num.restype = ctypes.c_int
         self.lib.get_mc_number_photon_electron.argtypes = [ctypes.c_int,
                                                       np.ctypeslib.ndpointer(
@@ -1136,6 +1137,16 @@ class HessioFile:
         else:
             raise(HessioGeneralError("no pixel position for telescope "
                                      + str(telescope_id)))
+
+
+    def get_mc_event_num(self):
+        """
+        Returns
+        -------
+        int
+            MC event number
+        """
+        return self.lib.get_mc_event_num()
 
     def get_mc_event_shower_num(self):
         """

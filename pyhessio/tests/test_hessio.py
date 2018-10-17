@@ -252,6 +252,7 @@ def test_hessio():
         assert(mc_offset_x == 0)
         assert(mc_offset_y == 0)
 
+        assert hessio.get_mc_event_num() == 408
         assert(float(hessio.get_mc_event_xcore()) == float(1129.6055908203125))
         assert(float(hessio.get_mc_event_ycore()) == float(547.77001953125))
         assert(np.isclose(hessio.get_mc_event_shower_num(), 4))

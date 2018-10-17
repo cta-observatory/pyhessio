@@ -638,6 +638,16 @@ int get_mc_event_shower_num(void){
 	return -0.;
 }
 
+
+//----------------------------------------------------------------
+// Returns  mc event number -> global counter
+//----------------------------------------------------------------
+int get_mc_event_num (){
+	if (hsdata != NULL){
+		return hsdata->mc_event.event;
+	}
+	return -0.;
+}
 //----------------------------------------------------------------
 // Returns  x core position w.r.t. array reference point [m],
 //  x -> N
