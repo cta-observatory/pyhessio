@@ -18,6 +18,38 @@ __version__ = '2.1.0'
 TEL_INDEX_NOT_VALID = -2
 PIXEL_INDEX_NOT_VALID = -3
 
+'''
+#define IO_TYPE_HESS_BASE         2000
+#define IO_TYPE_HESS_RUNHEADER    (IO_TYPE_HESS_BASE+0)
+#define IO_TYPE_HESS_MCRUNHEADER  (IO_TYPE_HESS_BASE+1)
+#define IO_TYPE_HESS_CAMSETTINGS  (IO_TYPE_HESS_BASE+2)
+#define IO_TYPE_HESS_CAMORGAN     (IO_TYPE_HESS_BASE+3)
+#define IO_TYPE_HESS_PIXELSET     (IO_TYPE_HESS_BASE+4)
+#define IO_TYPE_HESS_PIXELDISABLE (IO_TYPE_HESS_BASE+5)
+#define IO_TYPE_HESS_CAMSOFTSET   (IO_TYPE_HESS_BASE+6)
+#define IO_TYPE_HESS_POINTINGCOR  (IO_TYPE_HESS_BASE+7)
+#define IO_TYPE_HESS_TRACKSET     (IO_TYPE_HESS_BASE+8)
+#define IO_TYPE_HESS_CENTEVENT    (IO_TYPE_HESS_BASE+9)
+#define IO_TYPE_HESS_TRACKEVENT   (IO_TYPE_HESS_BASE+100)
+#define IO_TYPE_HESS_TELEVENT     (IO_TYPE_HESS_BASE+200)
+#define IO_TYPE_HESS_EVENT        (IO_TYPE_HESS_BASE+10)
+#define IO_TYPE_HESS_TELEVTHEAD   (IO_TYPE_HESS_BASE+11)
+#define IO_TYPE_HESS_TELADCSUM    (IO_TYPE_HESS_BASE+12)
+#define IO_TYPE_HESS_TELADCSAMP   (IO_TYPE_HESS_BASE+13)
+#define IO_TYPE_HESS_TELIMAGE     (IO_TYPE_HESS_BASE+14)
+#define IO_TYPE_HESS_SHOWER       (IO_TYPE_HESS_BASE+15)
+#define IO_TYPE_HESS_PIXELTIMING  (IO_TYPE_HESS_BASE+16)
+#define IO_TYPE_HESS_PIXELCALIB   (IO_TYPE_HESS_BASE+17)
+#define IO_TYPE_HESS_MC_SHOWER    (IO_TYPE_HESS_BASE+20)
+#define IO_TYPE_HESS_MC_EVENT     (IO_TYPE_HESS_BASE+21)
+#define IO_TYPE_HESS_TEL_MONI     (IO_TYPE_HESS_BASE+22)
+#define IO_TYPE_HESS_LASCAL       (IO_TYPE_HESS_BASE+23)
+#define IO_TYPE_HESS_RUNSTAT      (IO_TYPE_HESS_BASE+24)
+#define IO_TYPE_HESS_MC_RUNSTAT   (IO_TYPE_HESS_BASE+25)
+#define IO_TYPE_HESS_MC_PE_SUM    (IO_TYPE_HESS_BASE+26)
+#define IO_TYPE_HESS_PIXELLIST    (IO_TYPE_HESS_BASE+27)
+#define IO_TYPE_HESS_CALIBEVENT   (IO_TYPE_HESS_BASE+28)
+'''
 class EventType(Enum):
     """
     Event type definition
@@ -26,10 +58,14 @@ class EventType(Enum):
     ----------
     Default: CHERENKOV
     """
+    RUNHEADER = 2000
+    MC_RUNHEADER = 2001
     CHERENKOV = 2010
+    MC_SHOWER = 2020
     PEDESTAL = 2028
     LASER = 2023
     MC = 2021
+    MC_EVENT = 2021
 
 class HessioError(Exception):
     pass
@@ -193,6 +229,8 @@ class HessioFile:
                                                    ctypes.c_double,
                                                    flags="C_CONTIGUOUS")]
         self.lib.get_telescope_position.restype = ctypes.c_int
+        self.lib.fill_hsdata.restype = ctypes.c_int
+        self.lib.move_to_next.restype = ctypes.c_int
         self.lib.move_to_next_event.argtypes = [np.ctypeslib.ndpointer(ctypes.c_int)]
         self.lib.move_to_next_event.restype = ctypes.c_int
         self.lib.get_mc_event_xcore.restype = ctypes.c_double
@@ -320,6 +358,25 @@ class HessioFile:
         if run_id == -1 or event_number[0] == -1:
             raise HessioError("Error while reading next event")
         return event_number[0]
+
+    def move_to_next(self):
+        """
+        Fill next container find in data and return its item_type.
+        Returns
+        -------
+        item_type
+        Raises
+        ------
+        HessioError: when error occurs while reading next event
+        """
+        if not self.__opened_filename:
+            raise HessioError('input file is not open')
+        item_type = 0
+        while item_type != -1:
+            item_type = self.lib.move_to_next()
+            if item_type != -1:
+                yield item_type
+
 
     def move_to_next_event(self, limit=0, event_type = EventType.CHERENKOV.value ):
         """

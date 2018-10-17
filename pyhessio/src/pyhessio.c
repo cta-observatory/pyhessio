@@ -43,6 +43,7 @@ int get_run_number (void);
 int get_telescope_with_data_list (int *list);
 int get_telescope_position (int telescope_id, double *pos);
 int get_telescope_index (int telescope_id);
+int move_to_next();
 int move_to_next_event (int *event_id, int event_type );
 int move_to_next_mc_event (int *event_id);
 int move_to_next_calib_event (int *event_id);
@@ -162,8 +163,22 @@ int file_open (const char *filename){
 	}
 	return 0;
 }
+
 //----------------------------------
 //Read input file and fill hsdata
+// and item_header global var
+// return item type
+//----------------------------------
+int move_to_next (){
+	if (!file_is_opened)
+		return -1;
+	int foo = 0;
+	return  fill_hsdata (&foo);
+}
+
+
+//----------------------------------
+//Read input file and fill hsdata and and new event is found
 // and item_header global var
 //----------------------------------
 int move_to_next_event (int *event_id, int event_type ){
