@@ -1273,6 +1273,15 @@ class HessioFile:
                                      " available"))
         return pe
 
+    def get_mc_shower_num(self):
+        """
+        Returns shower number
+        Returns
+        -------
+        int
+        """
+        return self.lib.get_mc_shower_num()
+
     def get_mc_shower_energy(self):
         """
         Returns shower primary energy [TeV]
@@ -1390,6 +1399,24 @@ class HessioFile:
         float
         """
         return self.lib.get_mc_core_range_Y()
+
+    def get_mc_core_range_min(self):
+        """
+        Returns mc_core_range_min.
+        Returns
+        -------
+        float
+        """
+        return get_mc_core_range_X()
+
+    def get_mc_core_range_max(self):
+        """
+        Returns mc_core_range_max.
+        Returns
+        -------
+        float
+        """
+        return get_mc_core_range_Y()
 
     def get_mc_alt_range_Min(self):
         """

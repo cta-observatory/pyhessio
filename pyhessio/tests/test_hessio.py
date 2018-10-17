@@ -256,6 +256,7 @@ def test_hessio():
         assert(float(hessio.get_mc_shower_azimuth()) == float(6.283185005187988))
         assert(float(hessio.get_mc_shower_altitude()) == float( 1.2217304706573486))
 
+        assert (hessio.get_mc_shower_num() == 4)
         assert(hessio.get_mc_shower_primary_id() == 0)
         assert(float(hessio.get_mc_shower_h_first_int()) == float(17846.654296875))
 

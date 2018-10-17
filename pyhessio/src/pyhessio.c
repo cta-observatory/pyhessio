@@ -54,6 +54,7 @@ double get_altitude_raw (int telescope_id);
 double get_azimuth_cor (int telescope_id);
 double get_altitude_cor (int telescope_id);
 int get_mc_event_offset_fov (double *off);
+int get_mc_shower_num (void);
 double get_mc_shower_energy (void);
 double get_mc_shower_xmax (void);
 double get_mc_shower_azimuth (void);
@@ -532,6 +533,18 @@ int get_mc_number_photon_electron(int telescope_id, int* pe){
 	}
 	return -1;
 }
+
+//----------------------------------------------------------------
+// Returns shower number
+//----------------------------------------------------------------
+int get_mc_shower_num (void){
+if ( hsdata != NULL)
+	{
+		return hsdata->mc_shower.shower_num;
+		}
+	return -0;
+}
+
 //----------------------------------------------------------------
 // Returns shower height of first interaction a.s.l. [m]
 //----------------------------------------------------------------
