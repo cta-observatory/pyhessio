@@ -211,13 +211,17 @@ class HessioFile:
         self.lib.get_mc_event_offset_fov.argtypes = [
             np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS")]
         self.lib.get_mc_event_offset_fov.restype = ctypes.c_int
+        self.lib.get_mc_event_shower_num.restype = ctypes.c_int
         self.lib.get_mc_number_photon_electron.argtypes = [ctypes.c_int,
                                                       np.ctypeslib.ndpointer(
                                                           ctypes.c_int,
                                                           flags="C_CONTIGUOUS")]
         self.lib.get_mc_number_photon_electron.restype = ctypes.c_int
+
         self.lib.get_mc_shower_energy.restype = ctypes.c_double
+        self.lib.get_mc_shower_num.restype = ctypes.c_int
         self.lib.get_mc_shower_xmax.restype = ctypes.c_double
+        self.lib.get_mc_shower_hmax.restype = ctypes.c_double
         self.lib.get_mc_shower_azimuth.restype = ctypes.c_double
         self.lib.get_mc_shower_altitude.restype = ctypes.c_double
         self.lib.get_mc_shower_primary_id.restype = ctypes.c_int
@@ -1133,6 +1137,14 @@ class HessioFile:
             raise(HessioGeneralError("no pixel position for telescope "
                                      + str(telescope_id)))
 
+    def get_mc_event_shower_num(self):
+        """
+        Returns
+        -------
+        int
+            Shower number as in shower structure
+        """
+        return self.lib.get_mc_event_shower_num()
 
     def get_mc_event_xcore(self):
         """
@@ -1293,12 +1305,23 @@ class HessioFile:
 
     def get_mc_shower_xmax(self):
         """
-        Returns shower primary energy [TeV]
+        Returns Atmospheric depth of shower maximum [g/cm^2],
+                          derived from all charged particles.
         Returns
         -------
         float
         """
         return self.lib.get_mc_shower_xmax()
+
+    def get_mc_shower_hmax(self):
+        """
+        Returns Height of shower maximum [m] in xmax.
+        Returns
+        -------
+        float
+        """
+        return self.lib.get_mc_shower_hmax()
+
 
     def get_mc_shower_azimuth(self):
         """

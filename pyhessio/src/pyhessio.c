@@ -48,6 +48,7 @@ int move_to_next_mc_event (int *event_id);
 int move_to_next_calib_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
+int get_mc_event_shower_num(void);
 int get_mc_run_array_direction (double *dir);
 double get_azimuth_raw (int telescope_id);
 double get_altitude_raw (int telescope_id);
@@ -57,6 +58,7 @@ int get_mc_event_offset_fov (double *off);
 int get_mc_shower_num (void);
 double get_mc_shower_energy (void);
 double get_mc_shower_xmax (void);
+double get_mc_shower_hmax (void);
 double get_mc_shower_azimuth (void);
 double get_mc_shower_altitude (void);
 int get_mc_shower_primary_id(void);
@@ -614,6 +616,28 @@ double get_mc_shower_xmax () {
 	}
 	return -0.;
 }
+
+//----------------------------------------------------------------
+// Returns shower Height of shower maximum [m] in xmax.
+//----------------------------------------------------------------
+double get_mc_shower_hmax (void){
+	if (hsdata != NULL){
+		return hsdata->mc_shower.hmax;
+	}
+	return -0.;
+}
+
+//----------------------------------------------------------------
+// Returns  Shower number as in shower structure.
+//
+//----------------------------------------------------------------
+int get_mc_event_shower_num(void){
+	if (hsdata != NULL){
+		return hsdata->mc_event.shower_num;
+	}
+	return -0.;
+}
+
 //----------------------------------------------------------------
 // Returns  x core position w.r.t. array reference point [m],
 //  x -> N
@@ -852,7 +876,7 @@ double get_mc_core_range_Y() {
 }
 
 //----------------------------------------------------------------
-// Returns mc_alt_range_Min
+// Returns mc_alt_range_Min [TeV]
 // Returns -1 if data is not accessible
 //----------------------------------------------------------------
 double get_mc_alt_range_Min() {
@@ -863,7 +887,7 @@ double get_mc_alt_range_Min() {
   return -1.0;
 }
 //----------------------------------------------------------------
-// Returns mc_alt_range_Max
+// Returns mc_alt_range_Max [TeV]
 // Returns -1 if data is not accessible
 //----------------------------------------------------------------
 double get_mc_alt_range_Max() {

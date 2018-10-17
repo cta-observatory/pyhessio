@@ -37,9 +37,12 @@ def test_hessio():
     v get_optical_foclen(telescope_id)
     v get_mc_number_photon_electron(tel_id, pixel_id)
     v get_telescope_ids()
+    v get_mc_shower_num()
     v get_mc_shower_primary_id()
     v get_mc_number_photon_eletron()
     v get_mc_shower_h_first_int()
+    v get_mc_shower_xmax()
+    v get_mc_shower_hmax()
     v get_telescope_position(telescope_id)
     v get_mc_event_offset_fov()
     """
@@ -251,10 +254,15 @@ def test_hessio():
 
         assert(float(hessio.get_mc_event_xcore()) == float(1129.6055908203125))
         assert(float(hessio.get_mc_event_ycore()) == float(547.77001953125))
+        assert(np.isclose(hessio.get_mc_event_shower_num(), 4))
+
+
         assert(float(hessio.get_mc_shower_energy()) == float(.3820943236351013))
         assert(hessio.get_mc_number_photon_electron(1)[0] == 0)
         assert(float(hessio.get_mc_shower_azimuth()) == float(6.283185005187988))
-        assert(float(hessio.get_mc_shower_altitude()) == float( 1.2217304706573486))
+        assert(float(hessio.get_mc_shower_altitude()) == float(1.2217304706573486))
+        assert np.isclose(hessio.get_mc_shower_xmax(), 339.1954)
+        assert np.isclose(hessio.get_mc_shower_hmax(), 8872.70)
 
         assert (hessio.get_mc_shower_num() == 4)
         assert(hessio.get_mc_shower_primary_id() == 0)
