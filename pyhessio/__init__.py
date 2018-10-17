@@ -1430,7 +1430,7 @@ class HessioFile:
         -------
         float
         """
-        return get_mc_core_range_X()
+        return self.lib.get_mc_core_range_X()
 
     def get_mc_core_range_max(self):
         """
@@ -1439,7 +1439,7 @@ class HessioFile:
         -------
         float
         """
-        return get_mc_core_range_Y()
+        return self.get_mc_core_range_Y()
 
     def get_mc_alt_range_Min(self):
         """

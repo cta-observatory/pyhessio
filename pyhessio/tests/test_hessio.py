@@ -263,6 +263,11 @@ def test_hessio():
         assert(float(hessio.get_mc_shower_altitude()) == float(1.2217304706573486))
         assert np.isclose(hessio.get_mc_shower_xmax(), 339.1954)
         assert np.isclose(hessio.get_mc_shower_hmax(), 8872.70)
+        assert np.isclose(hessio.get_mc_core_range_min(), 0.0)
+
+        assert np.isclose(hessio.get_mc_core_range_max(), 2500.)
+        assert np.isclose(hessio.get_mc_core_range_X(), 0.0)
+        assert np.isclose(hessio.get_mc_core_range_Y(), 2500.)
 
         assert (hessio.get_mc_shower_num() == 4)
         assert(hessio.get_mc_shower_primary_id() == 0)
