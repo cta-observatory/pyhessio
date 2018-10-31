@@ -43,7 +43,7 @@ struct user_parameters
       int integrator;
       /** Integration-scheme-specific integer parameters, typically:  */
       /** number of bins to integrate and some offset value from start or back from detected peak. */
-      int integ_param[2];
+      int integ_param[3];
       /** Integer type thresholds for significance in ADC units (one per gain) */
       int integ_thresh[2];
       /** Set to 1 if integration over small window should not rescale for fraction of single p.e. trace. */
@@ -102,6 +102,8 @@ struct user_parameters
       double true_impact_range[3]; /**< As for impact_ranhe */
       /* Maximum core distance of telescopes used in analysis after geometric reconstruction. */
       double max_core_distance;
+      /* Effective focal length, overriding MC geometrical focal length */
+      double focal_length;
    } d;
 };
 typedef struct user_parameters UserParameters;
@@ -143,13 +145,14 @@ void user_set_auto_lookup (int al);
 void user_set_theta_escale (double *the);
 void user_set_diffuse_mode(int dm, double oar[]);
 void user_set_integrator(int scheme);
-void user_set_integ_window(int nsum, int noff);
+void user_set_integ_window(int nsum, int noff, int ps_opt);
 void user_set_integ_threshold(int ithg, int itlg);
 void user_set_trg_req(int trg_req);
 void user_set_integ_no_rescale (int no);
 void user_set_calib_scale (double s);
 void user_set_nb_radius (double *r);
 void user_set_nxt_radius (double r);
+void user_set_focal_length (double f);
 int user_selected_event(void);
 int do_user_ana (AllHessData *hsdata, unsigned long item_type, int stage);
 

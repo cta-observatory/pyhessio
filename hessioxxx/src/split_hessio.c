@@ -38,8 +38,8 @@ Options:
 @endverbatim
  *
  *  @author  Konrad Bernloehr
- *  @date    @verbatim CVS $Date: 2016/03/18 11:49:45 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.7 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2017/05/16 12:31:52 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.8 $ @endverbatim
  */
 
 /** @defgroup split_hessio_c The split_hessio program */
@@ -382,7 +382,8 @@ int main (int argc, char **argv)
     strncpy(input_fname_current, input_fname, sizeof(input_fname_current)-1);
     tmp_fname_tail[0] = '\0';
     {
-       char *s, *t;
+       const char *s;
+       char *t;
        if ( (s = strrchr(input_fname,'/')) != NULL )
           strncpy(tmp_fname_head, s+1, sizeof(tmp_fname_head));
        else

@@ -28,6 +28,8 @@ extern "C" {
 void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, 
    int itel, int type, int amp_tm, double clip_amp);
 
+void hesscam_type_sum_plot(const char *image_fname, AllHessData *hsdata, int teltype);
+
 #ifdef __cplusplus
 }
 #endif

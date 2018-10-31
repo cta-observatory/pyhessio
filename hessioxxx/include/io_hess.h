@@ -30,8 +30,8 @@
  *  @author  Konrad Bernl&ouml;hr 
  *  @date initial version: July 2000
  *
- *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.98 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/11 13:20:49 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.105 $ @endverbatim
  */
 
 /* ================================================================ */
@@ -76,6 +76,10 @@ extern "C" {
 # define CTA_PROD3 2
 # define CTA_MINI 3
 #endif
+#ifdef CTA_MINI4
+# define CTA_PROD4 2
+# define CTA_MINI 4
+#endif
 #ifdef CTA_PROD3_DEMO
 # define CTA_PROD3_SC 1
 #endif
@@ -100,6 +104,10 @@ extern "C" {
     defined(CTA_PROD2_SC) || \
     defined(CTA_PROD3) || \
     defined(CTA_PROD3_SC) || \
+    defined(CTA_PROD3_DEMO) || \
+    defined(CTA_PROD4) || \
+    defined(CTA_PROD4_SC) || \
+    defined(CTA_PROD4_DEMO) || \
     defined(CTA_MAX_SC)
 /* Checking more systematically now */
 # ifdef CTA_ULTRA
@@ -121,6 +129,18 @@ extern "C" {
 # ifdef CTA_MAX_SC
 #  define CTA_KIND 7
 /* #  undef CTA_MAX_SC */
+# endif
+# ifdef CTA_PROD4
+#  ifdef CTA_KIND
+#   error "Configuration conflict - use only one of them"
+#  endif
+#  define CTA_KIND 10
+# endif
+# if defined(CTA_PROD4_SC) || defined(CTA_PROD4_DEMO)
+#  ifdef CTA_KIND
+#   error "Configuration conflict - use only one of them"
+#  endif
+#  define CTA_KIND 11
 # endif
 # ifdef CTA_PROD3_SC
 #  ifdef CTA_KIND
@@ -266,6 +286,30 @@ extern "C" {
 #   define H_MAX_TRG_PER_SECTOR 4
 #  endif
 #  define H_MAX_SECTORS 53508 /* Needed for latest SCT configuration */
+# elif CTA_KIND == 10 /* CTA_PROD4 preliminary */
+#  define H_MAX_TEL 99
+#  define H_MAX_PIX 2368
+#  ifndef H_MAX_TRG_PER_SECTOR
+#   define H_MAX_TRG_PER_SECTOR 4
+#  endif
+#  if ( H_MAX_PIX*H_MAX_TRG_PER_SECTOR < 23310 )
+#   define H_MAX_SECTORS 23310 /* Needed for ASTRI with 5NN */
+#  else
+#   define H_MAX_SECTORS (H_MAX_PIX*H_MAX_TRG_PER_SECTOR)
+#  endif
+#  ifndef MAXIMUM_SLICES
+#   define MAXIMUM_SLICES 160
+#  endif
+# elif CTA_KIND == 11 /* CTA_PROD4_SC or CTA_PROD4_DEMO preliminary */
+#  define H_MAX_TEL 126
+#  define H_MAX_PIX 11328
+#  ifndef H_MAX_TRG_PER_SECTOR
+#   define H_MAX_TRG_PER_SECTOR 4
+#  endif
+#  define H_MAX_SECTORS 53508 /* Needed for latest SCT configuration */
+#  ifndef MAXIMUM_SLICES
+#   define MAXIMUM_SLICES 160
+#  endif
 # endif
 
 #ifndef H_MAX_TRG_PER_SECTOR
@@ -390,6 +434,7 @@ extern "C" {
 #define H_MAX_D_TEMP     8
 #define H_MAX_C_TEMP     10
 #define H_MAX_FSHAPE     1000  /**< Max. number of (sub-) samples of reference pulse shapes. */
+#define H_MAX_TRG_TYPES  4
 
 /** Compile-time override of the most relevant limits: */
 #ifdef MAXIMUM_TELESCOPES
@@ -475,6 +520,10 @@ void show_hessio_max (void);
 #define IO_TYPE_HESS_MC_PE_SUM    (IO_TYPE_HESS_BASE+26)
 #define IO_TYPE_HESS_PIXELLIST    (IO_TYPE_HESS_BASE+27)
 #define IO_TYPE_HESS_CALIBEVENT   (IO_TYPE_HESS_BASE+28)
+#define IO_TYPE_HESS_AUX_DIGITAL_TRACE (IO_TYPE_HESS_BASE+29)
+#define IO_TYPE_HESS_AUX_ANALOG_TRACE  (IO_TYPE_HESS_BASE+30)
+#define IO_TYPE_HESS_FS_PHOT      (IO_TYPE_HESS_BASE+31)
+#define IO_TYPE_HESS_PIXELTRG_TM  (IO_TYPE_HESS_BASE+32)
 
 /** Run header common to measured and simulated data. */
 
@@ -582,7 +631,8 @@ struct hess_camera_settings_struct
    int pixel_shape[H_MAX_PIX]; ///< Pixel shape type (0: circ., 1,3: hex, 2: square, -1: unknown). {new}
    double cam_rot;          ///< Rotation angle of camera (counter-clock-wise from back side for prime focus camera).
    // Main telescope optics parameters included here:
-   double flen;             ///< Focal length of optics [m].
+   double flen;             ///< Focal length of optics (geometric or nominal) [m].
+   double eff_flen;         ///< Suggested effective focal length for image scale (can be zero). [m]
    int num_mirrors;         ///< Number of mirror tiles.
    double mirror_area;      ///< Total area of individual mirrors corrected
                             ///< for inclination [m^2].
@@ -749,6 +799,37 @@ struct hess_tel_event_adc_struct
 };
 typedef struct hess_tel_event_adc_struct AdcData;
 
+/* Auxilliary digital trace (derived from FADC samples) */
+
+struct hess_aux_digital_trace
+{
+   int known;              ///< Must be set to 1 if and only if corresponding data is available.
+   int tel_id;             ///< Must match the expected telescope ID when reading.
+   int trace_type;         ///< Indicate what type of trace we have (1: DigitalSum trigger trace)
+   float time_scale;       ///< Time per auxilliary sample over time per normal FADC sample (typ.: 1.0)
+   size_t num_traces;      ///< The number of traces coming from the camera.
+   size_t len_traces;      ///< The length of each trace in FADC samples.
+   uint16_t *trace_data;   ///< Allocated on first use with num_traces*len_traces elements.
+};
+typedef struct hess_aux_digital_trace AuxTraceD;
+
+/* Auxilliary analog trace (part of analog majority or sum trigger processing) */
+
+struct hess_aux_analog_trace
+{
+   int known;              ///< Must be set to 1 if and only if corresponding data is available.
+   int tel_id;             ///< Must match the expected telescope ID when reading.
+   int trace_type;         ///< Indicate what type of trace we have (1: pixel input, 2: analog sum, 3: disc/comp. output, 4: majority input)
+   float time_scale;       ///< Time per auxilliary sample over time per normal FADC sample (typ.: 0.25)
+   size_t num_traces;      ///< The number of traces coming from the camera.
+   size_t len_traces;      ///< The length of each trace in FADC samples.
+   float *trace_data;      ///< Allocated on first use with num_traces*len_traces elements.
+};
+typedef struct hess_aux_analog_trace AuxTraceA;
+
+#define MAX_AUX_TRACE_D 1   /**< Only one auxilliary digital trace */
+#define MAX_AUX_TRACE_A 4   /**< Up to four auxilliary analog traces */
+ 
 /** In addition to ADC we may (optionally) also have timing data. */
 
 #define H_MAX_PIX_TIMES 7
@@ -793,6 +874,17 @@ struct hess_pixel_timing_struct
                               ///< if list is of size>0 (otherwise no peak).
 };
 typedef struct hess_pixel_timing_struct PixelTiming;
+
+struct hess_pixeltrg_time_struct
+{
+   int known;                 ///< is pixel timing data known?
+   int tel_id;                ///< Telescope ID
+   double time_step;          ///< Time interval [ns] after telescope trigger in which times are reported.
+   int num_times;             ///< Number of fired discriminators for which time gets reported.
+   int pixel_list[H_MAX_PIX]; ///< List of pixels IDs for which times get reported.
+   int pixel_time[H_MAX_PIX]; ///< Time when pixel disciminator/comparator fired, in units of given time intercal since telescope trigger.
+};
+typedef struct hess_pixeltrg_time_struct PixelTrgTime;
 
 struct hess_pixel_calibrated_struct
 {
@@ -891,6 +983,9 @@ struct hess_tel_event_data_struct
    int phys_addr[4*H_MAX_DRAWERS];///< (not used)
    PixelList trigger_pixels; ///< List of triggered pixels.
    PixelList image_pixels;   ///< Pixels included in (first) image.
+   PixelTrgTime pixeltrg_time; ///< Times when individual pixels fired.
+   AuxTraceD aux_trace_d[MAX_AUX_TRACE_D]; ///< Optional auxilliary digital traces.
+   AuxTraceA aux_trace_a[MAX_AUX_TRACE_A]; ///< Optional auxilliary analog traces.
 };
 typedef struct hess_tel_event_data_struct TelEvent;
 
@@ -912,7 +1007,7 @@ struct hess_central_event_data_struct
    float teltrg_time[H_MAX_TEL];///< Relative time of trigger signal
                         ///< after correction for nominal delay [ns].
    int teltrg_type_mask[H_MAX_TEL]; ///< Bit mask which type of trigger fired.
-   float teltrg_time_by_type[H_MAX_TEL][3]; ///< Time of trigger separate for each type.
+   float teltrg_time_by_type[H_MAX_TEL][H_MAX_TRG_TYPES]; ///< Time of trigger separate for each type.
    int num_teldata;     ///< Number of telescopes expected to have data.
    int teldata_list[H_MAX_TEL]; ///< List of IDs of telescopes with data.
 };
@@ -1066,6 +1161,26 @@ struct hess_mc_photons
    double photons;         ///< The sum of the photon content of all bunches.
 };
 
+/** Photons incident on focal surface */
+
+struct fs_photon
+{
+   float x, y;             ///< Impact position, projected [cm]
+   float cx, cy;           ///< Direction cosines w.r.t. focal surface normal.
+   float prob;             ///< Probability not accounted for yet.
+   uint16_t wavelength;    ///< Wavelength [nm]
+   uint16_t flags;         ///< ?
+};
+
+/** List of photons incident on focal surface */
+
+struct hess_mc_fs_phot
+{
+   int nphot;              ///< Number of photons to record.
+   struct fs_photon *phot; ///< Only allocated on demand; not needed for normal simulations.
+   int max_phot;           ///< How many we can store in 'phot' above, without re-allocating.
+};
+
 /** Photo-electrons from Monte Carlo individually */
 
 struct hess_mc_pe_list
@@ -1101,8 +1216,9 @@ struct hess_mc_event_struct
                            ///< It may be zero for uniform sampling.
    double photons[H_MAX_TEL]; ///< The CORSIKA photon sum into fiducial volume.
    struct hess_mc_pe_sum_struct mc_pesum;  ///< Numbers of / sums of photo-electrons.
-   struct hess_mc_photons mc_photons[H_MAX_TEL];  ///< Raw simulated photons.
+   struct hess_mc_photons mc_photons[H_MAX_TEL];  ///< Raw simulated photons (fiducial sphere).
    struct hess_mc_pe_list mc_pe_list[H_MAX_TEL];  ///< List of detected photo-electrons.
+   struct hess_mc_fs_phot mc_phot_list[H_MAX_TEL];///< List of photons imaged onto focal surface.
 };
 typedef struct hess_mc_event_struct MCEvent;
 
@@ -1244,6 +1360,9 @@ typedef struct hess_all_data_struct AllHessData;
 /* io_hess.c */
 #ifdef MAX_IO_ITEM_LEVEL
 /* Prototypes are only used if eventio headers were included before. */
+
+void hs_reset_env(void);
+
 void set_tel_idx_ref (int iref);
 void set_tel_idx (int ntel, int *idx);
 int find_tel_idx (int tel_id);
@@ -1270,15 +1389,19 @@ int print_hess_pixelset(IO_BUFFER *iobuf);
 
 int write_hess_pixeldis(IO_BUFFER *iobuf, PixelDisabled *pd);
 int read_hess_pixeldis(IO_BUFFER *iobuf, PixelDisabled *pd);
+int print_hess_pixeldis(IO_BUFFER *iobuf);
 
 int write_hess_camsoftset(IO_BUFFER *iobuf, CameraSoftSet *cs);
 int read_hess_camsoftset(IO_BUFFER *iobuf, CameraSoftSet *cs);
+int print_hess_camsoftset(IO_BUFFER *iobuf);
 
 int write_hess_trackset(IO_BUFFER *iobuf, TrackingSetup *ts);
 int read_hess_trackset(IO_BUFFER *iobuf, TrackingSetup *ts);
+int print_hess_trackset(IO_BUFFER *iobuf);
 
 int write_hess_pointingcor(IO_BUFFER *iobuf, PointingCorrection *pc);
 int read_hess_pointingcor(IO_BUFFER *iobuf, PointingCorrection *pc);
+int print_hess_pointingcor(IO_BUFFER *iobuf);
 
 int write_hess_centralevent(IO_BUFFER *iobuf, CentralEvent *ce);
 int read_hess_centralevent(IO_BUFFER *iobuf, CentralEvent *ce);
@@ -1299,6 +1422,18 @@ int print_hess_teladc_sums(IO_BUFFER *iobuf);
 int write_hess_teladc_samples(IO_BUFFER *iobuf, AdcData *raw);
 int read_hess_teladc_samples(IO_BUFFER *iobuf, AdcData *raw, int what);
 int print_hess_teladc_samples(IO_BUFFER *iobuf);
+
+int write_hess_aux_trace_digital(IO_BUFFER *iobuf, AuxTraceD *auxd);
+int read_hess_aux_trace_digital(IO_BUFFER *iobuf, AuxTraceD *auxd);
+int print_hess_aux_trace_digital(IO_BUFFER *iobuf);
+
+int write_hess_aux_trace_analog(IO_BUFFER *iobuf, AuxTraceA *auxd);
+int read_hess_aux_trace_analog(IO_BUFFER *iobuf, AuxTraceA *auxa);
+int print_hess_aux_trace_analog(IO_BUFFER *iobuf);
+
+int write_hess_pixeltrg_time (IO_BUFFER *iobuf, PixelTrgTime *dt);
+int read_hess_pixeltrg_time (IO_BUFFER *iobuf, PixelTrgTime *dt);
+int print_hess_pixeltrg_time (IO_BUFFER *iobuf);
 
 int write_hess_pixtime (IO_BUFFER *iobuf, PixelTiming *pixtm);
 int read_hess_pixtime (IO_BUFFER *iobuf, PixelTiming *pixtm);

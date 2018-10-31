@@ -47,8 +47,8 @@ Options:
 @endverbatim
  *
  *  @author  Konrad Bernloehr
- *  @date    @verbatim CVS $Date: 2011/07/21 16:07:26 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.16 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/15 18:36:01 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.17 $ @endverbatim
  */
 
 /** @defgroup read_hess_nr_c The read_hess_nr program */
@@ -144,6 +144,15 @@ double calibrate_pixel_amplitude(AllHessData *hsdata, int itel, int ipix,
    /* We convert to experimentalist's */
    /* 'peak photo-electrons' now. */
    return CALIB_SCALE * npe;
+}
+
+/* -------------- user_get_type (dummy replacement) -------------- */
+
+int user_get_type (int itel);
+
+int user_get_type (int itel)
+{
+   return 0;
 }
 
 #include <signal.h>

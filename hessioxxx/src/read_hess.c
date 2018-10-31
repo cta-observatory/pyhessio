@@ -50,6 +50,14 @@ read_hess: A program for viewing and analyzing sim_telarray (sim_hessarray) data
 Syntax: read_hess [ options ] [ - | input_fname ... ]
 Options:
    -p ps_filename  (Write a PostScript file with camera images.)
+   --plot-with-true-pe (If data available, include true p.e. plot in PS file.)
+   --plot-with-sum-only (Show only sum image even if we have traces.)
+   --plot-with-pixel-id (Show pixel ID number on top of pixel.)
+   --plot-with-pixel-amp (Show pixel amplitude value on top of pixel.)
+   --plot-with-pixel-pe (Show count of true Cherenkov p.e. on top of pixel.)
+   --plot-without-reco (Do not show reconstructed image/shower parameters.)
+   --plot-with-type-sum (Plot sum of pixel intensities over telescope types.)
+   --plot-with-title text (User-defined title on top of page.)
    -r level        (Use 10/5 tail-cut image cleaning and redo reconstruction.)
                    level >= 1: show parameters from sim_hessarray.
                    level >= 2: redo shower reconstruction
@@ -80,9 +88,11 @@ Options:
    --trgmask-path dir (Search the trgmask files in this path first.)
    --trg-required b *(Required trigger bits, e.g. 5=1|4 -> majo or asum)
    --type nt[,id1,id2,A,f,npix] (Set [requirements for] telescope type nt.)
+   --focal-length f *(Set telescope imaging effective focal length [m].)
    --min-tel tmn   *(The minimum number of tel. images required in analysis.)
    --max-tel tmx   (The maximum number of tel. images required in analysis.)
    --min-trg-tel n (Minimum number of telescopes in system trigger.)
+   --hard-stereo id1,id2,.. (Telescope of ID id1 etc. only use if stereo.)
    --min-amp npe   *(Minimum image amplitude for shower reconstruction.)
    --min-pix npix  *(Minimum number of pixels for shower reconstruction.)
    --max-events n  (Skip remaining data after so many triggered events.)
@@ -108,6 +118,7 @@ Options:
    --impact-range r,x,y (Accept only events with reconstructed core in range).
    --true-impact-range r,x,y (Accept only events with true core in range).
                     Note that r is in shower plane but x,y ranges are on surface.
+   --min-true-energy e (Completely skip events below given true energy.
    --clip-camera-radius r *(In image reconstruction clip camera at radius r deg.)
    --clip-camera-diameter d *(Same as before but with diameter d deg.)
    --clip-pixel-amplitude a *(Calibrated pixel ampl. does not exceed a mean p.e.)
@@ -120,7 +131,8 @@ Options:
    --dead-time-fraction (Set telescopes randomly as dead from prior triggers.)
    --integration-scheme n *(Set the integration scheme for sample-mode data.
                    Use '--integration-scheme help' to show available schemes.)
-   --integration-window w,o *(Set integration window width and offset.)
+   --integration-window w,o[,ps] *(Set integration window width and offset.)
+                   For some integration schemes there is a pulse shaping option.
    --integration-treshold h[,l] *(Set significance thresholds for integration.)
    --integration-no-rescale *(Don't rescale pulse sum for integration with
                    windows narrower than a single-p.e. pulse.)
@@ -148,7 +160,7 @@ Options:
    --raw-level n   (Re-write original raw data or processed data, with possible
                    selection or reduction of other data according to level.)
                    Level 0 has all data written as available.
-                   Level 1 has MC data only for triggerer events.
+                   Level 1 has MC data only for triggered events.
                    Level 2 has no MC data (--no-mc-data).
                    Level 3 has only raw data for telescopes and nothing else (--pure-raw).
                    Level 4 also cleans past history data (--clean-history).
@@ -165,8 +177,8 @@ Parameters followed by a '*' can be type-specific if preceded by a
  *
  *  @author Konrad Bernloehr
  *
- *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.129 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/18 15:10:17 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.143 $ @endverbatim
  */
 
 /** @defgroup read_hess_c The read_hess (aka read_simtel, read_cta) program */
@@ -452,13 +464,13 @@ static void show_run_summary(AllHessData *hsdata, int nev, int ntrg, double plid
              "#@;       11: Spectral index in weighting\n"
              "#@;       12: Weighted sum of events, total\n"
              "#@;       13: Weighted sum of events, triggered\n"
-             "#@;       14: Maximum horizontal core distance in X\n"
-             "#@;       15: Maximum horizontal core distance in Y\n"
-             "#@;       16: Maximum core distance in shower plane\n"
-             "#@;       17: Supposed maximum core distance\n");
+             "#@;       14: Maximum horizontal core distance in X [m]\n"
+             "#@;       15: Maximum horizontal core distance in Y [m]\n"
+             "#@;       16: Maximum core distance in shower plane [m]\n"
+             "#@;       17: Supposed maximum core distance [m]\n");
       explained = 1;
    }
-   printf("\n@; %d %d %d %d   %5.2f %5.2f %4.2f    %6.4f %6.4f %5.3f %5.3f   %f %f   %3.1f %3.1f %3.1f %3.1f\n", 
+   printf("\n@; %d %d %d %d   %5.2f %5.2f %4.2f    %6.4f %6.4f %5.3f %5.3f   %g %g   %3.1f %3.1f %3.1f %3.1f\n", 
      hsdata->run_header.run, hsdata->mc_shower.primary_id, nev, ntrg,
      0.5*(180./M_PI)*
       (hsdata->mc_run_header.alt_range[0]+hsdata->mc_run_header.alt_range[1]),
@@ -480,6 +492,14 @@ static void syntax (char *program)
    printf("Syntax: %s [ options ] [ - | input_fname ... ]\n",program);
    printf("Options:\n");
    printf("   -p ps_filename  (Write a PostScript file with camera images.)\n");
+   printf("   --plot-with-true-pe (If data available, include true p.e. plot in PS file.)\n");
+   printf("   --plot-with-sum-only (Show only sum image even if we have traces.)\n");
+   printf("   --plot-with-pixel-id (Show pixel ID number on top of pixel.)\n");
+   printf("   --plot-with-pixel-amp (Show pixel amplitude value on top of pixel.)\n");
+   printf("   --plot-with-pixel-pe (Show count of true Cherenkov p.e. on top of pixel.)\n");
+   printf("   --plot-without-reco (Do not show reconstructed image/shower parameters.)\n");
+   printf("   --plot-with-type-sum (Plot sum of pixel intensities over telescope types.)\n");
+   printf("   --plot-with-title text (User-defined title on top of page.)\n");
    printf("   -r level        (Use 10/5 tail-cut image cleaning and redo reconstruction.)\n");
    printf("                   level >= 1: show parameters from sim_hessarray.\n");
    printf("                   level >= 2: redo shower reconstruction\n");
@@ -510,9 +530,11 @@ static void syntax (char *program)
    printf("   --trgmask-path dir (Search the trgmask files in this path first.)\n");
    printf("   --trg-required b *(Required trigger bits, e.g. 5=1|4 -> majo or asum)\n");
    printf("   --type nt[,id1,id2,A,f,npix] (Set [requirements for] telescope type nt.)\n");
+   printf("   --focal-length f *(Set telescope imaging effective focal length [m].)\n");
    printf("   --min-tel tmn   *(The minimum number of tel. images required in analysis.)\n");
    printf("   --max-tel tmx   (The maximum number of tel. images required in analysis.)\n");
    printf("   --min-trg-tel n (Minimum number of telescopes in system trigger.)\n");
+   printf("   --hard-stereo id1,id2,.. (Telescope of ID id1 etc. only use if stereo.)\n");
    printf("   --min-amp npe   *(Minimum image amplitude for shower reconstruction.)\n");
    printf("   --min-pix npix  *(Minimum number of pixels for shower reconstruction.)\n");
    printf("   --max-events n  (Skip remaining data after so many triggered events.)\n");
@@ -538,6 +560,7 @@ static void syntax (char *program)
    printf("   --impact-range r,x,y (Accept only events with reconstructed core in range).\n");
    printf("   --true-impact-range r,x,y (Accept only events with true core in range).\n");
    printf("                    Note that r is in shower plane but x,y ranges are on surface.\n");
+   printf("   --min-true-energy e (Completely skip events below given true energy.\n");
    printf("   --clip-camera-radius r *(In image reconstruction clip camera at radius r deg.)\n");
    printf("   --clip-camera-diameter d *(Same as before but with diameter d deg.)\n");
    printf("   --clip-pixel-amplitude a *(Calibrated pixel ampl. does not exceed a mean p.e.)\n");
@@ -550,7 +573,8 @@ static void syntax (char *program)
    printf("   --dead-time-fraction (Set telescopes randomly as dead from prior triggers.)\n");
    printf("   --integration-scheme n *(Set the integration scheme for sample-mode data.\n");
    printf("                   Use '--integration-scheme help' to show available schemes.)\n");
-   printf("   --integration-window w,o *(Set integration window width and offset.)\n");
+   printf("   --integration-window w,o[,ps] *(Set integration window width and offset.)\n");
+   printf("                   For some integration schemes there is a pulse shaping option.\n");
    printf("   --integration-treshold h[,l] *(Set significance thresholds for integration.)\n");
    printf("   --integration-no-rescale *(Don't rescale pulse sum for integration with\n");
    printf("                   windows narrower than a single-p.e. pulse.)\n");
@@ -578,7 +602,7 @@ static void syntax (char *program)
    printf("   --raw-level n   (Re-write original raw data or processed data, with possible\n");
    printf("                   selection or reduction of other data according to level.)\n");
    printf("                   Level 0 has all data written as available.\n");
-   printf("                   Level 1 has MC data only for triggerer events.\n");
+   printf("                   Level 1 has MC data only for triggered events.\n");
    printf("                   Level 2 has no MC data (--no-mc-data).\n");
    printf("                   Level 3 has only raw data for telescopes and nothing else (--pure-raw).\n");
    printf("                   Level 4 also cleans past history data (--clean-history).\n");
@@ -729,9 +753,11 @@ int main (int argc, char **argv)
    int got_pe_list = 0, check_missing_pe_list = 0;
 #endif
 
-   int only_telescope[H_MAX_TEL], not_telescope[H_MAX_TEL];
+   int only_telescope[H_MAX_TEL], not_telescope[H_MAX_TEL], hard_stereo[H_MAX_TEL];
+   int nhard_st = 0;
    int pure_raw = 0;
    int no_mc_data = 0;
+   int show_true_pe = 0;
 
    static double min_amp_tel[H_MAX_TEL];
    static double tailcut_low_tel[H_MAX_TEL];
@@ -749,6 +775,7 @@ int main (int argc, char **argv)
    int user_ana = 0;
    double impact_range[3] = { 0., 0., 0. };
    double true_impact_range[3] = { 0., 0., 0. };
+   double min_true_energy = 0.;
    size_t events = 0, max_events = 0;
    int dst_level = -1; /* <0: No data summary processing; 0: samples -> sums; ...; 3: Hillas parameters only; ...  */
    int cleaning = 0; /* 0: no cleaning, 1: clean + store sums, 2: clean + store samples, 3: clean + store both */
@@ -770,6 +797,7 @@ int main (int argc, char **argv)
    NextFile *next_file = &first_file;
    static RangeList only_runs = { 0, 0, NULL }, not_runs = { -1, -1, NULL };
    int skip_run = 0;
+   int show_type_sum = 0, ntypes = 0;
    int auto_trgmask = 0;
    struct trgmask_set *tms = NULL;
    struct trgmask_hash_set *ths = NULL;
@@ -867,6 +895,62 @@ int main (int argc, char **argv)
 	 argv++;
 	 continue;
       }
+      else if ( strcmp(argv[1],"--plot-with-true-pe") == 0 )
+      {
+	 show_true_pe = 1;
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-with-sum-only") == 0 )
+      {
+	 setenv("PLOT_WITH_SUM_ONLY","1",1);
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-with-pixel-id") == 0 )
+      {
+	 setenv("PLOT_WITH_PIXEL_ID","1",1);
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-with-pixel-amp") == 0 )
+      {
+	 setenv("PLOT_WITH_PIXEL_AMP","1",1);
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-with-pixel-pe") == 0 )
+      {
+	 setenv("PLOT_WITH_PIXEL_PE","1",1);
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-without-reco") == 0 )
+      {
+	 setenv("PLOT_WITHOUT_RECO","1",1);
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-with-type-sum") == 0 )
+      {
+	 show_type_sum = 1;
+	 argc--;
+	 argv++;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--plot-with-title") == 0 && argc > 2 )
+      {
+	 setenv("PLOT_WITH_TITLE",argv[2],1);
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
       else if ( strcmp(argv[1],"-r") == 0 && argc > 2 )
       {
 	 reco_flag = atoi(argv[2]);
@@ -911,81 +995,59 @@ int main (int argc, char **argv)
          printf("   based on release %s\n", EVENTIO_BASE_RELEASE);
 # endif
 #endif
+
+#if ( defined(__STDC__) && __STDC__ ) || defined(__cplusplus)
+#ifdef SHOW
+# undef SHOW
+#endif
+#ifdef _STR_
+# undef _STR_
+#endif
+#define _XSTR_(s) _STR_(s) /**< Expand a macro first and then enclose in string */
+#define _STR_(s) #s /**< Enclose in string without macro expansion. */
+
+#define SHOW(s) if ( strcmp(#s,_XSTR_(s)) != 0 ) printf("   " #s " = " _XSTR_(s) "\n" )
+
          printf("Preprocessor definitions include:\n");
-#ifdef CTA
-# if CTA -0 != 0 
-         printf("   CTA = %d\n", CTA);
-# else
-         printf("   CTA\n");
-# endif
-#endif
-#ifdef CTA_KIND
-         printf("   CTA_KIND = %d\n", CTA_KIND);
-#endif
-#ifdef CTA_ULTRA
-#if  CTA_ULTRA -0 != 0 
-         printf("   CTA_ULTRA = %d\n", CTA_ULTRA);
-# else
-         printf("   CTA_ULTRA\n");
-# endif
-#endif
-#ifdef CTA_MAX
-         printf("   CTA_MAX\n");
-#endif
-#ifdef CTA_SC
-# if CTA_SC -0 != 0
-         printf("   CTA_SC = %d\n", CTA_SC);
-# else
-         printf("   CTA_SC\n");
-# endif
-#endif
-#ifdef CTA_PROD1
-         printf("   CTA_PROD1\n");
-#endif
-#ifdef CTA_PROD2
-         printf("   CTA_PROD2\n");
-#endif
-#ifdef CTA_PROD2_SC
-         printf("   CTA_PROD2_SC\n");
-#endif
-#ifdef CTA_PROD3
-         printf("   CTA_PROD3\n");
-#endif
-#ifdef CTA_PROD3_DEMO
-         printf("   CTA_PROD3_DEMO\n");
-#endif
-#ifdef CTA_PROD3_SC
-         printf("   CTA_PROD3_SC\n");
-#endif
-#ifdef CTA_MAX_SC
-         printf("   CTA_MAX_SC\n");
-#endif
-#ifdef CTA_MINI
-         printf("   CTA_MINI\n");
-#endif
-#ifdef HESS_PHASE_3
-         printf("   HESS_PHASE_3\n");
-#endif
-#ifdef HESS_PHASE_2
-         printf("   HESS_PHASE_2\n");
-#endif
-#ifdef HESS_PHASE_1
-         printf("   HESS_PHASE_1\n");
-#endif
-#ifdef LARGE_TELESCOPE
-         printf("   LARGE_TELESCOPE\n");
-#endif
-#ifdef ULTRA_FINE_PIXELS
-         printf("   ULTRA_FINE_PIXELS\n");
-#endif
-#ifdef MEGAPIX
-         printf("   MEGAPIX\n");
-#endif
-#ifdef H_SAVE_MEMORY
-         printf("   H_SAVE_MEMORY\n");
-#endif
-#ifdef STORE_PIX_PHOTONS
-         printf("   STORE_PIX_PHOTONS\n");
+         SHOW(CTA);
+         SHOW(CTA_KIND);
+         SHOW(CTA_ULTRA);
+         SHOW(CTA_ULTRA3);
+         SHOW(CTA_ULTRA5);
+         SHOW(CTA_MAX);
+         SHOW(CTA_MAX_SC);
+         SHOW(CTA_SC);
+         SHOW(CTA_PROD1);
+         SHOW(CTA_PROD2);
+         SHOW(CTA_PROD2_SC);
+         SHOW(CTA_PROD3);
+         SHOW(CTA_PROD3_DEMO);
+         SHOW(CTA_PROD3_SC);
+         SHOW(CTA_PROD3_MERGE);
+         SHOW(CTA_PROD4);
+         SHOW(CTA_MINI);
+         SHOW(CTA_MINI2);
+         SHOW(CTA_MINI3);
+         SHOW(CTA_MINI4);
+         SHOW(HESS_PHASE_3);
+         SHOW(HESS_PHASE_2);
+         SHOW(HESS_PHASE_1);
+         SHOW(LARGE_TELESCOPE);
+         SHOW(NO_LARGE_TELESCOPE);
+         SHOW(ULTRA_FINE_PIXELS);
+         SHOW(MEGAPIX);
+         SHOW(SMARTPIXEL);
+         SHOW(NO_SMARTPIXEL);
+         SHOW(MAXIMUM_TELESCOPES);
+         SHOW(MAXIMUM_PIXELS);
+         SHOW(MAXIMUM_SECTORS);
+         SHOW(MAXIMUM_DRAWERS);
+         SHOW(MAXIMUM_SLICES);
+         SHOW(H_SAVE_MEMORY);
+         SHOW(STORE_PIX_PHOTONS);
+#undef SHOW
+#else
+         printf("Other preprocessor definitions not shown.\n");
 #endif
 	 argc--;
 	 argv++;
@@ -1391,6 +1453,14 @@ int main (int argc, char **argv)
 	 argv += 2;
 	 continue;
       }
+      else if ( (strcmp(argv[1],"--min-true-energy") == 0) && argc > 2 )
+      {
+         /* Mainly useful to pick nice images for plots */
+         min_true_energy = atof(argv[2]);
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
       else if ( (strcmp(argv[1],"--min-img-angle") == 0) && argc > 2 )
       {
          /* One global parameter, needs to be passed to the image intersections */
@@ -1624,6 +1694,32 @@ int main (int argc, char **argv)
 	 argv += 2;
 	 continue;
       }
+      else if ( strcmp(argv[1],"--hard-stereo") == 0 && argc > 2 )
+      {
+       	 char word[20];
+         int ipos=0;
+         int j;
+         while ( getword(argv[2],&ipos,word,sizeof(word)-1,',','\n') > 0 )
+         {
+            int dupl = 0;
+            tel_id = atoi(word);
+            for ( j=0; j<nhard_st; j++ )
+               if ( tel_id == hard_stereo[j] )
+                  dupl = 1;
+            if ( dupl )
+               continue;
+            if ( nhard_st >= H_MAX_TEL )
+            {
+               fprintf(stderr,"Too many telescopes in hardware stereo list.\n");
+               exit(1);
+            }
+            hard_stereo[nhard_st++] = tel_id;
+         }
+         printf("Hardware stereo required for a subset of %d telescopes.\n", nhard_st);
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
       else if ( ( strcmp(argv[1],"--only-run") == 0 ||
                   strcmp(argv[1],"--only-runs") == 0 ) &&
                 argc > 2 )
@@ -1668,6 +1764,14 @@ int main (int argc, char **argv)
                add_range(run_idx, run_idx2, &not_runs);
             }
          }
+	 argc -= 2;
+	 argv += 2;
+	 continue;
+      }
+      else if ( strcmp(argv[1],"--focal-length") == 0 && argc > 2 )
+      {
+       	 double flen = atof(argv[2]);
+         user_set_focal_length(flen);
 	 argc -= 2;
 	 argv += 2;
 	 continue;
@@ -1737,11 +1841,20 @@ int main (int argc, char **argv)
                    "   3 = local (o: before pixel local peak bin)\n"
                    "   4 = nb = neighbour = neighbor (o: before peak bin in sum of neighbours)\n"
                    "   5 = nb+local (o: before peak bin in sum of neighbours + 3 * local pixel)\n"
+                   "   6 = gradient (first fitting time gradient along major axis)\n"
+                   "   7 = nb-fc (like no. 6 = 'nb' but after FlashCam-style pulse shaping)\n"
                    "   where the offset 'o' is given by the '--integration-window' option.\n"
                    "   The width parameter 'w' of the '--integration-window' option is used\n"
                    "   in the same way by all integration schemes.\n"
-                   "   The high-gain and low-gain thresholds of the '--integration-threshold'\n"
-                   "   option are only used with integration schemes no. 2 and 3.\n");
+                   "   The high-gain (and low-gain) threshold(s) of the '--integration-threshold'\n"
+                   "   option are only used with integration schemes no. 2, 3, and 6.\n"
+                   "   In scheme no. 6 it defines pixels to be used for the gradient fit.\n"
+                   "   In scheme no. 7 the h-g threshold gets used to re-evaluate pixel timing.\n"
+                   "   Scheme no. 7 also uses a third parameter of '--integration-window'\n"
+                   "   for defining which pulse shaping and differencing option to use\n"
+                   "   (0: original pzpsa shaping, 1: equivalent to pzpsa with 4 ns differencing,\n" 
+                   "   or 2: with 8 ns differencing)\n"
+                  );
             exit(1);
          }
          if ( strcasecmp(argv[2],"simple") == 0 || strcasecmp(argv[2],"fixed") == 0 )
@@ -1755,12 +1868,25 @@ int main (int argc, char **argv)
             scheme = 4;
          else if ( strcasecmp(argv[2],"nb+local") == 0 )
             scheme = 5;
+         else if ( strcasecmp(argv[2],"gradient") == 0 )
+            scheme = 6;
+         else if ( strcasecmp(argv[2],"nb-fc") == 0 )
+            scheme = 7;
          else
             scheme = atoi(argv[2]);
-         if ( scheme < 1 || scheme > 5 )
+         if ( scheme < 1 || scheme > 7 )
          {
             fprintf(stderr, "Invalid signal integration scheme %s\n", argv[2]);
             exit(1);
+         }
+         /* Without sufficient reconstruction level the integration is not actually
+            carried out; instead the plain sum over all samples gets used.
+            Avoid such a surprising result and force reconstruction level 4. */
+         if ( reco_flag < 3 )
+         {
+	    reco_flag = 4;
+            user_set_reco_flag(reco_flag);
+            fprintf(stderr,"Integration scheme forcing image reconstruction.\n");
          }
          user_set_integrator(scheme);
 	 argc -= 2;
@@ -1769,9 +1895,9 @@ int main (int argc, char **argv)
       }
       else if ( strcmp(argv[1],"--integration-window") == 0 && argc > 2 )
       {
-         int nsum = 0, noff = 0;
-         sscanf(argv[2], "%d,%d", &nsum, &noff);
-         user_set_integ_window(nsum, noff);
+         int nsum = 0, noff = 0, ps_opt = 0;
+         sscanf(argv[2], "%d,%d,%d", &nsum, &noff, &ps_opt);
+         user_set_integ_window(nsum, noff, ps_opt);
 	 argc -= 2;
 	 argv += 2;
 	 continue;
@@ -2053,7 +2179,7 @@ int main (int argc, char **argv)
       user_set_auto_lookup(auto_lookup);
       user_set_diffuse_mode(diffuse_mode,oa_range);
    }
-
+   
    /* Now go over rest of the command line */
    while ( argc > 1 )
    {
@@ -2303,6 +2429,15 @@ int main (int argc, char **argv)
                   exit(1);
                }
             }
+            else if ( dst_level == 100 && (int) item_header.type == IO_TYPE_MC_TELARRAY && ! no_mc_data )
+            {
+               if ( write_io_block(iobuf) )
+               {
+                  fprintf(stderr,"Writing DST output failed on item type %lu, id %ld.\n",
+                     item_header.type, item_header.ident);
+                  exit(1);
+               }
+            }
          }
          else if ( (dst_level%10) >= 2 || dst_level == 11 || dst_level == 10 || dst_level >= 101 ) /* MC data only for triggered/selected events */
          {
@@ -2532,6 +2667,7 @@ int main (int argc, char **argv)
 	       user_set_spectrum(plidx - hsdata->mc_run_header.spectral_index);
                do_user_ana(hsdata,item_header.type,0);
 	    }
+            ntypes = 0;
             break;
 
          /* =================================================== */
@@ -2673,7 +2809,7 @@ int main (int argc, char **argv)
                printf("read_hess_pixeldis(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
-               printf("\nPixel disabling block for telescope ID %d ...\n", tel_id);
+               print_hess_pixeldis(iobuf);
             set_disabled_pixels(hsdata,itel,broken_pixels_fraction);
             break;
 
@@ -2712,7 +2848,7 @@ int main (int argc, char **argv)
                printf("read_hess_pointingco(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
-               printf("\nPointing correction for telescope ID %d ...\n", tel_id);
+               print_hess_pointingcor(iobuf);
             break;
 
          /* =================================================== */
@@ -2731,12 +2867,14 @@ int main (int argc, char **argv)
                printf("read_hess_trackset(), rc = %d (tel. ID=%d, itel=%d)\n",rc,tel_id,itel);
             /* No print function available */
             if ( showdata )
-               printf("\nTracking settings for telescope ID %d ...\n", tel_id);
+               print_hess_trackset(iobuf);
             break;
 
          /* =================================================== */
          case IO_TYPE_HESS_EVENT:
             if ( skip_run )
+               continue;
+            if ( hsdata->mc_shower.energy < min_true_energy )
                continue;
             rc = read_hess_event(iobuf,&hsdata->event,-1);
 	    if ( verbose || rc != 0 )
@@ -2791,8 +2929,70 @@ int main (int argc, char **argv)
                   }
                }
             }
+
+            /* Is there a subset that requires hard stereo ? */
+            if ( nhard_st > 0 ) 
+            {
+               int j, jimg;
+               int have_st = 0;
+               int itel_single = -1;
+               for ( j=0; j<nhard_st; j++ )
+               {
+                  for (itel=0; itel<hsdata->run_header.ntel; itel++)
+                  {
+                     if ( hsdata->event.teldata[itel].tel_id == hard_stereo[j] &&
+                          hsdata->event.teldata[itel].known )
+                     {
+                        have_st++;
+                        itel_single = itel;
+                     }
+                  }
+               }
+               /* If there is only a single telescope in the hard stereo subset, we kill it now. */
+               if ( have_st == 1 && itel_single >= 0 )
+               {
+                  itel = itel_single;
+                  tel_id = hsdata->event.teldata[itel].tel_id;
+                  if ( verbose )
+                     printf("Identified single telescope ID %d in hardware stereo subset discarded\n", 
+                        tel_id);
+                  hsdata->event.teldata[itel].known = 0;
+                  if ( hsdata->event.teldata[itel].img != NULL )
+		     for ( jimg=0; jimg<(int)hsdata->event.teldata[itel].num_image_sets; jimg++  )
+			if ( hsdata->event.teldata[itel].img[jimg].known )
+			   hsdata->event.teldata[itel].img[jimg].known = 0;
+		  if ( hsdata->event.teldata[itel].raw != NULL )
+		     if ( hsdata->event.teldata[itel].raw->known )
+			hsdata->event.teldata[itel].raw->known = 0;
+                  hsdata->event.central.teltrg_type_mask[itel] = 0;
+                  for ( j=0; j<hsdata->event.central.num_teltrg; j++ )
+                  {
+                     if ( hsdata->event.central.teltrg_list[j] == tel_id )
+                     {
+                        if ( j+1 < hsdata->event.central.num_teltrg )
+                           hsdata->event.central.teltrg_list[j] = 
+                              hsdata->event.central.teltrg_list[hsdata->event.central.num_teltrg-1];
+                        hsdata->event.central.teltrg_list[hsdata->event.central.num_teltrg-1] = -1;
+                        hsdata->event.central.num_teltrg--;
+                     }
+                  }
+                  for ( j=0; j<hsdata->event.central.num_teldata; j++ )
+                  {
+                     if ( hsdata->event.central.teldata_list[j] == tel_id )
+                     {
+                        if ( j+1 < hsdata->event.central.num_teldata )
+                           hsdata->event.central.teldata_list[j] = 
+                              hsdata->event.central.teldata_list[hsdata->event.central.num_teldata-1];
+                        hsdata->event.central.teldata_list[hsdata->event.central.num_teldata-1] = -1;
+                        hsdata->event.central.num_teldata--;
+                     }
+                  }
+               }
+            }
+
             if ( showdata )
                print_hess_event(iobuf);
+
             /* First of all fix trigger type bit masks, if necessary */
             if ( ths != NULL && ths->run == hsdata->run_header.run )
             {
@@ -2882,7 +3082,11 @@ int main (int argc, char **argv)
             if ( reco_flag >= 5 ) 
 	       for ( itel=0; itel<hsdata->run_header.ntel; itel++ )
 	          if ( hsdata->event.teldata[itel].known )
+                  {
+                     if ( show_true_pe && hsdata->mc_event.mc_pe_list[itel].npe > 0 )
+                        hesscam_ps_plot(ps_fname, hsdata, itel, -1, 3, 0.);
 	             hesscam_ps_plot(ps_fname, hsdata, itel, -1, flag_amp_tm, 0.);
+                  }
 
             if ( reco_flag > 1 )
                reconstruct(hsdata, reco_flag, min_amp_tel, min_pix_tel,
@@ -3034,8 +3238,29 @@ int main (int argc, char **argv)
             }
 
 	    for (itel=0; itel<hsdata->run_header.ntel; itel++)
+            {
 	       if ( hsdata->event.teldata[itel].known )
+               {
+                  if ( show_true_pe && hsdata->mc_event.mc_pe_list[itel].npe > 0 )
+                     hesscam_ps_plot(ps_fname, hsdata, itel, -1, 3, 0.);
 	          hesscam_ps_plot(ps_fname, hsdata, itel, -1, flag_amp_tm, last_clip_amp);
+               }
+            }
+            if ( show_type_sum )
+            {
+               int itype;
+               if ( ntypes == 0 )
+               {
+                  for (itel=0; itel<hsdata->run_header.ntel; itel++)
+                  {
+                     itype = user_get_type(itel);
+                     if ( itype >= ntypes )
+                        ntypes = itype+1;
+                  }
+               }
+               for ( itype=0; itype<ntypes; itype++ )
+                  hesscam_type_sum_plot(ps_fname, hsdata, itype);
+            }
             if ( (dst_level >= 0 && dst_level <= 3) ||
                  (dst_level >= 10 && dst_level <= 13 && user_ana && 
                     (last_event_selected = user_selected_event()) != 0 ) ||
@@ -3542,7 +3767,11 @@ int main (int argc, char **argv)
 
                   if ( ps_fname != NULL ) 
 	             if ( hsdata->event.teldata[itel].known )
+                     {
+                        if ( show_true_pe && hsdata->mc_event.mc_pe_list[itel].npe > 0 )
+                           hesscam_ps_plot(ps_fname, hsdata, itel, -1, 3, 0.);
 	                hesscam_ps_plot(ps_fname, hsdata, itel, -1, flag_amp_tm, 0.);
+                     }
                   continue;
                }
             }

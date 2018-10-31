@@ -22,8 +22,8 @@
 /** @file hconfig.h
  *  @short Declare hconfig structures and functions
  *  @author  Konrad Bernloehr 
- *  @date    CVS $Date: 2014/02/20 11:40:42 $
- *  @version CVS $Revision: 1.7 $
+ *  @date    CVS $Date: 2017/08/02 13:29:04 $
+ *  @version CVS $Revision: 1.8 $
  */
 
 #ifndef HCONFIG_H__LOADED
@@ -217,7 +217,7 @@ typedef struct ConfigItemStruct CONFIG_ITEM;
 #define CFG_NOT_INITIAL         128
 
 # define NULL_CONFIG_ITEM \
- (char *) NULL, (char *) NULL, 0, NULL, NULL
+ (char *) NULL, (char *) NULL, 0, NULL, NULL, (char *) NULL, (char *) NULL, (char *) NULL, 0, NULL, NULL, NULL, {0}
 
 /**
  * Mutexes are only inserted when pthreads are used.

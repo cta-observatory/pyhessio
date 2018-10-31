@@ -30,8 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *  @author  Konrad Bernloehr 
  *  @date    initial version: August 2006
- *  @date    @verbatim CVS $Date: 2016/05/17 11:17:46 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.74 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2017/10/14 17:51:29 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.79 $ @endverbatim
  */
 
 #include <limits.h>
@@ -49,6 +49,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "basic_ntuple.h"
 
 #define MAX_TEL_TYPES 10
+
+#ifndef PATH_MAX
+# define PATH_MAX 4096
+#endif
 
 static void interp(double x, double *v, int n, int *ipl, double *rpl);
 
@@ -288,23 +292,23 @@ int user_set_tel_type_param_by_str(const char *str)
    }
 
    ttp = &def_tel_type_param[itype-1];
-   if ( word[1] != '\0' )
+   if ( word[1][0] != '\0' )
       ttp->min_tel_id = atoi(word[1]);
    else
       ttp->min_tel_id = 0;
-   if ( word[2] != '\0' )
+   if ( word[2][0] != '\0' )
       ttp->max_tel_id = atoi(word[2]);
    else
       ttp->max_tel_id = 0;
-   if ( word[3] != '\0' )
+   if ( word[3][0] != '\0' )
       ttp->mirror_area = atof(word[3]);
    else
       ttp->mirror_area = 0.;
-   if ( word[4] != '\0' )
+   if ( word[4][0] != '\0' )
       ttp->flen = atof(word[4]);
    else
       ttp->flen = 0.;
-   if ( word[5] != '\0' )
+   if ( word[5][0] != '\0' )
       ttp->num_pixels = atoi(word[5]);
    else
       ttp->num_pixels = 0;
@@ -541,6 +545,7 @@ void __attribute__ ((constructor)) user_init_parameters (void)
             up[i].d.d_integ_param[k][j] = 0.0;
 
       up[i].d.calib_scale = 0.;
+      up[i].d.focal_length = 0.;
      }
      user_init_param_done = 1;
    }
@@ -1093,6 +1098,22 @@ void user_set_length_max_cut (double *lmax)
    }
 }
 
+/** Set the telescope effective focal length. */
+
+void user_set_focal_length (double f)
+{
+   int c = current_tel_type;
+   if ( c < 0 || c > MAX_TEL_TYPES )
+      return;
+   up[c].d.focal_length = f;
+   if ( c == 0 )
+   {
+      int i;
+      for ( i=1; i<=MAX_TEL_TYPES; i++ )
+         up[i].d.focal_length = f;
+   }
+}
+
 /** Set the maximum radius to be used of a camera. */
 
 void user_set_clipping (double dc)
@@ -1185,13 +1206,14 @@ void user_set_integrator(int scheme)
    }
 }
 
-void user_set_integ_window(int nsum, int noff)
+void user_set_integ_window(int nsum, int noff, int ps_opt)
 {
    int c = current_tel_type;
    if ( c < 0 || c > MAX_TEL_TYPES )
       return;
    up[c].i.integ_param[0] = nsum;
    up[c].i.integ_param[1] = noff;
+   up[c].i.integ_param[2] = ps_opt;
    if ( c == 0 )
    {
       int i;
@@ -1199,6 +1221,7 @@ void user_set_integ_window(int nsum, int noff)
       {
          up[i].i.integ_param[0] = nsum;
          up[i].i.integ_param[1] = noff;
+         up[i].i.integ_param[2] = ps_opt;
       }
    }
 }
@@ -1938,7 +1961,7 @@ static void book_hist_global(AllHessData *hsdata)
    book_histogram(9314,
       "Core position of event triggered with >= 3 tel. (80-160 TeV)",
       "D", 2, xylow, xyhigh, nbins);
-   book_histogram(9215,
+   book_histogram(9315,
       "Core position of event triggered with >= 3 tel. (>160 TeV)",
       "D", 2, xylow, xyhigh, nbins);
 

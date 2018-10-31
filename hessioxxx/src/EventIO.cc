@@ -1,6 +1,6 @@
 /* ============================================================================
 
-   Copyright (C) 2003, 2009, 2010 Konrad Bernloehr (Konrad Bernl&ouml;hr)
+   Copyright (C) 2003, 2009, 2010, 2016 Konrad Bernloehr (Konrad Bernl&ouml;hr)
 
    This file is part of the eventio/hessio library.
 
@@ -24,8 +24,8 @@
     
     @author  Konrad Bernloehr
     @date Initial release: April 2003
-    $Date: 2014/11/17 15:44:00 $
-    $Revision: 1.33 $
+    $Date: 2016/11/18 12:30:51 $
+    $Revision: 1.34 $
 */
 
 #include <string>
@@ -2300,7 +2300,7 @@ void EventIO::Item::GetDouble(std::valarray<double>& vec)
 }
 
 
-/// Get operations for 'Sfloat' item type (16-bit OpenGL float)
+/// Get operations for 'Sfloat' item type (16-bit OpenGL/IEEE 754-2008 float)
 
 void EventIO::Item::GetSfloat(std::vector<float>& vec, size_t num)
 {
@@ -2324,7 +2324,7 @@ void EventIO::Item::GetSfloat(std::vector<double>& vec, size_t num)
       vec[i] = GetSfloat();
 }
 
-/// Get operations for 'Sfloat' item type (16-bit OpenGL float)
+/// Get operations for 'Sfloat' item type (16-bit OpenGL/IEEE 754-2008 float)
 
 void EventIO::Item::GetSfloat(std::vector<float>& vec)
 {
@@ -2350,7 +2350,7 @@ void EventIO::Item::GetSfloat(std::vector<double>& vec)
       vec[i] = GetSfloat();
 }
 
-/// Get operations for 'Sfloat' item type (16-bit OpenGL float)
+/// Get operations for 'Sfloat' item type (16-bit OpenGL/IEEE 754-2008 float)
 
 void EventIO::Item::GetSfloat(std::valarray<float>& vec, size_t num)
 {
@@ -2374,7 +2374,7 @@ void EventIO::Item::GetSfloat(std::valarray<double>& vec, size_t num)
       vec[i] = GetSfloat();
 }
 
-/// Get operations for 'Sfloat' item type (16-bit OpenGL float)
+/// Get operations for 'Sfloat' item type (16-bit OpenGL/IEEE 754-2008 float)
 
 void EventIO::Item::GetSfloat(std::valarray<float>& vec)
 {
@@ -2399,6 +2399,60 @@ void EventIO::Item::GetSfloat(std::valarray<double>& vec)
    for (size_t i=0; i<num; ++i)
       vec[i] = GetSfloat();
 }
+
+
+#ifdef HAVE_HALF
+
+/// Get operations for 'Half' (same as 'Sfloat') item type (16-bit OpenGL/IEEE 754-2008 float)
+
+void EventIO::Item::GetHalf(std::vector<half>& vec, size_t num)
+{
+   check_throw("GetHalf");
+
+   if ( vec.size() < num )
+      vec.resize(num);
+
+   for (size_t i=0; i<num; ++i)
+      vec[i] = GetHalf();
+}
+
+void EventIO::Item::GetHalf(std::vector<half>& vec)
+{
+   check_throw("GetHalf");
+
+   size_t num = GetCount();
+   if ( num != vec.size() )
+      vec.resize(num);
+
+   for (size_t i=0; i<num; ++i)
+      vec[i] = GetHalf();
+}
+
+
+void EventIO::Item::GetHalf(std::valarray<half>& vec, size_t num)
+{
+   check_throw("GetHalf");
+
+   if ( vec.size() < num )
+      vec.resize(num);
+
+   for (size_t i=0; i<num; ++i)
+      vec[i] = GetHalf();
+}
+
+void EventIO::Item::GetHalf(std::valarray<half>& vec)
+{
+   check_throw("GetHalf");
+
+   size_t num = GetCount();
+   if ( num != vec.size() )
+      vec.resize(num);
+
+   for (size_t i=0; i<num; ++i)
+      vec[i] = GetHalf();
+}
+
+#endif
 
 
 /// Get operation for old-style strings with 16-bit length prefix.

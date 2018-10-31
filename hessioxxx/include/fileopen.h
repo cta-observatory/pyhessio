@@ -23,8 +23,8 @@
  *  @short Function prototypes for fileopen.c.
  *
  *  @author  Konrad Bernloehr 
- *  @date    @verbatim CVS $Date: 2014/06/23 09:34:45 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.7 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/08/28 15:45:12 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.9 $ @endverbatim
  */
 
 #ifndef FILEOPEN_H__LOADED
@@ -49,6 +49,12 @@ void disable_permissive_pipes(void);
 
 #ifdef __cplusplus
 }
+
+# ifdef _BASIC_STRING_H
+/* Alternative only available if <string> was included earlier. */
+inline FILE *fileopen(const std::string& fname, const char *mode)
+{ return fileopen(fname.c_str(),mode); }
+# endif
 #endif
 
 #endif

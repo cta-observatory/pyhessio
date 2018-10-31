@@ -25,8 +25,8 @@
     
     @author  Konrad Bernloehr
     @date    1991 to 2010
-    @date    @verbatim $Date: 2016/03/14 23:38:36 $ @endverbatim
-    @version @verbatim $Revision: 1.17 $ @endverbatim
+    @date    @verbatim $Date: 2016/11/24 13:07:43 $ @endverbatim
+    @version @verbatim $Revision: 1.19 $ @endverbatim
     
     This file identifies a range of supported operating systems
     and processor types. As a result, some preprocessor definitions
@@ -223,6 +223,13 @@ extern "C" {
 #   include <strings.h>
 #else
 #   include <string.h>
+/* ROOT 'cint' interpreter claims to be POSIX.1 compatible but isn't */
+# ifndef __CINT__
+#  ifdef _POSIX_C_SOURCE
+/*  For actual POSIX systems we also include strings.h (for strcasecmp etc.) */
+#    include <strings.h>
+#  endif
+# endif
 #endif
 
 #include <stdio.h>

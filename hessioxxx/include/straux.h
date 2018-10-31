@@ -23,8 +23,8 @@
  *  @short Check for abbreviations of strings and get words from strings.
  *
  *  @author  Konrad Bernloehr
- *  @date    @verbatim CVS $Date: 2010/07/20 13:37:45 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.2 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/02/23 15:51:53 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.3 $ @endverbatim
  */
 
 #ifndef STRAUX_H__LOADED
@@ -38,8 +38,6 @@
 extern "C" {
 #endif
 
-#ifdef ANSI_C
-
 #ifndef CONST
 # define CONST const
 #endif
@@ -49,8 +47,6 @@ int getword (CONST char *s, int *spos, char *word, int maxlen, char blank,
              char endchar);
 int stricmp (CONST char *a, CONST char *b);
 
-
-#endif
 
 #ifdef __cplusplus
 }

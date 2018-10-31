@@ -61,8 +61,8 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    Nov. 2000
- *  @date    @verbatim CVS $Date: 2016/03/03 11:26:35 $ @endverbatim 
- *  @version @verbatim CVS $Revision: 1.23 $ @endverbatim 
+ *  @date    @verbatim CVS $Date: 2018/05/04 13:32:58 $ @endverbatim 
+ *  @version @verbatim CVS $Revision: 1.27 $ @endverbatim 
  */
 
 #include "initial.h"
@@ -75,7 +75,7 @@
 #include <sys/stat.h>
 
 /** Use to decide if open/close success/failure is reported */
-static int verbose = 0;
+static int verbose = 0, parallel = 0;
 
 static FILE *popenx(const char *fname, const char *mode);
 
@@ -85,7 +85,7 @@ static FILE *popenx(const char *fname, const char *mode)
    if ( f != NULL )
    {
       if ( verbose >= 2 )
-         printf("Pipe for fileno=%d, mode=%s opened as: %s\n", fileno(f), mode, fname);
+         fprintf(stderr,"Pipe for fileno=%d, mode=%s opened as: %s\n", fileno(f), mode, fname);
       /* Could try to remember what corresponds to what fileno here ... */
    }
    return f;
@@ -106,7 +106,7 @@ static FILE *fopenx(const char *fname, const char *mode)
    if ( f != NULL )
    {
       if ( verbose >= 2 )
-         printf("File for fileno=%d, mode=%s opened: %s\n", fileno(f), mode, fname);
+         fprintf(stderr,"File for fileno=%d, mode=%s opened: %s\n", fileno(f), mode, fname);
       /* Could try to remember what corresponds to what fileno here ... */
    }
    return f;
@@ -164,18 +164,33 @@ void initpath (const char *default_path)
 {
    int ipos = 0;
    char pathname[1024];
+   char *s;
 
    if ( default_path == NULL )
-      default_path = ".";
+   {
+      if ( (s = getenv("FILEOPEN_DEFAULT_PATH")) != NULL )
+         default_path = s;
+      else
+         default_path = ".";
+   }
 
    if ( root_path != NULL )
       freepath();
       
-   while ( getword(default_path,&ipos,pathname,sizeof(pathname)-1,':','\n') > 0 )
-      addpath(pathname);
-
    if ( getenv("FILEOPEN_VERBOSE") != NULL )
       verbose=atoi(getenv("FILEOPEN_VERBOSE"));
+   if ( getenv("FILEOPEN_PARALLEL") != NULL )
+      parallel = atoi(getenv("FILEOPEN_PARALLEL"));
+   if ( verbose )
+   {
+      fprintf(stderr,"Initializing search path for fileopen: %s\n", default_path);
+      if ( parallel )
+         fprintf(stderr,"Preferring parallel program versions opening some compressed file types with fileopen.\n");
+   }
+
+
+   while ( getword(default_path,&ipos,pathname,sizeof(pathname)-1,':','\n') > 0 )
+      addpath(pathname);
 }
 
 /* Initialize the path list for command execution. */
@@ -196,6 +211,8 @@ void initexepath (const char *default_exe_path)
 
    if ( getenv("FILEOPEN_VERBOSE") != NULL )
       verbose=atoi(getenv("FILEOPEN_VERBOSE"));
+   if ( getenv("FILEOPEN_PARALLEL") != NULL )
+      parallel = atoi(getenv("FILEOPEN_PARALLEL"));
 }
 
 /** Free a whole list of include path elements. */
@@ -302,6 +319,11 @@ void addpath (const char *name)
    /* Check for verbose flag in environment */
    if ( getenv("FILEOPEN_VERBOSE") != NULL )
       verbose=atoi(getenv("FILEOPEN_VERBOSE"));
+   if ( getenv("FILEOPEN_PARALLEL") != NULL )
+      parallel = atoi(getenv("FILEOPEN_PARALLEL"));
+
+   if ( verbose )
+      fprintf(stderr,"Adding '%s' to fileopen search path.\n", name);
 }
 
 /** 
@@ -398,12 +420,12 @@ static FILE *exe_popen (const char *fname, const char *mode)
    if ( permissive_pipes )
    {
       if ( verbose )
-         printf("Trying permissive execution of program %s\n", fname);
+         fprintf(stderr,"Trying permissive execution of program %s\n", fname);
       /* Explicit path given */
       if ( lp != NULL )
       {
          if ( verbose )
-            printf("Pipe %s program '%s' being started now.\n",
+            fprintf(stderr,"Pipe %s program '%s' being started now.\n",
               mode[0]=='r' ? "from" : "to", fname);
          return popenx(fname,mode);
       }
@@ -413,7 +435,7 @@ static FILE *exe_popen (const char *fname, const char *mode)
          strcpy(tpath,"./");
          strcat(tpath,fname);
          if ( verbose )
-            printf("Pipe %s program '%s' being started now.\n",
+            fprintf(stderr,"Pipe %s program '%s' being started now.\n",
               mode[0]=='r' ? "from" : "to", tpath);
          return popenx(tpath,mode);
       }
@@ -437,7 +459,7 @@ static FILE *exe_popen (const char *fname, const char *mode)
             if ( access(tpath,X_OK) != 0 )
                continue;
             if ( verbose )
-               printf("Pipe %s program '%s' being started now.\n",
+               fprintf(stderr,"Pipe %s program '%s' being started now.\n",
                  mode[0]=='r' ? "from" : "to", tpath);
             /* Recover arguments */
             if ( b != NULL )
@@ -479,7 +501,7 @@ static FILE *exe_popen (const char *fname, const char *mode)
          if ( access(tpath,X_OK) != 0 )
             continue;
          if ( verbose )
-            printf("Pipe %s program '%s' being started now.\n",
+            fprintf(stderr,"Pipe %s program '%s' being started now.\n",
               mode[0]=='r' ? "from" : "to", tpath);
          /* Recover arguments */
          if ( b != NULL )
@@ -538,10 +560,10 @@ static FILE *cmp_popen (const char *fname, const char *mode, int compression)
          switch ( compression )
          {
             case 1:
-               cmd = "exec gzip -c >";
+               cmd = parallel ? "exec pigz -c >" : "exec gzip -c >";
                break;
             case 2:
-               cmd = "exec bzip2 -c >";
+               cmd = parallel ? "exec pbzip2 -c >" : "exec bzip2 -c >";
                break;
             case 3:
                cmd = "exec lzop -c >";
@@ -573,10 +595,10 @@ static FILE *cmp_popen (const char *fname, const char *mode, int compression)
          switch ( compression )
          {
             case 1:
-               cmd = "exec gzip -c >>";
+               cmd = parallel ? "exec pigz -c >>" : "exec gzip -c >>";
                break;
             case 2:
-               cmd = "exec bzip2 -c >>";
+               cmd = parallel ? "exec pbzip2 -c >>" : "exec bzip2 -c >>";
                break;
             case 3:
                cmd = "exec lzop -c >>";
@@ -590,6 +612,9 @@ static FILE *cmp_popen (const char *fname, const char *mode, int compression)
             case 6:
                cmd = "exec lz4 -c >>";
                break;
+            case 10:
+               cmd = "exec zstd -c >>";
+               break;
          }
          break;
       case 'r':
@@ -601,10 +626,10 @@ static FILE *cmp_popen (const char *fname, const char *mode, int compression)
          switch ( compression )
          {
             case 1:
-               cmd = "exec gzip -d -c <";
+               cmd = parallel ? "exec pigz -d -c <" : "exec gzip -d -c <";
                break;
             case 2:
-               cmd = "exec bzip2 -d -c <";
+               cmd = parallel ? "exec pbzip2 -d -c <" : "exec bzip2 -d -c <";
                break;
             case 3:
                cmd = "exec lzop -d -c <";
@@ -627,6 +652,13 @@ static FILE *cmp_popen (const char *fname, const char *mode, int compression)
             case 9:
                cmd = "exec tar xOf - <";
                cs = " | zcat";
+               break;
+            case 10:
+               cmd = "exec zstd -d -c <";
+               break;
+            case 11:
+               cmd = "exec tar xOf - <";
+               cs = " | zstd -d -c";
                break;
          }
          break;
@@ -651,9 +683,9 @@ static FILE *cmp_popen (const char *fname, const char *mode, int compression)
    if ( verbose )
    {
       if ( f != NULL )
-         printf("Fileopen success: mode '%s' with command %s\n", pmd, s);
+         fprintf(stderr,"Fileopen success: mode '%s' with command %s\n", pmd, s);
       else
-         printf("Fileopen failed: mode '%s' with command %s\n", pmd, s);
+         fprintf(stderr,"Fileopen failed: mode '%s' with command %s\n", pmd, s);
    }
    free(s);
 
@@ -685,10 +717,10 @@ static FILE *uri_popen (const char *fname, const char *mode, int compression)
    switch ( compression )
    {
       case 1:
-         cmp_cmd = " | gzip -d";
+         cmp_cmd = parallel ? " | pigz -d" : " | gzip -d";
          break;
       case 2:
-         cmp_cmd = " | bzip2 -d";
+         cmp_cmd = parallel ? " | pbzip2 -d" : " | bzip2 -d";
          break;
       case 3:
          cmp_cmd = " | lzop -d";
@@ -708,6 +740,12 @@ static FILE *uri_popen (const char *fname, const char *mode, int compression)
       case 9:
          cmp_cmd = " | tar xOf - | zcat";
          break;
+      case 10:
+         cmp_cmd = " | zstd -d";
+         break;
+      case 11:
+         cmp_cmd = " | tar xOf - | zstd -d";
+         break;
    }
 
    s = (char *) malloc(strlen(get_cmd)+strlen(fname)+strlen(cmp_cmd)+3);
@@ -723,9 +761,9 @@ static FILE *uri_popen (const char *fname, const char *mode, int compression)
    if ( verbose )
    {
       if ( f != NULL )
-         printf("Fileopen success: mode 'r' with command %s\n", s);
+         fprintf(stderr,"Fileopen success: mode 'r' with command %s\n", s);
       else
-         printf("Fileopen failed: mode 'r' with command %s\n", s);
+         fprintf(stderr,"Fileopen failed: mode 'r' with command %s\n", s);
    }
    free(s);
 
@@ -796,10 +834,10 @@ static FILE *ssh_popen (const char *fname, const char *mode, int compression)
    switch ( compression )
    {
       case 1:
-         cmp_cmd = " | gzip -d";
+         cmp_cmd = parallel ? " | pigz -d" : " | gzip -d";
          break;
       case 2:
-         cmp_cmd = " | bzip2 -d";
+         cmp_cmd = parallel ? " | pbzip2 -d" : " | bzip2 -d";
          break;
       case 3:
          cmp_cmd = " | lzop -d";
@@ -822,6 +860,12 @@ static FILE *ssh_popen (const char *fname, const char *mode, int compression)
       case 9:
          cmp_cmd = " | tar xOf - | zcat";
          break;
+      case 10:
+         cmp_cmd = " | zstd -d";
+         break;
+      case 11:
+         cmp_cmd = " | tar xOf - | zstd -d";
+         break;
    }
 
    n = strlen(get_cmd)+strlen(fname)+strlen(cmp_cmd)+1;
@@ -834,9 +878,9 @@ static FILE *ssh_popen (const char *fname, const char *mode, int compression)
    if ( verbose )
    {
       if ( f != NULL )
-         printf("Fileopen success: mode 'r' with command %s\n", s);
+         fprintf(stderr,"Fileopen success: mode 'r' with command %s\n", s);
       else
-         printf("Fileopen failed: mode 'r' with command %s\n", s);
+         fprintf(stderr,"Fileopen failed: mode 'r' with command %s\n", s);
    }
    free(t);
 
@@ -881,9 +925,9 @@ FILE *fileopen (const char *fname, const char *mode)
       if ( verbose )
       {
          if ( f != NULL )
-            printf("Fileopen success: mode '%s' on program '%s'\n", mode, fname+1);
+            fprintf(stderr,"Fileopen success: mode '%s' on program '%s'\n", mode, fname+1);
          else
-            printf("Fileopen failed: mode '%s' on program '%s'\n", mode, fname+1);
+            fprintf(stderr,"Fileopen failed: mode '%s' on program '%s'\n", mode, fname+1);
       }
       return f;
    }
@@ -908,6 +952,10 @@ FILE *fileopen (const char *fname, const char *mode)
       compression = 8;
    else if ( l > 7 && strcmp(fname+l-7,".gz.tar") == 0 )
       compression = 9;
+   else if ( l > 7 && strcmp(fname+l-4,".zst") == 0 )
+      compression = 10;
+   else if ( l > 7 && strcmp(fname+l-8,".zst.tar") == 0 )
+      compression = 11;
 
    if ( strchr(fname,':') != NULL )
    {
@@ -930,9 +978,9 @@ FILE *fileopen (const char *fname, const char *mode)
             if ( verbose )
             {
                if ( f != NULL )
-                  printf("Fileopen success: mode '%s' on file '%s'\n", mode, fname);
+                  fprintf(stderr,"Fileopen success: mode '%s' on file '%s'\n", mode, fname);
                else
-                  printf("Fileopen failed: mode '%s' on file '%s'\n", mode, fname);
+                  fprintf(stderr,"Fileopen failed: mode '%s' on file '%s'\n", mode, fname);
             }
             return f;
             break;
@@ -943,6 +991,7 @@ FILE *fileopen (const char *fname, const char *mode)
          case 4: /* Create FIFO to lzma to file */
          case 5: /* Create FIFO to xz to file */
          case 6: /* Create FIFO to lz4 to file */
+         case 10: /* Create FIFO to zstd to file */
             return cmp_popen(fname,mode,compression);
             break;
 
@@ -961,9 +1010,9 @@ FILE *fileopen (const char *fname, const char *mode)
             if ( verbose )
             {
                if ( f != NULL )
-                  printf("Fileopen success: mode '%s' on file '%s'\n", mode, fname);
+                  fprintf(stderr,"Fileopen success: mode '%s' on file '%s'\n", mode, fname);
                else
-                  printf("Fileopen failed: mode '%s' on file '%s'\n", mode, fname);
+                  fprintf(stderr,"Fileopen failed: mode '%s' on file '%s'\n", mode, fname);
             }
             return f;
             break;
@@ -976,7 +1025,9 @@ FILE *fileopen (const char *fname, const char *mode)
          case 6: /* Create FIFO from lz4 from file */
          case 7: /* Create FIFO from tar unpacking uncompressed files from compressed tar package to stdout */
          case 8: /* Create FIFO from zip unpacking uncompressed files from zip archive to stdout */
-         case 9: /* Create FIFO from tar unpacking compressed files from uncompressed tar package to stdout */
+         case 9: /* Create FIFO from tar unpacking gzip compressed files from uncompressed tar package to stdout */
+         case 10: /* Create FIFO from zstd from file */
+         case 11: /* Create FIFO from tar unpacking zstd compressed files from uncompressed tar package to stdout */
             return cmp_popen(fname,mode,compression);
             break;
 
@@ -1010,6 +1061,10 @@ FILE *fileopen (const char *fname, const char *mode)
       if ( stat(try_fname,&st) != 0 )
 #endif
       {
+         if ( verbose && errno == ENOENT )
+         {
+            fprintf(stderr,"No file named '%s' in directory '%s'\n", fname, path->path);
+         }
          if ( errno != 0 && errno != ENOENT )
          {
       	    perror(try_fname);
@@ -1026,7 +1081,9 @@ FILE *fileopen (const char *fname, const char *mode)
             if ( (f = fopenx(try_fname,mode)) != NULL )
             {
                if ( verbose )
-                  printf("Fileopen success: mode '%s' on file '%s'\n", mode, try_fname);
+               {
+                  fprintf(stderr,"Fileopen success: mode '%s' on file '%s'\n", mode, try_fname);
+               }
       	       return f;
             }
             break;
@@ -1039,7 +1096,9 @@ FILE *fileopen (const char *fname, const char *mode)
          case 6: /* Create FIFO from lz4 from file */
          case 7: /* Create FIFO from tar unpacking uncompressed files from compressed tar package to stdout */
          case 8: /* Create FIFO from zip unpacking uncompressed files from zip archive to stdout */
-         case 9: /* Create FIFO from tar unpacking compressed files from uncompressed tar package to stdout */
+         case 9: /* Create FIFO from tar unpacking gzip compressed files from uncompressed tar package to stdout */
+         case 10: /* Create FIFO from zstd from file */
+         case 11: /* Create FIFO from tar unpacking zstd compressed files from uncompressed tar package to stdout */
             if ( (f = cmp_popen(try_fname,"r",compression)) != NULL )
                return f;
             break;
@@ -1125,9 +1184,9 @@ int fileclose (FILE *f)
       if ( verbose )
       {
 #ifdef __GLIBC__
-         printf("Closing now %s pipe on fileno=%d, mode=%08x\n", input_only ? "input" : "output", fno,st.st_mode);
+         fprintf(stderr,"Closing now %s pipe on fileno=%d, mode=%08x\n", input_only ? "input" : "output", fno,st.st_mode);
 #else
-         printf("Closing now pipe on fileno=%d, mode=%08x\n", fno,st.st_mode);
+         fprintf(stderr,"Closing now pipe on fileno=%d, mode=%08x\n", fno,st.st_mode);
 #endif
       }
       errno = 0;
@@ -1167,7 +1226,7 @@ int fileclose (FILE *f)
                rc, errno, fno);
 #endif
          else if ( verbose >= 2 ) /* Non-standard return codes could come from the executed command. */
-            printf("Non-standard return code from pclose (rc=%d, errno=%d, fileno=%d)\n",rc,errno,fno);
+            fprintf(stderr,"Non-standard return code from pclose (rc=%d, errno=%d, fileno=%d)\n",rc,errno,fno);
       }
    }
    else
@@ -1175,9 +1234,9 @@ int fileclose (FILE *f)
       if ( verbose )
       {
 #ifdef __GLIBC__
-         printf("Closing now %s file on fileno=%d, mode=%08x\n", input_only ? "input" : "output", fno, st.st_mode);
+         fprintf(stderr,"Closing now %s file on fileno=%d, mode=%08x\n", input_only ? "input" : "output", fno, st.st_mode);
 #else
-         printf("Closing now file on fileno=%d, mode=%08x\n", fno, st.st_mode);
+         fprintf(stderr,"Closing now file on fileno=%d, mode=%08x\n", fno, st.st_mode);
 #endif
       }
       rc = fclose(f);

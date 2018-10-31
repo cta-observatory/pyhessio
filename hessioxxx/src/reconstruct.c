@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /** @file reconstruct.c
  *  @short Second moments type image analysis.
  *
- *  @date    @verbatim CVS $Revision: 1.65 $ @endverbatim
- *  @version @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
+ *  @date    @verbatim CVS $Revision: 1.70 $ @endverbatim
+ *  @version @verbatim CVS $Date: 2017/06/07 14:33:27 $ @endverbatim
  */
 
 #include "initial.h"      /* This file includes others as required. */
@@ -499,9 +499,9 @@ static int find_neighbours(CameraSettings *camset, int itel)
 #endif
          printf("Neighbour pixel list %d in telescope ID %d has size %d from %d pixels.\n",
             k, camset->tel_id, ntot[k], npix);
-         if ( (nb_lists[itel][k].nblist = calloc(ntot[k],sizeof(int))) == NULL ||
-              (nb_lists[itel][k].pix_num_nb = calloc(npix,sizeof(int))) == NULL ||
-              (nb_lists[itel][k].pix_first_nb = calloc(npix,sizeof(int))) == NULL )
+         if ( (nb_lists[itel][k].nblist = (int *) calloc(ntot[k],sizeof(int))) == NULL ||
+              (nb_lists[itel][k].pix_num_nb = (int *) calloc(npix,sizeof(int))) == NULL ||
+              (nb_lists[itel][k].pix_first_nb = (int *) calloc(npix,sizeof(int))) == NULL )
          {
             fprintf(stderr,"Allocation of neighbour list %d failed for telescope ID %d\n", k, camset->tel_id);
             return -1;
@@ -536,9 +536,9 @@ static int find_neighbours(CameraSettings *camset, int itel)
 #endif
       printf("Extension pixel list in telescope ID %d has size %d from %d pixels.\n",
          camset->tel_id, ntxt, npix);
-      if ( (ext_list[itel].nblist = calloc(ntxt,sizeof(int))) == NULL ||
-           (ext_list[itel].pix_num_nb = calloc(npix,sizeof(int))) == NULL ||
-           (ext_list[itel].pix_first_nb = calloc(npix,sizeof(int))) == NULL )
+      if ( (ext_list[itel].nblist = (int *) calloc(ntxt,sizeof(int))) == NULL ||
+           (ext_list[itel].pix_num_nb = (int *) calloc(npix,sizeof(int))) == NULL ||
+           (ext_list[itel].pix_first_nb = (int *) calloc(npix,sizeof(int))) == NULL )
       {
          fprintf(stderr,"Allocation of neighbour extension list failed for telescope ID %d\n", camset->tel_id);
          return -1;
@@ -1196,7 +1196,7 @@ static int simple_integration(AllHessData *hsdata, int itel, int nsum, int nskip
             if ( nsum != raw->num_samples )
             {
                /* Keep in mind that the calibration functions subtract a sum pedestal */
-               /* corresponding to sum_samples bins. Add remaining pedestal. */
+               /* corresponding to num_samples bins. Add remaining pedestal. */
                sum += (int) ((raw->num_samples-nsum)*moni->pedestal[igain][ipix]/(double)raw->num_samples+0.5);
             }
             if ( integration_correction[itel][igain] > 0. )
@@ -1350,7 +1350,7 @@ teldata->tel_id, npeaks, peakpos, start, integration_correction[itel][0]);
             if ( nsum != raw->num_samples )
             {
                /* Keep in mind that the calibration functions subtract a sum pedestal */
-               /* corresponding to sum_samples bins. Add remaining pedestal. */
+               /* corresponding to num_samples bins. Add remaining pedestal. */
                sum += (int) ((raw->num_samples-nsum)*moni->pedestal[igain][ipix]/(double)raw->num_samples+0.5);
             }
             if ( integration_correction[itel][igain] > 0. )
@@ -1511,7 +1511,7 @@ static int local_peak_integration(AllHessData *hsdata, int itel, int nsum, int n
             if ( nsum != raw->num_samples )
             {
                /* Keep in mind that the calibration functions subtract a sum pedestal */
-               /* corresponding to sum_samples bins. Add remaining pedestal. */
+               /* corresponding to num_samples bins. Add remaining pedestal. */
                sum += (int) ((raw->num_samples-nsum)*moni->pedestal[LO_GAIN][ipix]/(double)raw->num_samples+0.5);
             }
             if ( integration_correction[itel][LO_GAIN] > 0. )
@@ -1622,7 +1622,7 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
             knb++;
          }
       }
-      if ( knb == 0 )
+      if ( knb == 0 ) /* No integration window available for truely isolated pixels */
          continue;
       ipeak = 0;
       p = nb_samples[0];
@@ -1650,7 +1650,7 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
             if ( nsum != raw->num_samples )
             {
                /* Keep in mind that the calibration functions subtract a sum pedestal */
-               /* corresponding to sum_samples bins. Add remaining pedestal. */
+               /* corresponding to num_samples bins. Add remaining pedestal. */
                sum += (int) ((raw->num_samples-nsum)*moni->pedestal[HI_GAIN][ipix]/(double)raw->num_samples+0.5);
             }
             if ( integration_correction[itel][HI_GAIN] > 0. )
@@ -1687,6 +1687,844 @@ static int nb_peak_integration(AllHessData *hsdata, int lwt, int itel, int nsum,
    return 0;
 }
 
+/* ------------------------------ gradient_integration -------------------------- */
+/** @short Fit gradient of pixel pulse peak times along image and evaluate
+ *         the fitted line for getting the time around which pulses get integrated.
+ *
+ *  There are basically three problems: a) bootstrap problem for finding significant pixels,
+ *  b) robustness of the fit in case of pixels that don't follow the time gradient, and
+ *  c) what to do with pixels that have a large enough signal at a time not consistent
+ *  with the fitted line.
+ */
+
+static int gradient_integration(AllHessData *hsdata, int itel, int nsum, int nbefore, int *sigamp);
+
+static int gradient_integration(AllHessData *hsdata, int itel, int nsum, int nbefore, int *sigamp)
+{
+#if 0
+   int isamp, ipix, igain, ipeak, p;
+   TelEvent *teldata = NULL;
+   AdcData *raw;
+   TelMoniData *moni;
+   // int peakpos = -1, start = 0, peakpos_hg=-1;
+   // struct camera_nb_list *nbl;
+
+   if ( hsdata == NULL || itel < 0 || itel >= H_MAX_TEL )
+      return -1;
+
+   teldata = &hsdata->event.teldata[itel];
+   raw = teldata->raw;
+   moni = &hsdata->tel_moni[itel];
+   if ( !teldata->known || teldata->raw == NULL )
+      return -1;
+   raw = teldata->raw;
+   if ( !raw->known )
+      return -1;
+   if ( raw->num_samples <= 1 || !(raw->known&2) )
+      return 0;
+   if ( nsum > raw->num_samples )
+   {
+      nsum = raw->num_samples;
+   }
+#endif
+   /* FIXME: Not really implemented yet ... */
+   return -1;
+}
+
+#define WITH_PZPSA 1
+
+#ifdef WITH_PZPSA
+
+/* This is reformatted code contributed by Thomas Kihm for FlashCam */
+
+/* ---------------- PzpsaSmoothUpsampleU16 ---------------- */
+/**
+   @short Upsample (expand the n input values to us samples each)
+   Subtract baseline bl and correct for a single pole 
+   decay with the decay time pz and smooth the resulting trace 
+   with two moving averages with a width of us. 
+   The output is placed in array op and returns the new number 
+   of samples (n*us). 
+   
+   This function derived from code by T.Kihm, using uint16_t for
+   input array element type and double for output.
+   Example: PzpsaSmoothUpsampleU16(50,4,tti,0.,mpz,tto,&mxop,&imxop);
+   
+   @param n   Number of elements in input array ip
+   @param us  Upsampling factor (use '4' to upsample from 250 MHZ to one GHz).
+   @param ip  Pointer to input array of ADC raw data of type uint16_t
+   @param bl  Baseline (pedestal) on input per sample
+   @param pz  Pole-zero compensation factor in differencing (0<=pz<=1)
+   @param op  Pointer to output array of type double
+   @param max Maximum content in output array (only filled if not NULL)
+   @param at  Position of maximum bin in output array (only filled if not NULL)
+ */
+
+static int PzpsaSmoothUpsampleU16 (int n, int us, uint16_t *ip, double bl, 
+   double pz, double *op, double *max, int *at);
+
+static int PzpsaSmoothUpsampleU16 (int n, int us, uint16_t *ip, double bl, 
+   double pz, double *op, double *max, int *at)
+{
+   int   i, i1;          ///< running indices
+   double v2, v1;        ///< the next and prev. input samples
+   double sum1, sum2;    ///< the running sum of 1.st and 2.nd average
+   double tmp;           ///< a temp var for intermediate copy 
+   double pzc2, pzc1;    ///< the next and prev. pz corrected value
+   double *out1 = op;    ///< the out pointer of the first runsum
+   double *out2 = op;    ///< the out pointer of the second runsum
+   double mult = 1./(us*us); ///< the multiplier to correct the two runsums
+   double peakmax = -1e30; ///< peak maximum
+   int   peakat  = 0;   ///< peak position
+
+   v1 = v2 = (ip[0]-bl)*mult; 
+   pzc2 = pzc1 = v2;
+   sum1 = pzc2*us;
+   sum2 = sum1*us;
+
+   for ( i=0; i<us; i++) 
+      *out1++ = sum1; 
+
+   for (i=1; i<n; i++) 
+   {
+      v2 = (ip[i]-bl)*mult; 
+      pzc2 = (v2-v1); 
+      v1 = v2;
+      for (i1=0; i1<us; i1++) 
+      {
+         sum1 += pzc2 - pzc1*pz; 
+         *out1++ = sum1;
+         tmp = *out2; 
+         *out2++ = sum2; 
+         if (sum2 > peakmax)
+         {
+            peakmax = sum2;
+            peakat = out2-op-1;
+         }
+         sum2 += sum1 - tmp; 
+      }
+      pzc1 = pzc2;
+   }  
+   n*=us;
+
+   for (v2=op[n-1]; out2<(op+n); ) 
+   {
+      tmp = *out2; 
+      *out2++ = sum2;
+      if (sum2 > peakmax)
+      {
+         peakmax = sum2;
+         peakat = out2 - op - 1;
+      }
+      sum2 += v2 - tmp; 
+   }
+
+   if (max != NULL)
+      *max = peakmax; 
+   if (at != NULL)
+      *at = peakat;
+
+   return n; 
+}
+
+
+/* --------------------- PzpsaPeakProperty ---------------------- */
+/**
+    @short Calculates the peak property of the signal in (n samples) 
+    at position pos. 
+
+    The signal is integrated from sample pos-w to pos+w and the 
+    result is stored in intsum. 
+
+    The cog is the center of gravity calculated by the area 
+    above the minumum of the signal from pos-w to pos+w
+
+    Returns a quality value for the signal which is defined as
+    in[pos]-(in[start]+in[stop])/2. Negativ values indicate that
+    no positive signal was found.
+ */
+
+static double PzpsaPeakProperty (int n, double *in, int pos, int w, double *intsum, double *cog);
+
+static double PzpsaPeakProperty (int n, double *in, int pos, int w, double *intsum, double *cog)
+{
+   int i;
+   double v, sum, isum, min;
+   int start = pos - w;
+   int stop  = pos + w;
+   if (start < 0) 
+      start = 0;
+   if (stop >= n) 
+      stop = n-1;
+
+   for (sum=0, i=start; i<=stop; i++)
+      sum += in[i];
+
+   if (intsum != NULL)
+      *intsum = sum;
+
+   for (min=in[start], i=start; i<=stop; i++)
+      min = (in[i]<min) ? in[i] : min;
+
+   for (isum=sum=0, i=start; i<=stop; i++)
+   {
+      v = in[i] - min;
+      isum += v*i;
+      sum += v;
+   }
+   if (sum != 0.)
+      v = isum/sum; 
+   else 
+      v = 0.; 
+   if (cog) 
+      *cog = v; 
+   return in[pos] - 0.5*(in[start]+in[stop]); 
+} 
+  
+
+#endif
+
+/* ------------------------------ nb_fc_shaped_peak_integration -------------------------- */
+
+/** @short Pulse integration based on peaks in neighbour pixel signals after FlashCam-style
+    pulse shaping.
+
+    Basically like nb_peak_integration for lwt=0 but pulses are all
+    upscaled in sampling frequency by a factor of four and one several variants
+    for FlashCam-style pulse shaping is applied first. Signal extraction = integration
+    also allows for different variants.
+    There are actually way more variants available than necessary,
+    intended for evaluation and testing.
+
+    Note that the psopt parameter is specified with the '--integration-window'
+    command line option as the third value. (Recommended values for the first two
+    are 1,0 (=nsum,nbefore). Nsum=0 means nsum=1.)
+    Interpret psopt as decimal MHTO (with M=psopt/1000, H=(psopt%1000)/100, T=(psopt%100)/10, O=psopt%10):
+      O = -1 : Full pzpsa shaping and peak finding over full readout range, no neighbours involved.
+               This results in a significant bias for positive NSB fluctuations.
+           0 : Full pzpsa shaping but peak finding in signal of neighbours,
+               avoiding the beginning (first 7) and end (last 3) of the upsampled
+               signal because these are noisier and result in artifacts. (OK to use)
+           9 : Like '0' but include the beginning and end for peak finding. (better use 0 or 1)
+           1 : Like '9' but do own differencing to have smooth start and end. (recommended)
+           2 : Like '1' but do differencing between second-to-next original samples.
+           3 : Like '1' but do pulse shaping with own, more explicit code
+               (differs in the beginning and the end but otherwise the same).
+           4 : Like '2' but do pulse shaping with own, more explicit code.
+      T =  0 : Use integration from nbefore the peak for nsum upsampled samples
+               and determine the pixel timing as the peak position close to the
+               peak times in the signal of neighbour pixels (except for O = -1).
+        >  0 : Use the PzpsaPeakProperty code for summation and center-of-gravity
+               determination of peaks, with T as width parameter. Nsum and nbefore are ignored.
+      H =  0 : Summation region is entirely determined by the peak in the signal
+               of neighbourin pixels, without any bias for NSB fluctuations.
+           1 : Summation region allows for small adjustement in peak position
+               in the signal of the pixel itself. Small NSB bias.
+      M =  0 : Not touching pixel timing structure.
+           1 : Re-evaluate and refill pixel timing from shaped signals and peaks.
+               Unless a new 'integration threshold' is given, the old threshold
+               for significant pixel timings gets re-used (but pixel is list still new).
+ *
+ *  @param hsdata Pointer to all available data and configurations.
+ *  @param itel   Sequence number of the telescope being processed.
+ *  @param nsum   Number of samples to sum up (is reduced if exceeding available length).
+ *  @param nbefore  Start the integration a number of samples before the peak,
+ *                  as long as it fits into the available data range.
+ *                  Note: for multiple gains, this may result in identical integration regions (depending on signal).
+ *  @param sigamp (not used)
+ *  @param psopt  Pulse shaping option as described
+ *  @param ithr   Integration threshold in ADC counts gets actually used for significance in pixel timing.
+ *
+ *  @return 0 (OK), -1 (error)
+ */
+
+static int nb_fc_shaped_peak_integration(AllHessData *hsdata, int itel, int nsum, int nbefore, int *sigamp, int psopt, int ithr);
+
+static int nb_fc_shaped_peak_integration(AllHessData *hsdata, int itel, int nsum, int nbefore, int *sigamp, int psopt, int ithr)
+{
+   int isamp, ipix, igain, ipeak;
+   TelEvent *teldata = NULL;
+   AdcData *raw;
+   TelMoniData *moni;
+   int peakpos = -1, start = 0, nsamp4 = -1;
+   struct camera_nb_list *nbl;
+   static double *buffer = NULL;
+   static size_t bfsize = 0;
+   size_t bfreq;
+   size_t off_gain, off_pix;
+   double mpz1 = 0.758, mpz2 = 0.758*0.758; /* Hardcoded to match FlashCam pulse fall-off */
+   /* double sc1 = 0.25/(1.-mpz1), sc2 = 0.25/(1.-mpz2); // for equal area */
+   double sc1 = 1.0, sc2 = 1.0; /* Needs to match values in set_integration_correction */
+   double pixtim_thr = 1e10;
+   int pixtim_flag = psopt/1000;
+   if ( pixtim_flag )
+      psopt = psopt%1000;
+   
+   if ( hsdata == NULL || itel < 0 || itel >= H_MAX_TEL )
+      return -1;
+
+   teldata = &hsdata->event.teldata[itel];
+   moni = &hsdata->tel_moni[itel];
+
+   if ( !teldata->known || teldata->raw == NULL )
+      return -1;
+
+   if (  teldata->pixtm == NULL )
+      pixtim_flag = 0;
+   else if ( pixtim_flag )
+   {
+// printf("Prepare to refill pixel timing structure ...\n");
+      pixtim_thr = fabs((double) teldata->pixtm->threshold);
+      /* If any --integration-threshold was given, we use it here: */
+      if ( ithr > 0 )
+         pixtim_thr = ithr;
+      teldata->pixtm->threshold = -pixtim_thr;
+      teldata->pixtm->list_type = 0; /* Re-evaluate pixel list when writing */
+      teldata->pixtm->list_size = 0;
+      teldata->pixtm->before_peak = nbefore;
+      teldata->pixtm->after_peak = nsum - nbefore - 1;
+      teldata->pixtm->num_types = 7;
+      teldata->pixtm->time_type[0] = 1;
+      teldata->pixtm->time_type[1] = 2;
+      teldata->pixtm->time_type[2] = 2;
+      teldata->pixtm->time_type[3] = 2;
+      teldata->pixtm->time_type[4] = 4;
+      teldata->pixtm->time_type[5] = 4;
+      teldata->pixtm->time_type[6] = 5;
+      teldata->pixtm->time_level[0] = 1.0;
+      teldata->pixtm->time_level[1] = 0.2;
+      teldata->pixtm->time_level[2] = 0.5;
+      teldata->pixtm->time_level[3] = 0.8;
+      teldata->pixtm->time_level[4] = 0.5;
+      teldata->pixtm->time_level[5] = 0.2;
+      teldata->pixtm->time_level[6] = teldata->pixtm->threshold;
+      teldata->pixtm->known = 0; /* Set to known when done */
+   }
+
+   raw = teldata->raw;
+   if ( !raw->known )
+      return -1;
+   if ( raw->num_samples <= 1 || !(raw->known&2) )
+      return 0;
+   nsamp4 = 4*raw->num_samples;
+   if ( nsum <= 0 )
+      nsum = 1;
+   if ( nsum > nsamp4 )
+   {
+      nsum = nsamp4;
+   }
+   /* Required buffer size (in bytes) for pulse shaping of this camera data */
+   bfreq = nsamp4 * raw->num_pixels * raw->num_gains * sizeof(double);
+   if ( bfreq > bfsize ) /* Need to (re-)allocate? */
+   {
+      double *bfb = buffer;
+      if ( (buffer = (double *) realloc(buffer,bfreq)) == NULL )
+      {
+         buffer = bfb;
+         return -1;
+      }
+      bfsize = bfreq;
+   }
+   /* Offsets per pixel and per gain (in doubles) */
+   off_pix = nsamp4;
+   off_gain = off_pix * raw->num_pixels;
+
+   for ( igain=0; igain<raw->num_gains; igain++ )
+   {
+      double *bg = buffer + igain*off_gain, *bpx;
+      double ped; ///< Pedestal in raw signal, per sample.
+      double bpx0[4*H_MAX_SLICES], bpx1[4*H_MAX_SLICES];
+      uint16_t *smp;
+
+      for ( ipix=0; ipix<raw->num_pixels; ipix++ )
+      {
+         /* Initialize pulse sum to (sum) pedestal in case of any 'continue' statement ... */
+         raw->adc_sum[igain][ipix] = (uint32_t) (moni->pedestal[igain][ipix]+0.5);
+
+         if ( ! raw->significant[ipix] || ! raw->adc_known[igain][ipix] )
+            continue;
+         if ( (raw->zero_sup_mode & 0x20) != 0 && (raw->significant[ipix] & 0x020) == 0 )
+            continue;
+
+         bpx = bg + off_pix*ipix;
+         ped = moni->pedestal[igain][ipix] / (double) raw->num_samples;
+         smp = &raw->adc_sample[igain][ipix][0];
+
+#ifdef WITH_PZPSA
+         if ( psopt%10 == 0 || psopt%10 == 9 ) /* Pulse shaping completely with pzpsa code but no peak detection */
+         {
+            PzpsaSmoothUpsampleU16(raw->num_samples,4,smp,ped,mpz1,bpx,NULL,NULL);
+#if 0
+            /* Code for debugging and testing only ... */
+            if ( teldata->pixtm->timval[ipix][0] >= 0 &&
+                 teldata->pixtm->pulse_sum_glob[0][ipix] >= 200 )
+            {
+               for ( isamp=0; isamp<nsamp4; isamp++ )
+                  printf("==> %4d %3d  %f\n", ipix, isamp, bpx[isamp]);
+               exit(9);
+            }
+#endif
+         }
+         else if ( psopt%10 == 1 ) /* Pulse shaping with pzpsa code but own differentiation
+                                      (with pole-zero) which differs from psopt==0 in up to
+                                      seven slices at the beginning and up to three at the end */ 
+         {
+            PzpsaSmoothUpsampleU16(raw->num_samples,4,smp,ped,0.,bpx1,NULL,NULL);
+            /* Smooth start, no sudden peak at start of window */
+            bpx[0] = sc1 * ( bpx1[0] - mpz1*bpx1[0] ) * 0.0;
+            bpx[1] = sc1 * ( bpx1[1] - mpz1*bpx1[0] ) * 0.25;
+            bpx[2] = sc1 * ( bpx1[2] - mpz1*bpx1[0] ) * 0.5;
+            bpx[3] = sc1 * ( bpx1[3] - mpz1*bpx1[0] ) * 0.75;
+            /* These should be the same differences like in pzpsa code */
+            for ( isamp=4; isamp<nsamp4; isamp++ )
+               bpx[isamp] = sc1 * ( bpx1[isamp] - mpz1*bpx1[isamp-4] );
+#if 0
+            /* Code for debugging and testing only ... */
+            if ( teldata->pixtm->timval[ipix][0] >= 0 &&
+                 teldata->pixtm->pulse_sum_glob[0][ipix] >= 200 )
+            { 
+                double bpx2[4*H_MAX_SLICES+8];
+                PzpsaSmoothUpsampleU16(raw->num_samples,4,smp,ped,mpz1,bpx2,NULL,NULL);
+                for ( isamp=0; isamp<nsamp4; isamp++ )
+                  printf("==> %4d %3d  %f  %f  %f\n", ipix, isamp, bpx1[isamp], bpx[isamp], bpx2[isamp]);
+               exit(9);
+            }
+#endif
+         }
+         else if ( psopt%10 == 2 ) /* Pulse shaping with pzpsa code but instead of differences
+                                      of subsequent slices (before upscaling, e.g. 4 ns apart) 
+                                      it takes differences of second-next slices (e.g. 8 ns apart),
+                                      with adapted pole-zero compensation. */
+         {
+            PzpsaSmoothUpsampleU16(raw->num_samples,4,smp,ped,0.,bpx1,NULL,NULL);
+            /* Smooth start, no sudden peak at start of window */
+            for ( isamp=0; isamp<4 && isamp<nsamp4; isamp++ )
+               bpx[isamp] = sc2 * ( bpx1[isamp+4] - mpz2*bpx1[0] ) * isamp/4.;
+            /* Note that the differences are for symmetric offsets */
+            for ( isamp=4; isamp+4<nsamp4; isamp++ )
+               bpx[isamp] = sc2 * ( bpx1[isamp+4] - mpz2*bpx1[isamp-4] );
+            /* Smooth end to avoid random peaks at the end of the window */
+            for ( ; isamp<nsamp4; isamp++ )
+               bpx[isamp] = sc2 * ( bpx[nsamp4-1] - mpz2*bpx1[isamp-4] ) * (nsamp4-1-isamp)/4.;
+#if 0
+            /* Code for debugging and testing only ... */
+            if ( teldata->pixtm->timval[ipix][0] >= 0 &&
+                 teldata->pixtm->pulse_sum_glob[0][ipix] >= 200 )
+            {
+               for ( isamp=0; isamp<nsamp4; isamp++ )
+                  printf("==> %4d %3d  %f\n", ipix, isamp, bpx[isamp]);
+               exit(9);
+            }
+#endif
+         }
+         else if ( psopt == -1 ) /* Special case of pulse shaping completely with pzpsa code
+                                    plus peak detection without involving neighbours.
+                                    As a result there is a significant bias by positive
+                                    NSB fluctuations, depending on the level of NSB. */
+         {
+            double bmax = 0., sum = 0.;
+            int ipmx = 0;
+            PzpsaSmoothUpsampleU16(raw->num_samples,4,smp,ped,mpz1,bpx,&bmax,&ipmx);
+            sum = bmax;
+            if ( integration_correction[itel][igain] > 0. )
+               sum *= integration_correction[itel][igain];
+            sum += moni->pedestal[igain][ipix];
+            raw->adc_sum[igain][ipix] = (sum>0.) ? (int) (sum+0.5) : 0;
+#if 0
+            /* Code for debugging and testing only ... */
+            if ( teldata->pixtm->timval[ipix][0] >= 0 &&
+                 teldata->pixtm->pulse_sum_glob[0][ipix] >= 500 )
+            {
+               LasCalData *lcal = &hsdata->tel_lascal[itel];
+               printf("xxx> ipix=%d, bmax=%f, ipmx=%d, sum=%f, p.e.=%f (glob=%f, loc=%f)\n", ipix, bmax, ipmx, sum,
+                  (sum-moni->pedestal[igain][ipix])*lcal->calib[igain][ipix],
+                  teldata->pixtm->pulse_sum_glob[0][ipix]*lcal->calib[0][ipix],
+                  teldata->pixtm->pulse_sum_loc[0][ipix]*lcal->calib[0][ipix]);
+             //   for ( isamp=0; isamp<nsamp4; isamp++ )
+             //      printf("==> %4d %3d  %f\n", ipix, isamp, bpx[isamp]);
+             //   exit(9);
+            }
+#endif
+         }
+         else
+#endif
+         {  /* Not using pzpsa code - slower but except at start and end identical to pzpsa. */
+            /* This code is here for verification and better understanding what the
+               pzpsa code does. Except for such tests there is no point in using it. */
+
+            /* Upsampling with linear interpolation, subtract pedestal */
+            double a0 = smp[0] - ped, a1=a0, a2=a0;
+            for ( isamp=0; isamp<raw->num_samples; isamp++ )
+            {
+               a0 = a1;
+               a1 = a2;
+               a2 = smp[isamp] - ped;
+               bpx0[4*isamp+0] = 0.5*(a0+a1);
+               bpx0[4*isamp+1] = 0.25*a0 + 0.75*a1;
+               bpx0[4*isamp+2] = a1;
+               bpx0[4*isamp+3] = 0.75*a1 + 0.25*a2;
+            }
+            /* Running average of four upscaled samples */
+            bpx1[0] = 0.25*(bpx0[0]+bpx0[0]+bpx0[1]+bpx0[2]);
+            for ( isamp=1; isamp+3<nsamp4; isamp++ )
+               bpx1[isamp] = 0.25*(bpx0[isamp-1]+bpx0[isamp]+bpx0[isamp+1]+bpx0[isamp+2]);
+            bpx1[nsamp4-3] = 0.25*(bpx0[nsamp4-4]+bpx0[nsamp4-3]+bpx0[nsamp4-2]+bpx0[nsamp4-1]);
+            bpx1[nsamp4-2] = 0.25*(bpx0[nsamp4-3]+bpx0[nsamp4-2]+2*bpx0[nsamp4-1]);
+            bpx1[nsamp4-1] = 0.25*(bpx0[nsamp4-2]+3*bpx0[nsamp4-1]);
+
+            /* Note that after interpolation and running average the
+               center-of-gravity of any pulses (minus pedestal) is unchanged
+               and the resulting signal of a delta-shaped raw pulse is symmetric. */
+
+            /* Use one of two differencing options */
+            bpx = bg + off_pix*ipix;
+            if ( psopt%10 == 3 ) /* Difference of values one original sample apart (like 'pzpsa.c' code) */
+            {
+               /* Same smooth start as for psopt == 1 */
+               for ( isamp=0; isamp<4 && isamp<nsamp4; isamp++ )
+                  bpx[isamp] = sc1 * (bpx1[isamp]-mpz1*bpx1[0]) * isamp/4.;
+               for ( isamp=4; isamp<nsamp4; isamp++ )
+               {
+                  bpx[isamp] = sc1*(bpx1[isamp]-mpz1*bpx1[isamp-4]);
+               }
+            }
+            else if ( psopt%10 == 4 ) /* Difference of values two original samples apart (retain more signal but slightly longer shape) */
+            {
+               /* Same smooth start as for psopt == 2 */
+               for ( isamp=0; isamp<4 && isamp<nsamp4; isamp++ )
+                  bpx[isamp] = sc2 * (bpx1[isamp+4]-mpz2*bpx1[0]) * isamp/4.;
+               /* Same differences as for psopt == 2 */
+               for ( isamp=4; isamp+4<nsamp4; isamp++ )
+               {
+                  bpx[isamp] = sc2*(bpx1[isamp+4]-mpz2*bpx1[isamp-4]);
+               }
+               /* and same smooth lead-out. */
+               for ( ; isamp<nsamp4; isamp++ )
+                  bpx[isamp] = sc2*(bpx1[nsamp4-1]-mpz2*bpx1[isamp-4]) * (nsamp4-1-isamp)/4.;
+            }
+            else
+            {
+               fflush(stdout);
+               fprintf(stderr,"Invalid pulse shaping option %d\n", psopt);
+               return -1;
+            }
+
+#if 0
+            /* Code for debugging and testing only ... */
+            if ( teldata->pixtm->timval[ipix][0] >= 0 &&
+                 teldata->pixtm->pulse_sum_glob[0][ipix] >= 200 )
+            {
+               bpx = bg + off_pix*ipix;
+               for ( isamp=0; isamp<nsamp4; isamp++ )
+                  printf("==> %4d %3d  %f\n", ipix, isamp, bpx[isamp]);
+               exit(9);
+            }
+#endif
+         }      
+
+      } /* Not pzpsa */  
+   }
+   
+   if ( psopt < 0 ) /* Not actually using neighbour pixels? */
+      return 0;
+
+
+   /* We need the list of neighbours now */
+   if ( nb_lists[itel][0].nblist == NULL )
+   {
+      find_neighbours(&hsdata->camera_set[itel],itel);
+   }
+   
+   if ( nb_lists[itel][0].nblist == NULL || 
+        nb_lists[itel][0].nbsize <= 0 )
+      return -1;
+   nbl = &nb_lists[itel][0];
+
+   /* For simplicity we do this separately and in the same way for
+      each gain channel although FlashCam/DigiCam at least have only
+      one channel. Inside this loop we have the same peak finding as
+      in nb_peak_integration with zero local pixel weight (lwt=0),
+      although now on the upscaled and shaped signal. */
+   for (igain=0; igain<raw->num_gains; igain++)
+   {
+      double *bg = buffer + igain*off_gain, *bpx, *bpx_nb;
+      for (ipix=0; ipix<raw->num_pixels; ipix++)
+      {
+         double nb_samples[H_MAX_SLICES], p = 0.;
+         int inb, knb=0, ifirst, ilast;
+         
+         /* Keep in mind that adc_sum has already been initialized in first loop */
+
+         /* Require available sample-mode data in this pixel, not zero-suppressed. */
+         if ( ! raw->significant[ipix] || ! raw->adc_known[igain][ipix] ||
+              ( (raw->zero_sup_mode & 0x20) != 0 && (raw->significant[ipix] & 0x020) == 0 ) )
+         {
+            if ( pixtim_flag )
+            {
+               teldata->pixtm->pulse_sum_glob[igain][ipix] = 
+               teldata->pixtm->pulse_sum_loc[igain][ipix] = 0.;
+               if ( igain == 0 )
+                  teldata->pixtm->timval[ipix][0] = -1; /* Others not rewritten */
+            }
+            continue;
+         }
+
+         bpx = bg + off_pix*ipix;
+         for (isamp=0; isamp<4*raw->num_samples; isamp++ )
+            nb_samples[isamp] = 0.;
+
+         /* Add up signals of suitable neighbour pixels */
+         for ( inb=0; inb<nbl->pix_num_nb[ipix]; inb++ )
+         {
+            int ipix_nb = nbl->nblist[nbl->pix_first_nb[ipix]+inb];
+            /* For zero-suppressed sample mode data ALSO check relevant bit of the neighbour */
+            if ( (raw->zero_sup_mode & 0x20) != 0 && (raw->significant[ipix_nb] & 0x020) == 0 )
+               continue;
+            if ( raw->significant[ipix_nb] && raw->adc_known[igain][ipix_nb] )
+            {
+               bpx_nb = bg + off_pix*ipix_nb;
+               for (isamp=0; isamp<4*raw->num_samples; isamp++ )
+                  nb_samples[isamp] += bpx_nb[isamp];
+               knb++;
+            }
+         }
+
+         if ( knb == 0 ) /* No integration window available for truely isolated pixels */
+         {
+            if ( pixtim_flag )
+            {
+               teldata->pixtm->pulse_sum_glob[igain][ipix] = 
+               teldata->pixtm->pulse_sum_loc[igain][ipix] = 0.;
+               if ( igain == 0 )
+                  teldata->pixtm->timval[ipix][0] = -1; /* Others not rewritten */
+            }
+            continue; /* Perhaps we should also reset the 0x01 raw->significant bit? */
+         }
+
+         if ( psopt%10 > 0 )
+         {
+            ifirst = 0;
+            ilast = nsamp4;
+         }
+         else /* Avoid artifacts/noise at beginning and end of original pzpsa shaped pulses */
+         {
+            ifirst = 7;
+            ilast = nsamp4 - 3;
+         }
+         ipeak = ifirst;
+         p = nb_samples[ifirst];
+         for ( isamp=ifirst+1; isamp<ilast; isamp++ )
+         {
+            if ( nb_samples[isamp] > p )
+            {
+               p = nb_samples[isamp];
+               ipeak = isamp;
+            }
+         }
+         peakpos = ipeak;
+
+         if ( raw->significant[ipix] && raw->adc_known[igain][ipix] )
+         {
+            double sum = 0., cog = 0.;
+            int icog = (peakpos < 1 ) ? 1 : (peakpos+1 >= nsamp4 ? nsamp4-2 : peakpos);
+            if ( psopt%100 < 10 ) /* sum of shaped signal */
+            {
+               if ( psopt/100 != 1 )
+               {
+                  /* Summation range completely independent of signal in pixel, no bias at all. */
+                  start = peakpos - nbefore;
+                  if ( start < 0 )
+                     start = 0;
+                  if ( start + nsum > nsamp4 )
+                     start = nsamp4 - nsum;
+                  for ( isamp=0; isamp<nsum; isamp++ )
+                     sum += bpx[isamp+start];
+               }
+
+               /* The peak position in this pixel should be close to neighbours but may differ a bit */
+               if ( icog > ifirst+1 && bpx[icog-1] > bpx[icog] && bpx[icog-1] > bpx[icog+1] )
+               {
+                  icog--;
+                  if ( icog > ifirst+1 && bpx[icog-1] > bpx[icog] && bpx[icog-1] > bpx[icog+1] )
+                  {
+                     icog--;
+                     if ( icog > ifirst+1 && bpx[icog-1] > bpx[icog] && bpx[icog-1] > bpx[icog+1] )
+                        icog--;
+                  }
+               }
+               else if ( icog < ilast-2 && bpx[icog+1] > bpx[icog] && bpx[icog+1] > bpx[icog-1] )
+               {
+                  icog++;
+                  if ( icog < ilast-2 && bpx[icog+1] > bpx[icog] && bpx[icog+1] > bpx[icog-1] )
+                  {
+                     icog++;
+                     if ( icog < ilast-2 && bpx[icog+1] > bpx[icog] && bpx[icog+1] > bpx[icog-1] )
+                        icog++;
+                  }
+               }
+               ipeak = icog;
+               /* Despite the name, this is not (unlike in pzpsa code) a center-of-gravity but
+                  the position of the peak of an assumed parabola through the icog slice and 
+                  the preceding and following slices. */
+               cog = icog + (bpx[icog+1]-bpx[icog-1])/(4.*bpx[icog]-2.*(bpx[icog+1]+bpx[icog-1]));
+               /* If we didn't start from a peak or negative signals were involved we
+                  may actually get a result too far away from where we started. */
+               if ( fabs(cog-icog) > 1.0 )
+                  cog = icog;
+
+               if ( psopt/100 == 1 )
+               {
+                  /* Summation range defined after small adjustments for peak position, small NSB bias */
+                  start = icog - nbefore;
+                  if ( start < 0 )
+                     start = 0;
+                  if ( start + nsum > nsamp4 )
+                     start = nsamp4 - nsum;
+                  for ( isamp=0; isamp<nsum; isamp++ )
+                     sum += bpx[isamp+start];
+               }
+               
+            }
+            else /* Use the pzpsa summation and center-of-gravity scheme */
+            {
+               int w = (psopt%100)/10; /**< Extension of summation/cog region [peakpos-w : peakpos+w] */
+               sum = 0.;
+               (void) PzpsaPeakProperty (nsamp4, bpx, peakpos, w, &sum, &cog);
+               sum /= (1.+2*w);
+               icog = (int) (cog+0.5);
+            }
+
+            /* In any case we have to apply a correction factor, depending on the
+               pulse-shaping option in use, such that later calibration returns
+               a meaningful result -  although there are still order of 10% 
+               systematic effects depending on the option used. */
+            if ( integration_correction[itel][igain] > 0. )
+               sum *= integration_correction[itel][igain];
+            
+            if ( pixtim_flag ) /* Asked to re-write the pixel timing structure */
+            {
+               if ( ipeak < 0 || ipeak >= nsamp4 ) /* No proper peak known */
+               {
+                  teldata->pixtm->pulse_sum_glob[igain][ipix] = 
+                  teldata->pixtm->pulse_sum_loc[igain][ipix] = 0.;
+                  if ( igain == 0 )
+                     teldata->pixtm->timval[ipix][0] = -1; /* Others not rewritten */
+               }
+               else if ( bpx[ipeak] < pixtim_thr ) /* Pixel timing not considered significant */
+               {
+                  teldata->pixtm->pulse_sum_glob[igain][ipix] = 
+                  teldata->pixtm->pulse_sum_loc[igain][ipix] = 0.;
+                  if ( igain == 0 )
+                     teldata->pixtm->timval[ipix][0] = -1; /* Others not rewritten */
+               }
+               else
+               {
+                  teldata->pixtm->pulse_sum_glob[igain][ipix] = 
+                  teldata->pixtm->pulse_sum_loc[igain][ipix] = (sum>0.) ? (int) (sum+0.5) : 0;
+                  if ( igain == 0 )
+                  {
+                     double ts20, ts50, ts80, te20, te50, tsthr, tethr;
+                     double apeak = bpx[ipeak];
+                     int i;
+                     ts20 = ts50 = ts80 = tsthr = 0; 
+                     te20 = te50 = tethr = nsamp4-1;
+                     for ( i=ipeak-1; i>=ifirst; i-- )
+                     {
+                        if ( bpx[i] <= 0.2 * apeak )
+                        {
+                           ts20 = i + (0.2*apeak - bpx[i])/(bpx[i+1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     for ( i=ipeak-1; i>=ifirst; i-- )
+                     {
+                        if ( bpx[i] <= 0.5 * apeak )
+                        {
+                           ts50 = i + (0.5*apeak - bpx[i])/(bpx[i+1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     for ( i=ipeak-1; i>=ifirst; i-- )
+                     {
+                        if ( bpx[i] <= 0.8 * apeak )
+                        {
+                           ts80 = i + (0.8*apeak - bpx[i])/(bpx[i+1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     for ( i=ipeak-1; i>=ifirst; i-- )
+                     {
+                        if ( bpx[i] <= pixtim_thr )
+                        {
+                           tsthr = i + (pixtim_thr - bpx[i])/(bpx[i+1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     for ( i=ipeak+1; i<ilast; i++ )
+                     {
+                        if ( bpx[i] <= pixtim_thr )
+                        {
+                           tethr = i - (pixtim_thr - bpx[i])/(bpx[i-1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     for ( i=ipeak+1; i<ilast; i++ )
+                     {
+                        if ( bpx[i] <= 0.5 * apeak )
+                        {
+                           te50 = i - (0.5*apeak - bpx[i])/(bpx[i-1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     for ( i=ipeak+1; i<ilast; i++ )
+                     {
+                        if ( bpx[i] <= 0.2 * apeak )
+                        {
+                           te20 = i - (0.2*apeak - bpx[i])/(bpx[i-1]-bpx[i]);
+                           break;
+                        }
+                     }
+                     teldata->pixtm->timval[ipix][0] = 0.25*cog; /* In units of original sampling time step */
+                     teldata->pixtm->timval[ipix][1] = 0.25*ts20;
+                     teldata->pixtm->timval[ipix][2] = 0.25*ts50;
+                     teldata->pixtm->timval[ipix][3] = 0.25*ts80;
+                     teldata->pixtm->timval[ipix][4] = 0.25*(te50-ts50);
+                     teldata->pixtm->timval[ipix][5] = 0.25*(te20-ts20);
+                     teldata->pixtm->timval[ipix][6] = 0.25*(tethr-tsthr);
+                  }
+               }
+            }
+
+            /* We add the original pedestal, again to keep calibration as-is. */
+            sum += moni->pedestal[igain][ipix];
+            /* Round the result to the nearest unsigned integer */
+            raw->adc_sum[igain][ipix] = (sum>0.) ? (uint32_t) (sum+0.5) : 0.;
+            /* Alternative: (uint32_t)nearbyint(sum) */
+#if 0
+            /* Code for debugging and testing only ... */
+            if ( teldata->pixtm->timval[ipix][0] >= 0 &&
+                 teldata->pixtm->pulse_sum_glob[0][ipix] >= 500 )
+            {
+               LasCalData *lcal = &hsdata->tel_lascal[itel];
+               printf("xxx> ipix=%d bpx[%d]=%f, cog=%f, sum=%f, p.e.=%f (glob=%f, loc=%f)\n", ipix, ipeak, bpx[ipeak], cog, sum,
+                  (sum-moni->pedestal[igain][ipix])*lcal->calib[igain][ipix],
+                  teldata->pixtm->pulse_sum_glob[0][ipix]*lcal->calib[0][ipix],
+                  teldata->pixtm->pulse_sum_loc[0][ipix]*lcal->calib[0][ipix]);
+            }
+#endif
+         }
+      }
+   }
+
+   if ( pixtim_flag )
+      teldata->pixtm->known = 1;
+
+   return 0;
+}
+
+/* -------------------------- qpol ------------------------------------- */
+/** Quick interpolation in array of points equidistant in x coordinate */
+
 static double qpol(double x, int np, double *yval);
 
 static double qpol(double x, int np, double *yval)
@@ -1699,15 +2537,39 @@ static double qpol(double x, int np, double *yval)
    return yval[ix]*(ix+1-x) + yval[ix+1]*(x-ix);
 }
 
-static int set_integration_correction(AllHessData *hsdata, int itel, int nbins, int noff);
+/* ------------------ set_integration_correction ---------------------- */
 
-static int set_integration_correction(AllHessData *hsdata, int itel, int nbins, int noff)
+/** With partial pulse integration we extract a correction factor
+    from partial to full pulse area from the reference pulse shape
+    provided by MC. Since actual pulses may have an intrinsic width 
+    (and as a result are wider than the reference pulse) this can 
+    still lead to a bit underestimated p.e. values. But this is
+    hard to fix without knowing the true width of light pulses. */
+
+static int set_integration_correction(AllHessData *hsdata, int itel, int integrator, int *intpar);
+
+static int set_integration_correction(AllHessData *hsdata, int itel, int integrator, int *intpar)
 {
    int igain, ibin, iphase;
+   int nbins = intpar[0];
+   int noff  = intpar[1];
+   int psopt = intpar[2];
+   int nsamp;
+   TelEvent *teldata = NULL;
+   AdcData *raw = NULL;
    if ( hsdata == NULL || itel < 0 || itel >= H_MAX_TEL )
       return -1;
+   teldata = &hsdata->event.teldata[itel];
+   raw = teldata->raw;
+   if ( raw == NULL ) /* No point in integration correction if there is nothing to integrate */
+      return -1;
+   nsamp = raw->num_samples;
+   
    PixelSetting *ps = &hsdata->pixel_set[itel];
    CameraOrganisation *co = &hsdata->camera_org[itel];
+
+// printf("###> # nsamp=%d, nbins=%d, noff=%d, psopt=%d, time_slice=%f, ref_step=%f\n", 
+//   nsamp, nbins, noff, psopt,ps->time_slice, ps->ref_step);
 
    for (igain=0; igain<co->num_gains; igain++)
    {
@@ -1733,16 +2595,145 @@ static int set_integration_correction(AllHessData *hsdata, int itel, int nbins, 
       /* Rescale to original time step */
       asum *= sr;
 
-      /* Now sum up given interval starting from peak, averaging over phase */
-      for ( iphase=0; iphase<5; iphase++ )
+      if ( integrator == 7 ) /* Window is in upsampled and shaped pulse */
       {
-         double ti = ((iphase*0.2-0.4)-noff) * st + ipeak;
-         for ( ibin=0; ibin<nbins; ibin++ )
-            sum += qpol(ibin*st + ti, ps->lrefshape, ps->refshape[igain]);
+         uint16_t adc[2*H_MAX_SLICES];
+//         double traw[2*H_MAX_SLICES];
+         double shaped1[8*H_MAX_SLICES], shaped[8*H_MAX_SLICES];
+//         double shaped0[8*H_MAX_SLICES];
+         int nsamp4 = 4 * nsamp, istart;
+         double mpz1 = 0.758;
+         double mpz2 = mpz1*mpz1;
+         double sc1 = 1.0;  /* like pzpsa not scaled; equal area would be: 0.25/(1.-mpz1) */
+         double sc2 = 1.0;  /* equal area: 0.25/(1.-mpz2) */
+         double speakraw = speak;
+         double asum1 = 0., speak1 = 0.;
+         int ipeak1 = 0;
+         if ( nbins <= 0 )
+            nbins = 1;
+         if ( nbins > nsamp4 )
+            nbins = nsamp4;
+         if ( noff > nbins )
+            noff = nbins;
+
+// printf("###> st=%f, sr=%f, ipeak=%d, mpz1=%f, sc1=%f, mpz2=%f, sc2=%f\n", st, sr, ipeak, mpz1, sc1, mpz2, sc2);
+         for ( iphase=0; iphase<10; iphase++ )
+         {
+            double bmx = 0.;
+            double ti = ((iphase*0.1-0.5)-noff) * st + ipeak;
+            int ipmx = 0;
+            for ( ibin=0; ibin<2*nsamp; ibin++ )
+            {
+//               traw[ibin] = ((ibin-nsamp/2)*st + ti) * ps->ref_step;
+               adc[ibin] = (uint16_t) (qpol((ibin-nsamp/2)*st + ti, ps->lrefshape, ps->refshape[igain])/speakraw * 3000. + 1000);
+            }
+
+#ifdef WITH_PZPSA
+
+// PzpsaSmoothUpsampleU16(2*nsamp,4,adc,1000.,0.,shaped0,NULL,NULL);
+// PzpsaSmoothUpsampleU16(2*nsamp,4,adc,1000.,mpz1,shaped1,NULL,NULL);
+
+            switch ( psopt%10 )
+            {
+               case -1: /* Full pzpsa shaping with full range peak search included */
+                  PzpsaSmoothUpsampleU16(2*nsamp,4,adc,1000.,mpz1,shaped,&bmx,&ipmx);
+// printf("xxx> bmx=%f, shaped(%d)=%f\n",bmx,ipmx,shaped[ipmx]);
+                  sum += bmx;
+                  speak1 = bmx;
+                  ipeak1 = ipmx;
+                  break;
+               case 0: /* Full pzpsa shaping+diff with nb peak search excluding edges */
+               case 9: /* Full pzpsa shaping+diff with nb peak search including edges */
+                  PzpsaSmoothUpsampleU16(2*nsamp,4,adc,1000.,mpz1,shaped,NULL,NULL);
+                  break;
+               case 1: /* Pzpsa shaping with own differencing */
+               case 3: /* For simplicity also using pzpsa code for psopt=3 */
+                  PzpsaSmoothUpsampleU16(2*nsamp,4,adc,1000.,0.,shaped1,NULL,NULL);
+                  shaped[0] = sc1 * shaped1[2];
+                  shaped[1] = sc1 * shaped1[3];
+                  for ( ibin=2; ibin+2<2*nsamp4; ibin++ )
+                     shaped[ibin] = sc1 * ( shaped1[ibin+2] - mpz1*shaped1[ibin-2] );
+                  for ( ; ibin<2*nsamp4; ibin++ )
+                     shaped[ibin] = -sc1 * mpz1*shaped1[ibin-2];
+                  break;
+               case 2: /* Pzpsa shaping with own 2nd-next differencing */
+               case 4: /* For simplicity also using pzpsa code for psopt=4 */
+                  PzpsaSmoothUpsampleU16(2*nsamp,4,adc,1000.,0.,shaped1,NULL,NULL);
+                  for ( ibin=0; ibin<4 && ibin<2*nsamp4; ibin++ )
+                     shaped[ibin] = sc2 * shaped1[ibin+4];
+                  for ( ibin=4; ibin+4<2*nsamp4; ibin++ )
+                     shaped[ibin] = sc2 * ( shaped1[ibin+4] - mpz2*shaped1[ibin-4] );
+                  for ( ; ibin<2*nsamp4; ibin++ )
+                     shaped[ibin] = -sc2 * mpz2*shaped1[ibin-4];
+                  break;
+               default:
+                  return -1;
+            }
+            if ( psopt >= 0 )
+            {
+               speak1 = 0.;
+               ipeak1 = noff;
+               for ( ibin=0; ibin<2*nsamp4; ibin++ )
+               {
+// if ( iphase == 0 )
+// printf("###> %f:  %f  %f  %f  %f\n", traw[ibin/4]+ibin%4, (adc[ibin/4]-1000.), shaped0[ibin], shaped1[ibin], shaped[ibin]);
+                  asum1 += shaped[ibin];
+                  if ( shaped[ibin] > speak1 )
+                  {
+                     speak1 = shaped[ibin];
+                     ipeak1 = ibin;
+                  }
+               }
+               istart = ipeak1 - nbins;
+               if ( istart < 0 )
+                  istart = 0;
+               if ( (psopt%100)/10 > 0 )
+               {
+                  double peaksum=0., cog=0.;
+                  int w = (psopt%100)/10;
+                  (void) PzpsaPeakProperty (2*nsamp4, shaped, ipeak1, w, &peaksum, &cog);
+                  sum += peaksum/(1.+2*w);
+               }
+               else
+               {
+                  for ( ibin=istart; ibin<istart+nbins; ibin++ )
+                     sum += shaped[ibin];
+               }
+            }
+
+#else
+            fflush(NULL);
+            fprintf(stderr,"... Setting up integration correction factor for integration scheme 7 "
+               "without pzpsa code (for psopt 3 and 4) not implemented ...\n");
+            exit(1);
+#endif
+
+         }
+         sum *= speakraw / 3000. * 0.1; /* Tried 10 phases, had amplitude scaled by factor 3000/speakraw */
+
+printf("Integration correction factor: asum=%f, asum1=%f, sum=%f, speakraw=%f at %d, speak=%f at %d of %d\n",
+   asum, asum1/3000., sum*0.1, speakraw, ipeak, speak1, ipeak1, 2*nsamp4);
+
       }
-      sum *= 0.2;
+
+      else /* Window is in raw pulse shape (and original sampling) */
+      {
+         /* Now sum up given interval starting from peak, averaging over phase */
+         for ( iphase=0; iphase<10; iphase++ )
+         {
+            double ti = ((iphase*0.1-0.5)-noff) * st + ipeak;
+            for ( ibin=0; ibin<nbins; ibin++ )
+               sum += qpol(ibin*st + ti, ps->lrefshape, ps->refshape[igain]);
+         }
+         sum *= 0.1; /* Tried 10 phases */
+      }
+
       if ( sum > 0. && asum > 0. )
          integration_correction[itel][igain] = asum/sum;
+
+printf("Integration correction factor for telescope #%d (ID=%d) gain %d (scheme %d, with %d samples, offset %d, option %d) is %f\n", 
+   itel, raw->tel_id, igain, integrator, nbins, noff, psopt, integration_correction[itel][igain]);
+
    }
    return 0;
 }
@@ -1762,8 +2753,10 @@ printf("Pixel integration for telescope #%d\n",itel);
 
    if ( hsdata == NULL || up == NULL )
       return -1;
+
    if ( integration_correction[itel][0] == 0. )
-      set_integration_correction(hsdata, itel, up->i.integ_param[0], up->i.integ_param[1]);
+      set_integration_correction(hsdata, itel, up->i.integrator, up->i.integ_param);
+
    switch ( up->i.integrator )
    {
       case 1: /* Fixed integration region */
@@ -1780,6 +2773,13 @@ printf("Pixel integration for telescope #%d\n",itel);
          break;
       case 5: /* Mix of neighbours and local pixel */
          return nb_peak_integration(hsdata, 3, itel, up->i.integ_param[0], up->i.integ_param[1], up->i.integ_thresh);
+         break;
+      case 6: /* Time gradient fit used to define placement of integration window */
+         return gradient_integration(hsdata, itel, up->i.integ_param[0], up->i.integ_param[1], up->i.integ_thresh);
+         break;
+      case 7: /* Integration of FlashCam-shaped signal in region defined by neighbours only. */
+         return nb_fc_shaped_peak_integration(hsdata, itel, up->i.integ_param[0], up->i.integ_param[1], up->i.integ_thresh,
+            up->i.integ_param[2], up->i.integ_thresh[0]);
          break;
       default:
          fprintf(stderr,"Invalid integration method %d.\n", up->i.integrator);
@@ -1967,8 +2967,10 @@ static int second_moments(AllHessData *hsdata, int itel, int cut_id, int nimg, d
       return -1;
    if ( teldata->img == NULL )
       return -1;
-   if ( nimg < 0 || nimg >= teldata->num_image_sets )
+   if ( nimg < 0 || nimg >= teldata->max_image_sets )
       return -1;
+   if ( nimg >= teldata->num_image_sets )
+      teldata->num_image_sets = nimg+1;
    img = &teldata->img[nimg];
    img->known = 0;
    img->amplitude = 0.;
@@ -2461,7 +3463,7 @@ int clean_raw_data (AllHessData *hsdata, int itel, int clean_flag,
    int have_nb = 1, have_ext = 1;
    
 #ifdef CLEAN_DEBUG
-printf("Cleaning data in event %d telescope ID %d with method %d\n",
+printf("** Cleaning data in event %d telescope ID %d with method %d\n",
    teldata->glob_count, teldata->tel_id, clean_flag);
 #endif
 
@@ -3001,6 +4003,14 @@ printf("Reconstruct data\n");
                if ( hsdata->event.teldata[itel].img != NULL )
                {
                   double clip_amp = up->d.clip_amp;
+                  if ( up->d.focal_length != 0. ) /* Override MC nominal focal length */
+                  {
+                     if ( verbosity >= 0 && hsdata->camera_set[itel].flen != up->d.focal_length )
+                        printf("Effective focal length of telescope %d of type %d changed from %5.3f to %5.3f m.\n",
+                           hsdata->event.teldata[itel].tel_id, tel_type, 
+                           hsdata->camera_set[itel].flen, up->d.focal_length);
+                     hsdata->camera_set[itel].flen = up->d.focal_length;
+                  }
                   image_reconstruct(hsdata, itel, cut_id, 
                      tcl[itel], tch[itel], lref[itel], minfrac[itel], 
                      nimg, flag_amp_tm, clip_amp);

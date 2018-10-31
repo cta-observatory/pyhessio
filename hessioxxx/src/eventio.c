@@ -25,8 +25,8 @@
  *   
  *  @author  Konrad Bernloehr
  *  @date    1991 to 2010
- *  @date    @verbatim CVS $Date: 2016/04/11 10:08:15 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.48 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/19 12:11:37 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.50 $ @endverbatim
     
 @verbatim
  ================ General comments to eventio.c ======================
@@ -1082,9 +1082,9 @@ void put_scount16 (int16_t n, IO_BUFFER *iobuf)
 intmax_t get_scount (IO_BUFFER *iobuf)
 {
    uintmax_t u = get_count(iobuf);
-   // u values of 0,1,2,3,4,... here correspond to signed values of
-   //   0,-1,1,-2,2,... We have to test the least significant bit:
-   if ( (u&1) == 1 ) // Negative number;
+   /* u values of 0,1,2,3,4,... here correspond to signed values of */
+   /*   0,-1,1,-2,2,... We have to test the least significant bit: */
+   if ( (u&1) == 1 ) /* Negative number; */
       return -((intmax_t)(u>>1)) - 1;
    else
       return (intmax_t) (u>>1);
@@ -1100,7 +1100,7 @@ int16_t get_scount16 (IO_BUFFER *iobuf)
 {
 #if 0
    uint16_t u = get_count16(iobuf);
-   if ( (u&1) == 1 ) // Negative number;
+   if ( (u&1) == 1 ) /* Negative number; */
       return -((int16_t)(u>>1)) - (int16_t)1;
    else
       return (int16_t) (u>>1);
@@ -1172,7 +1172,7 @@ int32_t get_scount32 (IO_BUFFER *iobuf)
 {
 #if 1
    uint32_t u = get_count32(iobuf);
-   if ( (u&1) == 1 ) // Negative number;
+   if ( (u&1) == 1 ) /* Negative number; */
       return -((int32_t)(u>>1)) - (int32_t)1;
    else
       return (int32_t) (u>>1);
@@ -1931,7 +1931,7 @@ void put_int32(int32_t num, IO_BUFFER *iobuf)
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
 #else
-//      val[1].lval = bswap_32(num);
+/*      val[1].lval = bswap_32(num); */
       val[1].lval = __builtin_bswap32(num);
 #endif
       COPY_BYTES((void *)iobuf->data,(void *)&val[1].lval,(size_t)4);
@@ -1994,7 +1994,7 @@ int32_t get_int32(IO_BUFFER *iobuf)
       val[1].cval[3] = val[0].cval[0];
       num = val[1].lval;
 #else
-//      num = bswap_32(val[0].lval);
+/*      num = bswap_32(val[0].lval); */
       num = __builtin_bswap32(val[0].lval);
 #endif
    }
@@ -2052,7 +2052,7 @@ void get_vector_of_int32 (int32_t *vec, int num, IO_BUFFER *iobuf)
          val[1].cval[3] = val[0].cval[0];
          vec[i] = val[1].lval;
 #else
-//         vec[i] = bswap_32(val[0].lval);
+/*         vec[i] = bswap_32(val[0].lval); */
          vec[i] = __builtin_bswap32(val[0].lval);
 #endif
          iobuf->data += 4;
@@ -2099,7 +2099,7 @@ void put_uint32(uint32_t num, IO_BUFFER *iobuf)
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
 #else
-//      val[1].lval = bswap_32(num);
+/*      val[1].lval = bswap_32(num); */
       val[1].lval = __builtin_bswap32(num);
 #endif
       COPY_BYTES((void *)iobuf->data,(void *)&val[1].lval,(size_t)4);
@@ -2163,7 +2163,7 @@ uint32_t get_uint32(IO_BUFFER *iobuf)
       val[1].cval[3] = val[0].cval[0];
       num = val[1].lval;
 #else
-//      num = bswap_32(val[0].lval);
+/*      num = bswap_32(val[0].lval); */
       num = __builtin_bswap32(val[0].lval);
 #endif
    }
@@ -2221,7 +2221,7 @@ void get_vector_of_uint32 (uint32_t *vec, int num, IO_BUFFER *iobuf)
          val[1].cval[3] = val[0].cval[0];
          vec[i] = val[1].lval;
 #else
-//         vec[i] = bswap_32(val[0].lval);
+/*         vec[i] = bswap_32(val[0].lval); */
          vec[i] = __builtin_bswap32(val[0].lval);
 #endif
          iobuf->data += 4;
@@ -2268,7 +2268,7 @@ void put_long(long num, IO_BUFFER *iobuf)
       val[1].cval[2] = val[0].cval[1];
       val[1].cval[3] = val[0].cval[0];
 #else
-//      val[1].lval = bswap_32(num);
+/*      val[1].lval = bswap_32(num); */
       val[1].lval = __builtin_bswap32(num);
 #endif
       COPY_BYTES((void *)iobuf->data,(void *)&val[1].lval,(size_t)4);
@@ -2331,7 +2331,7 @@ long get_long(IO_BUFFER *iobuf)
       val[1].cval[3] = val[0].cval[0];
       num = val[1].lval;
 #else
-//      num = bswap_32(val[0].lval);
+/*      num = bswap_32(val[0].lval); */
       num = __builtin_bswap32(val[0].lval);
 #endif
    }
@@ -2401,7 +2401,7 @@ void get_vector_of_long (long *vec, int num, IO_BUFFER *iobuf)
          /* Note the possible sign propagation on 64-bit machines */
          vec[i] = (long) val[1].lval;
 #else
-//         vec[i] = (long) bswap_32(val[0].lval);
+/*         vec[i] = (long) bswap_32(val[0].lval); */
          vec[i] = (long) __builtin_bswap32(val[0].lval);
 #endif
          iobuf->data += 4;
@@ -2462,7 +2462,7 @@ void put_vector_of_int64 (const int64_t *ival, int num, IO_BUFFER *iobuf)
 	 val[1].cval[6] = val[0].cval[1];
 	 val[1].cval[7] = val[0].cval[0];
 #else
-//         val[1].ival = bswap_64(ival[i]);
+/*         val[1].ival = bswap_64(ival[i]); */
          val[1].ival = __builtin_bswap64(ival[i]);
 #endif
          COPY_BYTES((void *)iobuf->data,(const void *)&val[1].ival,(size_t)8);
@@ -2518,7 +2518,7 @@ void get_vector_of_int64 (int64_t *ival, int num, IO_BUFFER *iobuf)
 	 val[1].cval[7] = val[0].cval[0];
 	 ival[i] = val[1].ival;
 #else
-//         ival[i] = bswap_64(val[0].ival);
+/*         ival[i] = bswap_64(val[0].ival); */
          ival[i] = __builtin_bswap64(val[0].ival);
 #endif
       }
@@ -2577,7 +2577,7 @@ void put_vector_of_uint64 (const uint64_t *uval, int num, IO_BUFFER *iobuf)
 	 val[1].cval[6] = val[0].cval[1];
 	 val[1].cval[7] = val[0].cval[0];
 #else
-//         val[1].uval = bswap_64(uval[i]);
+/*         val[1].uval = bswap_64(uval[i]); */
          val[1].uval = __builtin_bswap64(uval[i]);
 #endif
          COPY_BYTES((void *)iobuf->data,(const void *)&val[1].uval,(size_t)8);
@@ -2633,7 +2633,7 @@ void get_vector_of_uint64 (uint64_t *uval, int num, IO_BUFFER *iobuf)
 	 val[1].cval[7] = val[0].cval[0];
 	 uval[i] = val[1].uval;
 #else
-//         uval[i] = bswap_64(val[0].uval);
+/*         uval[i] = bswap_64(val[0].uval); */
          uval[i] = __builtin_bswap64(val[0].uval);
 #endif
       }
@@ -3335,7 +3335,7 @@ void fltp_to_sfloat (const float *fnum, uint16_t *snum)
    if ( (val.lnum & 0x80000000U) ) /* IEEE float sign bit test */
    {
       sign = 0x8000;
-      // val.fnum *= -1.; /* Or perhaps better: val.lnum ^= 0x80000000U or &= 0x7fffffff */
+      /* val.fnum *= -1.; */ /* Or perhaps better: val.lnum ^= 0x80000000U or &= 0x7fffffff */
    }
 
    if ( *fnum == 0. )
@@ -3434,6 +3434,9 @@ double dbl_from_sfloat (const uint16_t *snum)
 #ifdef INF
    else if ( mantissa == 0 )
       return s * INF;
+#elif defined(INFINITY)
+   else if ( mantissa == 0 )
+      return s * INFINITY;
 #endif
    else
 #ifdef NAN

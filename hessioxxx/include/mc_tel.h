@@ -28,8 +28,8 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    1997 to 2010
- *  @date    @verbatim CVS $Date: 2016/03/08 16:07:50 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.16 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/19 12:11:37 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.17 $ @endverbatim
  */
 /* ========================================================= */
 
@@ -118,7 +118,7 @@ struct photo_electron
    int pixel;     /**< The pixel that was hit. */
    int lambda;    /**< The wavelength of the photon. */
    double atime;  /**< The time [ns] when the photon hit the pixel. */
-   // double amplitude; /**< Amplitude [mean p.e.] of the resulting signal. */
+   /* double amplitude; */ /**< Amplitude [mean p.e.] of the resulting signal. */
 };
 
 /** The linked_string is mainly used to keep CORSIKA input. */

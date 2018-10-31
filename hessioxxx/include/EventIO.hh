@@ -1,6 +1,6 @@
 /* ============================================================================
 
-   Copyright (C) 2003, 2005, 2009, 2010 Konrad Bernloehr (Konrad Bernl&ouml;hr)
+   Copyright (C) 2003, 2005, 2009, 2010, 2016 Konrad Bernloehr (Konrad Bernl&ouml;hr)
 
    This file is part of the eventio/hessio library.
 
@@ -24,8 +24,8 @@
     
     @author  Konrad Bernloehr
     @date Initial release: April 2003
-    $Date: 2016/05/17 11:16:55 $
-    $Revision: 1.43 $
+    $Date: 2016/11/18 12:30:51 $
+    $Revision: 1.44 $
     
     Header file for C++ interface to the eventio data format.
     In constrast to the C interface, the C++ interface can
@@ -78,6 +78,32 @@
 #if defined(UINTMAX_MIN) && defined(HAVE_64BIT_INT) && !defined(SIXTY_FOUR_BITS)
 #define WITH_INTMAX_T 1
 #define WITH_UINTMAX_T 1
+#endif
+
+// Optional support for half-procession floating point header, if not included yet.
+#ifndef HALF_HALF_HPP
+# ifdef HAVE_HALF
+// Explicitly requested; assume it is available.
+#  include "half.hpp"
+using half_float::half;
+// #pragma message "Including half.hpp(1)"
+# else
+// When not explicitly requested, the preprocessor can perhaps find out if the half.hpp header file is available.
+#  if defined(__has_include)
+#   if __has_include("half.hpp")
+#    include "half.hpp"
+using half_float::half;
+// #pragma message "Including half.hpp(2)"
+#    define HAVE_HALF 1
+#   endif
+#  endif
+# endif
+#else
+# ifndef HAVE_HALF
+#  define HAVE_HALF 1
+# endif
+using half_float::half;
+// #pragma message "Already included half.hpp"
 #endif
 
 /** The classes of this interface belong to the namespace "eventio". */
@@ -566,7 +592,7 @@ namespace eventio
             void GetDouble(std::valarray<double>& vec);
 #endif
 
-            /// Get operations for 'Sfloat' item type (16-bit OpenGL float)
+            /// Get operations for 'Sfloat' item type (16-bit OpenGL/IEEE 754-2008 float)
 
             double GetSfloat(void) { if ( rc == 0 ) return get_sfloat(iobuf); 
                else if ( throw_on_error ) 
@@ -600,6 +626,34 @@ namespace eventio
             void GetSfloat(std::valarray<float>& vec);
             void GetSfloat(std::valarray<double>& vec);
 #endif
+
+#ifdef HAVE_HALF
+            /// Alternate access to 16-bit floats ('half' has uint16_t storage representation, same as 'sfloat')
+            half GetHalf(void) { uint16_t u = GetUint16(); return *((half *) (&u)); }
+            void GetHalf(half &v) { v = GetHalf(); }
+            void GetHalf(float &v) { v = (float) GetHalf(); }
+            void GetHalf(double &v) { v = (double) GetHalf(); }
+            void GetHalf(half *vec, size_t num) { if ( rc == 0 )
+               {
+                  uint16_t *p = (uint16_t *) (&(vec[0]));
+                  for ( size_t i=0; i<num; i++ )
+                     p[i] = get_short(iobuf);
+               }
+               else if ( throw_on_error )
+                 throw std::logic_error("I/O buffer in error state at GetHalf operation"); }
+#ifdef HAVE_STD_VECTOR
+            void GetHalf(std::vector<half>& vec, size_t num);
+            void GetHalf(std::vector<half>& vec);
+#endif
+#ifdef HAVE_STD_VALARRAY
+            void GetHalf(std::valarray<half>& vec, size_t num);
+            void GetHalf(std::valarray<half>& vec);
+#endif
+#else
+/// Without HAVE_HALF you can still use GetUint16() and use dbl_from_sfloat() or such to
+/// convert to other types.
+#endif
+
 
             /// Get operations for strings with length encoded as Int16.
 
@@ -1027,7 +1081,7 @@ namespace eventio
                { PutCount(vec.size()); PutDouble(vec,vec.size()); }
 #endif
 
-            /// Put operations for 'Sfloat' item type (16-bit OpenGL float)
+            /// Put operations for 'Sfloat' item type (16-bit OpenGL/IEEE 754-2008 float)
 
             void PutSfloat(double d) { if ( rc == 0 )
                { put_sfloat(d,iobuf); }
@@ -1060,6 +1114,32 @@ namespace eventio
             void PutSfloat(const std::valarray<double>& vec)
                { PutCount(vec.size()); PutSfloat(vec,vec.size()); }
 #endif
+
+
+            /// Put operations for 'Half' type (same as 'Sfloat', 16-bit OpenGL/IEEE 754-2008 float)
+
+#ifdef HAVE_HALF
+            void PutHalf(half h) { if ( rc == 0 )
+               { uint16_t *p = (uint16_t *) &h; put_vector_of_uint16(p, 1, iobuf); }
+               else { check_throw("Put");}  }
+            void PutHalf(const half *vec, size_t num) { if ( rc == 0 )
+               {
+                  const uint16_t *p = (const uint16_t *) vec;
+                  put_vector_of_uint16(p, num, iobuf);
+               }
+               else { check_throw("Put"); } }
+#ifdef HAVE_STD_VECTOR
+            void PutHalf(const std::vector<half>& vec, size_t num);
+            void PutHalf(const std::vector<half>& vec)
+               { PutCount(vec.size()); PutHalf(vec,vec.size()); }
+#endif
+#ifdef HAVE_STD_VALARRAY
+            void PutHalf(const std::valarray<half>& vec, size_t num);
+            void PutHalf(const std::valarray<half>& vec)
+               { PutCount(vec.size()); PutHalf(vec,vec.size()); }
+#endif
+#endif
+
 
             /// Put operations for strings of any length.
             /// (Note: encoding different from old C method put_string().)

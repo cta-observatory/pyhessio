@@ -30,8 +30,8 @@
  *
  *  @author  Konrad Bernloehr
  *  @date    1995, 2000, 2007
- *  @date    $Date: 2010/07/20 13:37:45 $
- *  @version $Revision: 1.7 $
+ *  @date    $Date: 2018/05/11 11:54:29 $
+ *  @version $Revision: 1.8 $
  */
 
 #include "initial.h"
@@ -170,7 +170,7 @@ char *time_string ()
 {
    struct tm *tmp;
    time_t now;
-   static char text[26];
+   static char text[80];
 
    now = current_localtime();
    *text = '\0';
@@ -180,7 +180,7 @@ char *time_string ()
      if ( (tmp = localtime(&now)) == (struct tm *) NULL )
 #endif
       return text;
-   sprintf(text,"%02d.%02d.%02d %02d:%02d:%02d",
+   snprintf(text,sizeof(text)-1,"%02d.%02d.%02d %02d:%02d:%02d",
       tmp->tm_mday, tmp->tm_mon+1, tmp->tm_year,
       tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
    return text;

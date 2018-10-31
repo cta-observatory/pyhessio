@@ -535,21 +535,22 @@ struct best_value
    double gamma_rate;
    double angres;
    double eres;
+   double ebias;
    double n_gamma_cu, nint_gamma_cu;
    double n_bg, nint_bg; // sum of electrons, protons, helium, CNO, heavy, iron nuclei, in source region
    best_value() : kbin(0), best(9999.), text(""), A(0.), 
-      lgE(-12.), lgE1(-12.), lgE2(12.), diff_sens(0.), bg_rate(0.), gamma_rate(0.), angres(0.), eres(0.),
+      lgE(-12.), lgE1(-12.), lgE2(12.), diff_sens(0.), bg_rate(0.), gamma_rate(0.), angres(0.), eres(0.), ebias(0.),
       n_gamma_cu(0.), nint_gamma_cu(0.), n_bg(0.), nint_bg(0.) {}
    best_value(int k, double v, int qtr, const string& t, double aeff, 
-      double vlgE, double vlgE1, double vlgE2, double vds, double vbr=0., double vgr=0., double var=0., double ver=0.,
-      double ng=0., double nb=0.) : /* 15 parameters, 9 required */
+      double vlgE, double vlgE1, double vlgE2, double vds, double vbr=0., double vgr=0., double var=0., double ver=0., double veb=0.,
+      double ng=0., double nb=0.) : /* 16 parameters, 9 required */
          kbin(k), best(v), q(qtr), text(t), A(aeff), 
-         lgE(vlgE), lgE1(vlgE1), lgE2(vlgE2), diff_sens(vds), bg_rate(vbr), gamma_rate(vgr), angres(var), eres(ver),
+         lgE(vlgE), lgE1(vlgE1), lgE2(vlgE2), diff_sens(vds), bg_rate(vbr), gamma_rate(vgr), angres(var), eres(ver), ebias(veb),
          n_gamma_cu(ng), nint_gamma_cu(0.), n_bg(nb), nint_bg(0.) {}
    ~best_value() {}
 };
 
-enum BestChoice { BestDiff=1, BestIntegral=2, BestAngle=3, BestEres=4, BestRate=5, BestCombined=6 };
+enum BestChoice { BestDiff=1, BestIntegral=2, BestAngle=3, BestEres=4, BestRate=5, BestCombined=6, BestAll=7 };
 
 int main(int argc, char **argv)
 {
@@ -580,6 +581,7 @@ int main(int argc, char **argv)
    double req_upper_lgE = 2.0, req_lower_lgE=-1.5;
    bool no_fail = false, no_penalty = false;
    bool only_even = false, simple_overlap = false;
+   double max_ebias = 1000.;
 
    std::cout << "# Cmdline: ";
    for ( int iarg=0; iarg<argc; ++iarg )
@@ -613,14 +615,27 @@ int main(int argc, char **argv)
          // best_rate = true;
          select = BestRate;
       }
+      else if ( strcmp(argv[iarg],"-d") == 0 )
+      {
+         select = BestDiff;
+      }
       else if ( strcmp(argv[iarg],"-c") == 0 )
       {
          select = BestCombined;
+      }
+      else if ( strcmp(argv[iarg],"-C") == 0 )
+      {
+         select = BestAll;
       }
       else if ( strcmp(argv[iarg],"--combine") == 0 && iarg+1<argc )
       {
          select = BestCombined;
          comb_wt = atof(argv[++iarg]);
+         if ( comb_wt < 0 )
+         {
+            select = BestAll;
+            comb_wt *= -1.;
+         }
       }
       else if ( strcmp(argv[iarg],"--even") == 0 )
       {
@@ -654,6 +669,8 @@ int main(int argc, char **argv)
          min_lg_e = atof(argv[++iarg]);
       else if ( strcmp(argv[iarg],"--max-lgE") == 0 && iarg+1<argc )
          max_lg_e = atof(argv[++iarg]);
+      else if ( strcmp(argv[iarg],"--max-Ebias") == 0 && iarg+1<argc )
+         max_ebias = atof(argv[++iarg]);
       else if ( strcmp(argv[iarg],"--min-tel") == 0 && iarg+1<argc )
       {
          iarg++;
@@ -714,7 +731,9 @@ int main(int argc, char **argv)
          std::cerr << "    -e : optimise by energy resolution.\n";
          std::cerr << "    -i : optimise by integral sensitivity.\n";
          std::cerr << "    -r : optimise by gamma-ray rate.\n";
+         std::cerr << "    -d : optimise by diff. sensitivity (default).\n";
          std::cerr << "    -c : combine by diff. sens. with gamma-ray rate (4:1).\n";
+         std::cerr << "    -C : comb. by diff. sens./rate/Eres/angres (4:1:2:2).\n";
          std::cerr << "    --combine <wt_sens> : similar but user-defined weighting\n";
          std::cerr << "    Default: optimisation by diff. sensitivity.\n";
          std::cerr << "    -A : add effective area for gamma rays to output.\n";
@@ -732,6 +751,7 @@ int main(int argc, char **argv)
          std::cerr << "    --max-lgE ... (maximum lg(E) to be included)\n";
          std::cerr << "    --min-tel ... (only entries with matching min. tel.)\n";
          std::cerr << "    --max-sens ... (maximum sensitivity of accepted rows)\n";
+         std::cerr << "    --max-Ebias ... (maximum energy bias fraction)\n";
          std::cerr << "    --match-required : (full set of requirements is applied,\n";
          std::cerr << "                   with requirement set specified by --pput option)\n";
          std::cerr << "    --match-required-diffsens : (diff.sensitivity req. satisfied)\n";
@@ -920,7 +940,11 @@ if ( line[0] < 32 || line[0] >= 127 )
          double bg_rate = 0.;
          double angres = ( (kv>=3) ? dv[5+kv] : 0. );
          double eres = ( (kv>=6) ? dv[2+kv] : ( (kv>=4) ? dv[3+kv] : 0. ) );
+         double ebias = ( (kv>=6) ? dv[3+kv] : 0. );
          
+         if ( fabs(ebias) > max_ebias )
+            continue;
+
          if ( hours > 0. )
          {
             double elow = pow(10.,dv[0]);
@@ -952,7 +976,7 @@ if ( line[0] < 32 || line[0] >= 127 )
                         ( (select==BestEres)&&(kv>=4) ) ? (kv>=6 ? 2+kv : 3+kv) :
                         ( ( (select==BestAngle)&&(kv>=3) ) ? 5+kv : 
                           ( (select==BestIntegral) ? 11+kv : 9+kv ) );
-         int best_col2 = ( select == BestCombined ) ? 12+kv : 0;
+         int best_col2 = ( select == BestCombined || select == BestAll ) ? 12+kv : 0;
          int diff_sens_col = 9 + kv;
          double lgE = 0.5*(dv[0]+dv[1]);
          if ( kv >= 4 && dv[2] >= dv[0] && dv[2] <= dv[1] )
@@ -1005,6 +1029,15 @@ if ( line[0] < 32 || line[0] >= 127 )
                current = comb_wt * log(dv[best_col]) - (1.-comb_wt) * log(dv[best_col2]);
             else
                current = -1e99;
+            if ( select == BestAll )
+            {
+               double w1 = comb_wt;
+               double w2 = (1.-comb_wt);
+               double w = w1 + 5.*w2;
+               w1 /= w;
+               w2 /= w;
+               current = w1 * log(dv[best_col]) - w2 * log(dv[best_col2]) + w2 * log(angres*angres) + w2 * log(eres*eres);
+            }
          }
          map<int,best_value>::iterator p = all_best.find(k);
          char *c = strchr(line,'\n');
@@ -1022,7 +1055,7 @@ if ( line[0] < 32 || line[0] >= 127 )
          }
          if ( p == all_best.end() )
       	    all_best[k] = best_value(k,current,qtr,line,gamma_eff_area,
-                  lgE,lgE1,lgE2,diff_sens,bg_rate,gamma_rate,angres,eres,
+                  lgE,lgE1,lgE2,diff_sens,bg_rate,gamma_rate,angres,eres,ebias,
                   gamma_events, bg_events);
          else if ( (*p).second.best > current &&
               (qtr <= max_qtr2 || qtr <= (*p).second.q) )
@@ -1039,6 +1072,7 @@ if ( line[0] < 32 || line[0] >= 127 )
             (*p).second.gamma_rate = gamma_rate;
             (*p).second.angres = angres;
             (*p).second.eres = eres;
+            (*p).second.ebias = ebias;
             (*p).second.n_gamma_cu = gamma_events;
             (*p).second.n_bg = bg_events;
          }
@@ -1056,6 +1090,7 @@ if ( line[0] < 32 || line[0] >= 127 )
             (*p).second.gamma_rate = gamma_rate;
             (*p).second.angres = angres;
             (*p).second.eres = eres;
+            (*p).second.ebias = ebias;
             (*p).second.n_gamma_cu = gamma_events;
             (*p).second.n_bg = bg_events;
          }

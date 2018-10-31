@@ -30,8 +30,8 @@
  *
  *  @author  Konrad Bernloehr
  *  @date    1997 to 2010
- *  @date    @verbatim CVS $Date: 2016/03/08 16:07:50 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.28 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/07 17:48:11 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.37 $ @endverbatim
  */
 
 /* ================================================================ */
@@ -154,6 +154,15 @@ int print_tel_block (IO_BUFFER *iobuf)
    for (i=1; i<len && (size_t)i<sizeof(data)/sizeof(data[0]); i++)
       data[i] = get_real(iobuf);
 
+#if 1
+   if ( getenv("PRINT_TEL_VERBOSE") != NULL )
+   {
+      printf("%s:\n", txt);
+      for ( i=1; i<len; i++ )
+         printf("   [%3d] = %f\n", i, data[i]);
+   }
+#endif
+
    if ( strncmp(txt,"RUNH",4) == 0 )
    {
       int idate = (int)(data[2]+0.1);
@@ -166,10 +175,14 @@ int print_tel_block (IO_BUFFER *iobuf)
          y += 1900;
       printf("\nCorsika run header\n");
       first_event_in_run = 1;
-      printf("   Run number %d started on %d-%d-%d with version %5.3f.\n",
+      printf("   Run number %d started on %d-%02d-%02d with version %5.3f.\n",
          (int)(data[1]+0.1), y,m,d, data[3]);
       printf("   Energy range %g to %g GeV with slope of %f.\n",
          data[16], data[17], data[15]);
+      printf("   Simulating showers in this run with %3.1f m random detector offsets.\n", 
+         data[247]*1e-2);
+      printf("   Cherenkov light observation level ist %5.3f km a.s.l.\n",
+         data[5]*1e-5);
    }
    else if ( strncmp(txt,"RUNE",4) == 0 )
       printf("\nCorsika run end\n");
@@ -177,8 +190,8 @@ int print_tel_block (IO_BUFFER *iobuf)
    {
       double E = data[3];
       int ptype = Nint(data[2]);
-      printf("\nCorsika event header: primary of type %d and energy %g GeV at %5.2f km.\n",
-         ptype, E, fabs(data[6]*1e-5));
+      printf("\nCorsika event %d header: primary of type %d and energy %g GeV at %5.2f km.\n",
+         (int)Nint(data[1]), ptype, E, fabs(data[6]*1e-5));
       if ( first_event_in_run )
       {
          int iv;
@@ -209,7 +222,7 @@ int print_tel_block (IO_BUFFER *iobuf)
             printf(",???");
          printf(", profile %d).\n", (iv>>10)&0x3ff);
          if ( data[6] > 0. )
-            printf("   TSTART is off.\n");
+            printf("   TSTART is off (that means no emission/scattering/bending of primary).\n");
          printf("   Cherenkov bunch size %4.2f from %1.0f to %1.0f nm.\n",
            data[84], data[95], data[96]);
          printf("   Interaction: SIBYLL %d/%d, QGSJET %d/%d, DPMJET %d/%d, V/N/E %d\n",
@@ -227,13 +240,37 @@ int print_tel_block (IO_BUFFER *iobuf)
          printf("   VENUS/NeXus/EPOS = %d\n", (int)(data[144]+0.1));
 #endif
          printf("   Muon multiple scattering = %d\n",(int)(data[145]+0.1));
+         printf("   Energy range: %g to %g GeV, spectral index = %f\n",
+            data[58], data[59], data[57]);
+         printf("   Shower direction: theta = %f, phi = %f deg (azimuth N->E = %f deg)\n", 
+            data[10]*(180./M_PI), data[11]*(180./M_PI),
+            (data[92]-data[11]+M_PI)*(180./M_PI));
+         printf("   Zenith angle range: %f to %f degrees\n", data[80], data[81]);
+         printf("   Azimuth (CORSIKA-style) range: %f to %f deg\n", 
+            data[82], data[83]);
+         printf("   ViewCone range: %f to %f deg\n", data[152], data[153]);
+         printf("   B field: Bx = %f, Bz = %f muT, declination = %f deg\n", 
+            data[70], data[71], data[92]*(180./M_PI)); 
       }
+      /* Normally we have the CORSIKA core position recorded as (0;0). Mention if it differs. */
+      if ( data[98] != 0. || data[118] != 0. )
+         printf("   Core position: %5.3f m / %5.3f m\n", data[98]*0.01, data[118]*0.01);
    }
    else if ( strncmp(txt,"EVTE",4) == 0 )
-      printf("\nCorsika event end\n");
+   {
+      printf("\nCorsika event %d end\n", (int)Nint(data[1]));
+      if ( data[2] != 0. )
+         printf("   gammas at ground:    %f\n", data[2]);
+      if ( data[3] != 0. )
+         printf("   electrons at ground: %f\n", data[3]);
+      if ( data[4] != 0. )
+         printf("   hadrons at ground:   %f\n", data[4]);
+      if ( data[5] != 0. )
+         printf("   muons at ground:     %f\n", data[5]);
+   }
    else
       printf("\nUnknown CORSIKA block of type %s.\n", txt);
-   
+
    return get_item_end(iobuf,&item_header);
 }
 
@@ -937,7 +974,11 @@ int write_tel_photons (IO_BUFFER *iobuf, int array, int tel,
    else if ( ext_fname[0] == '\0' )
       ext_bunches = 0;
    else if ( (ext = fileopen(ext_fname,"r")) == NULL )
+   {
+      fprintf(stderr,"Expected to find %ju bunches in file %s but fileopen failed.\n",
+         (size_t)ext_bunches, ext_fname);
       ext_bunches = 0;
+   }
 
    put_long(nbunches+ext_bunches,iobuf);
 
@@ -967,7 +1008,7 @@ int write_tel_photons (IO_BUFFER *iobuf, int array, int tel,
          put_real(tbunch.lambda,iobuf);
 #ifdef DEBUG_PHOTONS_SUM
          if ( tbunch.lambda < 9000. )
-            sum += tbunch.photons;
+            sum += fabs(tbunch.photons); /* Negative value could be used for special purposes */
 #endif
       }
       fileclose(ext);
@@ -988,7 +1029,7 @@ int write_tel_photons (IO_BUFFER *iobuf, int array, int tel,
       put_real(bunches[i].lambda,iobuf);
 #ifdef DEBUG_PHOTONS_SUM
       if ( bunches[i].lambda < 9000. )
-         sum += bunches[i].photons;
+         sum += fabs(bunches[i].photons); /* Negative value could be used for special purposes */
 #endif
    }
 
@@ -1050,7 +1091,11 @@ int write_tel_compact_photons (IO_BUFFER *iobuf, int array, int tel,
    else if ( ext_fname[0] == '\0' )
       ext_bunches = 0;
    else if ( (ext = fileopen(ext_fname,"r")) == NULL )
+   {
+      fprintf(stderr,"Expected to find %ju bunches in file %s but fileopen failed.\n",
+         (size_t)ext_bunches, ext_fname);
       ext_bunches = 0;
+   }
 
    put_long(nbunches+ext_bunches,iobuf);
 
@@ -1169,7 +1214,7 @@ int read_tel_photons (IO_BUFFER *iobuf, int max_bunches, int *array,
          bunches[i].zem = get_real(iobuf);
          bunches[i].photons = get_real(iobuf);
          bunches[i].lambda = get_real(iobuf);
-         check_photons += bunches[i].photons;
+         check_photons += fabs(bunches[i].photons); /* Negative value could be used for special purposes */
       }
    }
    else if ( item_header.version/1000 == 1 ) /* The compact format */
@@ -1192,7 +1237,7 @@ int read_tel_photons (IO_BUFFER *iobuf, int max_bunches, int *array,
          bunches[i].zem = pow(10.,0.001*get_short(iobuf));
          bunches[i].photons = 0.01*get_short(iobuf);
          bunches[i].lambda = get_short(iobuf);
-         check_photons += bunches[i].photons;
+         check_photons += fabs(bunches[i].photons); /* Negative value could be used for special purposes */
       }
    }
    else
@@ -1217,6 +1262,7 @@ int read_tel_photons (IO_BUFFER *iobuf, int max_bunches, int *array,
  *  @return 0 (o.k.), -1, -2, -3 (error, as usual in eventio)
 */
 
+static int max_print = 0;
 
 int print_tel_photons (IO_BUFFER *iobuf)
 {
@@ -1230,7 +1276,15 @@ int print_tel_photons (IO_BUFFER *iobuf)
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
-   
+
+   if ( max_print == 0 )
+   {
+      if ( getenv("MAX_PRINT_ARRAY") != NULL )
+         max_print = atoi(getenv("MAX_PRINT_ARRAY"));
+      if ( max_print <= 0 )
+         max_print = 10;
+   }
+
    item_header.type = IO_TYPE_MC_PHOTONS;  /* Data type */
    if ( (rc=get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
@@ -1269,21 +1323,34 @@ int print_tel_photons (IO_BUFFER *iobuf)
          b.photons = get_real(iobuf);
          b.lambda = get_real(iobuf);
          if ( b.lambda < 9990. && !(array == 999 && tel == 999) )
-            check_photons += b.photons;
-         if ( i<10 )
+            check_photons += fabs(b.photons); /* Negative value could be used for special purposes */
+         if ( i<max_print )
          {
             if ( array == 999 && tel == 999 )
-               printf("   Particle of type %d at %f m, %f m in direction %f,%f, arrival time %f ns, "
-                   "momentum %f GeV/c, with weight %f at level %d.\n",
-                   (int)(b.lambda*0.001+0.1), b.x*0.01, b.y*0.01, 
-                   b.cx, b.cy, b.ctime, b.zem, b.photons,
-                   (int)(b.lambda+0.1)%10);
-            else
+            {
+               int particle_type = ((int)(b.lambda+0.01)-1)/1000;
+               if ( particle_type == 75 || particle_type == 76 ) /* Not a particle in itself but additional muon info */
+                  printf("   Muon (code %1.0f) at %f m, %f m in direction %f, %f, produced at %f m a.s.l., momentum  %f GeV/c", 
+                     b.lambda, b.x*0.01, b.y*0.01, b.cx, b.cy, b.ctime*0.01, b.zem);
+               else
+                  printf("   Particle of type %d (code %1.0f) at %f m, %f m in direction %f, %f, arrival time %f ns, "
+                   "momentum %f GeV/c, at level %d",
+                   particle_type, b.lambda, b.x*0.01, b.y*0.01, 
+                   b.cx, b.cy, b.ctime, b.zem, ((int)(b.lambda+0.1)-1)%10+1);
+               if ( b.photons == 1.0 )
+                  printf(".\n");
+               else
+                  printf(" (thinning weight %f).\n", b.photons);
+            }
+            else if ( b.lambda < 9000 )
                printf("   Bunch at %f m, %f m in direction %f,%f, arrival time %f ns, "
                    "emission at %f m height, with %f photons of wavelength %f nm.\n",
                    b.x*0.01, b.y*0.01, b.cx, b.cy, b.ctime, b.zem*0.01, b.photons, b.lambda);
+            else
+               printf("   Emitted by particle of mass %5.3f MeV/c^2, charge %1.0f, energy %7.5f GeV at time %f ns\n",
+                   b.cx*1000., b.cy, b.photons, b.zem*1e9);
          }
-         else if ( i==10 )
+         else if ( i==max_print )
             printf("   ...\n");
       }
    }
@@ -1308,7 +1375,7 @@ int print_tel_photons (IO_BUFFER *iobuf)
          b.photons = 0.01*get_short(iobuf);
          b.lambda = get_short(iobuf);
          if ( b.lambda < 9990. )
-            check_photons += b.photons;
+            check_photons += fabs(b.photons); /* Negative value could be used for special purposes */
          if ( i<10 )
             printf("   Bunch at %f,%f direction %f,%f, arrival time %f, "
                    "emission at %f, with %f photons of wavelength %f nm.\n",
@@ -1587,6 +1654,7 @@ int print_camera_layout (IO_BUFFER *iobuf)
  *  @param  pixels     No. of pixels to be written
  *  @param  flags      Bit 0: amplitudes available, bit 1: includes NSB p.e., 
  *                     bit 2: also including no. of photons hitting each pixel.
+ *                     bit 3: photons (if any) are in wavelength range 300-550 nm.
  *  @param  pe_counts  Numbers of photo-electrons in each pixel
  *  @param  tstart     Offsets in 't' at which data for each pixel starts
  *  @param  t	       Time of arrival of photons at the camera.
@@ -1601,13 +1669,17 @@ int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, int npe, int fl
    IO_ITEM_HEADER item_header;
    int i, nonempty;
    if ( a == NULL )
-      flags &= 0xe; /* Don't tell we have amplitudes if there aren't any */
+      flags &= (255-1); /* Don't tell we have amplitudes if there aren't any */
+   if ( photon_counts == NULL )
+      flags &= (255-4-8);
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
    
    item_header.type = IO_TYPE_MC_PE;   /* Data type */
    item_header.version = 2;            /* Version 2 */
+   if ( pixels > 32767 )
+      item_header.version = 3;         /* Version 3 if needed */
    item_header.ident = 1000*array+tel;
    put_item_begin(iobuf,&item_header);
 
@@ -1639,8 +1711,13 @@ int write_photo_electrons (IO_BUFFER *iobuf, int array, int tel, int npe, int fl
       {
 	 if ( pe_counts[i] <= 0 )
             continue;
-         /* FIXME: limiting number of pixels to <= 32767 */
-	 put_short(i,iobuf);
+         if ( item_header.version > 2 )
+            put_count(i,iobuf);
+         else
+         {
+            /* Note: limiting number of pixels to <= 32767 */
+	    put_short(i,iobuf);
+         }
 	 put_long(pe_counts[i],iobuf);
 	 put_vector_of_real(t+tstart[i],pe_counts[i],iobuf);
          if ( item_header.version > 1 && (flags&1) != 0 )
@@ -1705,7 +1782,7 @@ int read_photo_electrons (IO_BUFFER *iobuf, int max_pixels, int max_pe,
    item_header.type = IO_TYPE_MC_PE;    /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version != 1 && item_header.version != 2 )
+   if ( item_header.version < 1 || item_header.version > 3 )
    {
       fprintf(stderr,"Invalid version %d of photo-electrons block.\n", 
          item_header.version);
@@ -1758,7 +1835,10 @@ int read_photo_electrons (IO_BUFFER *iobuf, int max_pixels, int max_pe,
    for (i=it=0; i<nonempty; i++)
    {
       /* FIXME: limiting number of pixels to <= 32767 */
-      ipix = get_short(iobuf);
+      if ( item_header.version > 2 )
+         ipix = get_count(iobuf);
+      else
+         ipix = get_short(iobuf);
       if ( ipix < 0 || ipix >= max_pixels )
       {
       	 Warning("Invalid pixel number for photo-electron list");
@@ -1833,7 +1913,7 @@ int print_photo_electrons (IO_BUFFER *iobuf)
    item_header.type = IO_TYPE_MC_PE;    /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version != 1 && item_header.version != 2 )
+   if ( item_header.version < 1 || item_header.version > 3 )
    {
       get_item_end(iobuf,&item_header);
       return -1;
@@ -1856,7 +1936,10 @@ int print_photo_electrons (IO_BUFFER *iobuf)
 
    for (i=it=0; i<nonempty; i++)
    {
-      ipix = get_short(iobuf);
+      if ( item_header.version > 2 )
+         ipix = get_count(iobuf);
+      else
+         ipix = get_short(iobuf);
       pe_counts = get_long(iobuf);
       tstart = it;
       if ( i<10 )
@@ -1904,7 +1987,10 @@ int print_photo_electrons (IO_BUFFER *iobuf)
    if ( (flags&4) )
    {
       nonempty = get_long(iobuf);
-      printf("   Also including photon counts in %d non-empty pixels:\n", nonempty);
+      if ( (flags&8) )
+         printf("   Also including 300-550 nm photon counts in %d non-empty pixels:\n", nonempty);
+      else
+         printf("   Also including photon counts in %d non-empty pixels:\n", nonempty);
       for (i=it=0; i<nonempty; i++)
       {
          ipix = get_short(iobuf);
