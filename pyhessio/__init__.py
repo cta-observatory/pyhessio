@@ -14,7 +14,7 @@ __all__ = ['HessioError', 'HessioChannelIndexError',
            'HessioFile', 'open_hessio', 'close_file', 'EventType',
            'count_mc_generated_events']
 
-__version__ = '2.1.0'
+__version__ = '2.1.1'
 
 TEL_INDEX_NOT_VALID = -2
 PIXEL_INDEX_NOT_VALID = -3
