@@ -274,7 +274,7 @@ def test_hessio():
         assert(hessio.get_mc_shower_primary_id() == 0)
         assert(float(hessio.get_mc_shower_h_first_int()) == float(17846.654296875))
 
-        assert(hessio.get_adc_known(38,0,1000)== 1 )
+        assert(hessio.get_adc_known(38,0,1000)== 3 )
 
         assert(float(hessio.get_ref_shape(38,0,2)) == float(.0269622802734375))
         assert(float(hessio.get_ref_step(38)) == float(.3003003001213074))
