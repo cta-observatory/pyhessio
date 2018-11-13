@@ -24,7 +24,7 @@ pyhessio_module = Extension(
   )
 
 NAME = 'pyhessio'
-VERSION = '2.1.0'
+VERSION = '2.1.1'
 AUTHOR = 'cta developers'
 AUTHOR_EMAIL = 'jean.jacquemier@lapp.in2p3.fr'
 URL = 'https://github.com/cta-observatory/pyhessio'

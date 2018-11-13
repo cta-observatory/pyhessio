@@ -8,6 +8,7 @@
 #include "io_basic.h"
 #include "io_hess.h"
 #include "io_history.h"
+#include "io_histogram.h"
 #include "fileopen.h"
 #include "stdio.h"
 void close_file (void);
@@ -49,7 +50,7 @@ int move_to_next_mc_event (int *event_id);
 int move_to_next_calib_event (int *event_id);
 double get_mc_event_xcore (void);
 double get_mc_event_ycore (void);
-int get_mc_event_shower_num(void);
+long get_mc_num_generated_events(const char *filename);
 int get_mc_run_array_direction (double *dir);
 double get_azimuth_raw (int telescope_id);
 double get_altitude_raw (int telescope_id);
@@ -684,6 +685,44 @@ double get_mc_event_ycore ()
 	}
 	return -0.;
 }
+
+//----------------------------------------------------------------
+// Returns number of entries of histogram #6, corresponding to the
+// total number of simulated events, including re-uses of showers
+// If histogram is not found, it returns -1
+// If more than one histogram block is found, the entries of the histogram
+// in the different blocks are added. This is the case e.g. for files
+// resulting from the merging of several simtelarray outputs
+//
+long get_mc_num_generated_events(const char *filename)
+{
+    const long excluded[9] = {1, 2, 3, 4, 7, 11, 12, 21, 22};
+
+    HISTOGRAM* hist = get_histogram_by_ident(6);
+    if (hist)
+        clear_histogram(hist);  // In case it exists from a previous call!
+
+    // read histograms #6 from file, if more than one, add contents:
+    read_histogram_file_x(filename, 1, excluded, 9);
+
+    hist = get_histogram_by_ident(6);
+
+    if (!hist){
+        Error("Could not find histogram #6 to get number of generated MC events!");
+        return -1;
+    }
+    struct Histogram_Extension *he = hist->extension;
+
+    // Get number of entries of the histogram "Events, without weights (Ra3d, log10(E))"
+    // This is the real number of Corsika events processed bysimtelarray (_including_ re-uses of each shower!)
+    long numsimushowers = 0;
+    int ibin;
+    for (ibin = 0; ibin < hist->nbins * hist->nbins_2d; ibin++)
+         numsimushowers += he->fdata[ibin];
+
+    return numsimushowers;
+}
+
 //----------------------------------------------------------------
 // Returns B_total
 // Returns -1 if data is not accessible
