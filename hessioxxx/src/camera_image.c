@@ -30,8 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  included in the data.
  *
  *  @author  Konrad Bernloehr
- *  @date    @verbatim CVS $Date: 2015/01/20 14:50:36 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.31 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/18 15:10:17 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.42 $ @endverbatim
  */
 
 #include "initial.h"      /* This file includes others as required. */
@@ -43,15 +43,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "rec_tools.h"
 #include "reconstruct.h"
 #include "camera_image.h"
+#include "user_analysis.h"
 
-static char ps_head1[] =
+static char ps_head1a[] =
 "%!PS-Adobe-2.0\n"
 #ifdef CTA
-"%%Title: CTA Telescope Simulation\n"
+"%%Title: CTA Telescope Simulation";
 #else
-"%%Title: H.E.S.S. Telescope Simulation\n"
+"%%Title: H.E.S.S. Telescope Simulation";
 #endif
-"%%Creator:";
+static char ps_head1b[] =
+"\n%%Creator:";
 
 static char ps_head2[] =
 #ifdef CTA
@@ -91,8 +93,15 @@ static char ps_head2[] =
 "/txt6 {/Helvetica-Bold-iso ff 550.00 scf sf} bind def\n"
 "/txt5 {/Helvetica-Bold-iso ff 480.00 scf sf} bind def\n"
 "/txt4 {/Helvetica-Bold-iso ff 400.00 scf sf} bind def\n"
+"/txt3 {/Helvetica-Bold-iso ff 320.00 scf sf} bind def\n"
 "/txt2 {/Helvetica-iso ff 250.00 scf sf} bind def\n"
 "/txt1 {/Helvetica-iso ff 100.00 scf sf} bind def\n"
+"/txt125 {/Helvetica-iso ff 125.00 scf sf} bind def\n"
+"/txt100 {/Helvetica-iso ff 100.00 scf sf} bind def\n"
+"/txt80 {/Helvetica-iso ff 80.00 scf sf} bind def\n"
+"/txt70 {/Helvetica-iso ff 70.00 scf sf} bind def\n"
+"/txt60 {/Helvetica-iso ff 60.00 scf sf} bind def\n"
+"/txt50 {/Helvetica-iso ff 50.00 scf sf} bind def\n"
 "/mtxt {m gs 1 -1 sc} bind def\n"
 "/tblack {dup sw pop 2 div neg 0 rm black sh gr} bind def\n"
 "/tblue {dup sw pop 2 div neg 0 rm blue sh gr} bind def\n"
@@ -263,7 +272,9 @@ static int ps_num_page = 0;
  *  @short Write PostScript of camera sum image or sample image to a dedicated file.
  *
  *  Also controlled via environment variables 
- *  GAMMA_COEFF, GRAY_IMAGE, IMAGE_RANGE, IMAGE_OFFSET, PLOT_WITH_PIXEL_ID.
+ *  GAMMA_COEFF, GRAY_IMAGE, IMAGE_RANGE, IMAGE_OFFSET for image colors, 
+ *  PLOT_WITH_PIXEL_ID, PLOT_WITH_PIXEL_AMP, PLOT_WITH_PIXEL_PE for overlay text,
+ *  SHOW_TRUE_PE for showing color for true p.e. number in place of calibrated amplitude.
  *
  *  @param image_fname The name of the postscript image file. Opened for appending new images.
  *  @param hsdata      Pointer to the structure containing all data.
@@ -275,6 +286,7 @@ static int ps_num_page = 0;
  *                     2: Use integration around local peak position from
  *                        pulse shape analysis. Return 0 for pixels without
  *                        a fairly significant peak.
+ *                     3: Show only true p.e. content as amplitude (no samples).
  *  @param clip_amp: if >0, any calibrated amplitude is clipped not to exceed this value [mean p.e.].
  */
 
@@ -289,6 +301,7 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
                 hsdata->event.central.glob_count :
                 hsdata->event.teldata[itel].loc_count*100);
    int tel = hsdata->camera_set[itel].tel_id;
+   int itel_pe = itel;
    int npix = hsdata->camera_set[itel].num_pixels;
    double flen = hsdata->camera_set[itel].flen;
    double *x = &hsdata->camera_set[itel].xpix[0];
@@ -305,12 +318,16 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
    double img_range = (getenv("IMAGE_RANGE")==NULL)?20.:atof(getenv("IMAGE_RANGE"));
    double img_off = (getenv("IMAGE_OFFSET")==NULL)?4.:atof(getenv("IMAGE_OFFSET"));
    int with_id = (getenv("PLOT_WITH_PIXEL_ID")==NULL)?0:atoi(getenv("PLOT_WITH_PIXEL_ID"));
+   int with_amp = (getenv("PLOT_WITH_PIXEL_AMP")==NULL)?0:atoi(getenv("PLOT_WITH_PIXEL_AMP"));
+   int with_npe = (getenv("PLOT_WITH_PIXEL_PE")==NULL)?0:atoi(getenv("PLOT_WITH_PIXEL_PE"));
+   int with_sum_only = (getenv("PLOT_WITH_SUM_ONLY")==NULL)?0:atoi(getenv("PLOT_WITH_SUM_ONLY"));
+   int without_reco = (getenv("PLOT_WITHOUT_RECO")==NULL)?0:atoi(getenv("PLOT_WITHOUT_RECO"));
    double range;
    double hex_dx[6] = { 1.155, 0.577, -0.577, -1.155, -0.577, 0.577 };
    double hex_dy[6] = { 0.0, 1.0, 1.0, 0., -1.0, -1.0 };
    double sqr_dx[4] = { 1.0, -1.0, -1.0, 1.0 };
    double sqr_dy[4] = { 1.0, 1.0, -1.0, -1.0 };
-   double showval[] = { 0., 0.2, 0.5, 1.0, 2.0, 5.0, 10. };
+   double showval[] = { 0., 0.2, 0.5, 1.0, 2.0, 5.0, 10., 20., 50. };
    // double sum = 0.;
    double sumsel = 0.;
    int npsum = 0;
@@ -321,6 +338,15 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
    int last_time = -1, itime;
    double rot_deg = hsdata->camera_set[itel].cam_rot * (180./M_PI);
    int has_data = 0;
+   int npe_true_total = 0, npe_true_sel = 0;
+   int show_true_pe = (getenv("SHOW_TRUE_PE")==NULL)?(amp_tm==3?2:0):atoi(getenv("SHOW_TRUE_PE"));
+# ifdef CTA
+   const char *default_title = "CTA Telescope Simulation";
+# else
+   const char *default_title = "H.E.S.S. Telescope Simulation";
+# endif
+   const char *title = (getenv("PLOT_WITH_TITLE")==NULL) ? default_title : getenv("PLOT_WITH_TITLE");
+   int its = (npix < 1000) ? 125 : ( (npix < 3000) ? 100 : ((npix < 5000) ? 80 : (( npix < 10000) ? 60 : 50)));
 
    if ( strcmp(image_fname,"none") == 0 ||
       	strcmp(image_fname,"/dev/null") == 0 )
@@ -328,6 +354,13 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
 
    if ( itel < 0 || itel >= H_MAX_TEL )
       return;
+   if ( itel_pe < 0 || itel_pe >= H_MAX_TEL )
+   {
+      show_true_pe = with_npe = 0;
+   }
+
+   if ( show_true_pe )
+      img_off = 0.;
 
    teldata = &hsdata->event.teldata[itel];
    if ( !teldata->known )
@@ -337,13 +370,20 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
    if ( teldata->raw != NULL && teldata->raw->known )
    {
       has_data = 1;
-      if ( teldata->raw->num_samples > 1 && amp_tm == 0 )
+      if ( teldata->raw->num_samples > 1 && amp_tm == 0 && !with_sum_only )
          last_time = teldata->raw->num_samples-1;
    }
    else if ( teldata->pixcal != NULL && teldata->pixcal->known )
       has_data = 2;
    if ( !has_data )
       return;
+
+   if ( itel_pe >= 0 && itel_pe < H_MAX_TEL )
+      npe_true_total = hsdata->mc_event.mc_pe_list[itel_pe].npe;
+   if ( npe_true_total < 0 )
+      show_true_pe = 0;
+   if ( show_true_pe == 2 )
+      last_time = -1;
 
    for ( i=0; i<npix; i++ )
    {
@@ -362,7 +402,13 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
    range = (img_range >= 1. ? img_range : 1.);
    gamma_coeff = (img_gamma != 0. ? img_gamma : 0.65);
 
-   if ( (psfile = fileopen(image_fname,"a")) == NULL )
+   if ( image_fname[0] == '+' )
+      psfile = fileopen(image_fname+1,"a");
+   else if ( ps_num_page == 0 )
+      psfile = fileopen(image_fname,"w");
+   else
+      psfile = fileopen(image_fname,"a");
+   if ( psfile == NULL )
    {
       perror(image_fname);
       return;
@@ -376,7 +422,15 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
       char date[60];
       time_t t = time(NULL);
       struct tm *ttm = localtime(&t);
-      fputs(ps_head1,psfile);
+      const char *bsnm = strrchr(image_fname,'/');
+      if ( bsnm == NULL )
+         bsnm = image_fname;
+      else
+         bsnm++;
+      
+      fputs(ps_head1a,psfile);
+      fprintf(psfile," (%s)",bsnm);
+      fputs(ps_head1b,psfile);
       sprintf(proc,"/proc/%d/cmdline",p);
       strcpy(prog,"program");
       if ( (fproc = fopen(proc,"r")) != NULL )
@@ -488,7 +542,8 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
       if ( hsdata->event.teldata[itel].img != NULL && 
            hsdata->event.teldata[itel].num_image_sets > 0 &&
            hsdata->event.teldata[itel].img->known &&
-      	   hsdata->event.teldata[itel].img->amplitude > 0. )
+      	   hsdata->event.teldata[itel].img->amplitude > 0. &&
+           !without_reco )
       {
          sumsel = hsdata->event.teldata[itel].img->amplitude;
          npsum  = hsdata->event.teldata[itel].img->pixels;
@@ -520,6 +575,8 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
          double npe = calibrate_pixel_amplitude(hsdata,itel,i,amp_tm,itime,clip_amp);
          if ( itime >= 0 )
             npe *= 5.; // FIXME: need proper scaling to p.e. amplitude.
+         else if ( show_true_pe )
+            npe = hsdata->mc_event.mc_pe_list[itel_pe].pe_count[i];
          // double hs;
          /* Exactly zero amplitude indicates (most likely) we didn't know any amplitude. */
          int significant = (npe != 0.);
@@ -568,12 +625,26 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
          if ( has_triggered[i] )
       	    fprintf(psfile,"n %ld %ld m gcr\n", Nint(xc), Nint(yc));
          if ( is_in_image[i] )
+         {
       	    fprintf(psfile,"n %ld %ld m yxcr\n", Nint(xc), Nint(yc));
+            npe_true_sel += hsdata->mc_event.mc_pe_list[itel_pe].pe_count[i];
+         }
 
          if ( with_id )
          {
             /* Print the pixel ID on top of each pixel in very small font size. */
-            fprintf(psfile,"txt1 %ld %ld mtxt (%d) tblack\n", Nint(xc), Nint(yc), i);
+            fprintf(psfile,"txt%d %ld %ld mtxt (%d) tblack\n", its, Nint(xc), Nint(yc), i);
+         }
+         else if ( with_amp && !show_true_pe )
+         {
+           /* Print the pixel amplitude on top of each pixel in very small font size. */
+            fprintf(psfile,"txt%d %ld %ld mtxt (%3.1f) tblack\n", its, Nint(xc), Nint(yc), npe-img_off);
+         }
+         else if ( with_npe || (with_amp && show_true_pe) )
+         {
+           /* Print the pixel amplitude on top of each pixel in very small font size. */
+            fprintf(psfile,"txt%d %ld %ld mtxt (%d) tblack\n", its, Nint(xc), Nint(yc), 
+               hsdata->mc_event.mc_pe_list[itel_pe].pe_count[i]);
          }
 
        }
@@ -659,32 +730,52 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
 #else
       if ( itime < 0 )
        fprintf(psfile,
-# ifdef CTA
-         "txt10 10800 2200 mtxt (CTA Telescope Simulation) tblue\n");
-# else
-         "txt10 10800 2200 mtxt (H.E.S.S. Telescope Simulation) tblue\n");
-# endif
+         "txt10 10800 2200 mtxt (%s) tblue\n", title);
       else
        fprintf(psfile,
-# ifdef CTA
-         "txt10 10800 2200 mtxt (CTA Telescope Simulation \\(Sample %d\\)) tblue\n", itime);
-# else
-         "txt10 10800 2200 mtxt (H.E.S.S. Telescope Simulation \\(Sample %d\\)) tblue\n", itime);
-# endif
+         "txt10 10800 2200 mtxt (%s \\(Sample %d\\)) tblue\n", title, itime);
       fprintf(psfile,
          "txt4 10800 3400 mtxt (Run %d, event %d, array %d, telescope %d) tblack\n",
          run,event/100,event%100,tel);
       if ( teldata->trigger_pixels.pixels > 0 )
          fprintf(psfile,"txt4 10800 4600 mtxt\n (Number of triggered pixels: %d of %d)\n tblack\n",
             teldata->trigger_pixels.pixels, npix);
+      fprintf(psfile, "txt4 10800 5200 mtxt (Number of significant pixels: %d) tblack\n", ns);
       if ( teldata->image_pixels.pixels > 0 )
-         fprintf(psfile,"txt4 10800 5200 mtxt\n (Number of pixels after cleaning: %d)\n tblack\n",
+         fprintf(psfile, "txt4 10800 5800 mtxt\n (Number of pixels after cleaning: %d)\n tblack\n",
             teldata->image_pixels.pixels);
-      fprintf(psfile, "txt4 10800 5800 mtxt (Number of significant pixels: %d) tblack\n", ns);
-      fprintf(psfile,
-         "txt4 10800 6400 mtxt\n"
-         " (Sum of signals in %d selected pixels: %3.1f p.e.%s)\n"
-         " tblack\n", npsum, sumsel, amp_tm==0?"":(amp_tm==1?" at global peak":" at local peaks"));
+      if ( show_true_pe )
+      {
+         fprintf(psfile,
+            "txt4 10800 6400 mtxt\n"
+            " (Actual p.e. count in %d selected pixels: %d of %d)\n"
+            " tblack\n", npsum, npe_true_sel, npe_true_total);
+      }
+      else if ( npe_true_total > 0 )
+      {
+         if ( itime < 0 )
+         {
+            fprintf(psfile,
+               "txt4 10800 6400 mtxt\n"
+               " (Sum of signals in %d selected pixels: %3.1f p.e.%s \\(from %d of %d true p.e.\\))\n"
+               " tblack\n", npsum, sumsel, amp_tm==0?"":(amp_tm==1?" at global peak":" at local peaks"),
+               npe_true_sel, npe_true_total);
+         }
+         else
+         {
+            fprintf(psfile,
+               "txt4 10800 6400 mtxt\n"
+               " (Sum of signals in %d selected pixels: %3.1f p.e.%s)\n"
+               " tblack\n", npsum, sumsel, amp_tm==0?"":(amp_tm==1?" at global peak":" at local peaks"));
+         }
+      }
+      else
+      {
+         fprintf(psfile,
+            "txt4 10800 6400 mtxt\n"
+            " (Sum of signals in %d selected pixels: %3.1f p.e.%s)\n"
+            " tblack\n", npsum, sumsel, amp_tm==0?"":(amp_tm==1?" at global peak":" at local peaks"));
+      }
 
       if ( type < 0 )
       {
@@ -797,7 +888,8 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
       if ( hsdata->event.teldata[itel].img != NULL && 
            hsdata->event.teldata[itel].num_image_sets > 0 &&
            hsdata->event.teldata[itel].img->known &&
-      	   hsdata->event.teldata[itel].img->amplitude > 0. )
+      	   hsdata->event.teldata[itel].img->amplitude > 0. &&
+           !without_reco )
       {
          double ang_to_len = flen;
          double xe = hsdata->event.teldata[itel].img->x * ang_to_len;
@@ -805,7 +897,6 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
          double angle = 90. + (180./M_PI)*hsdata->event.teldata[itel].img->phi;
          double xs = 2. * hsdata->event.teldata[itel].img->l * ang_to_len;
          double ys = 2. * hsdata->event.teldata[itel].img->w * ang_to_len;
-         double axs, ays;
 
          /* // Note: we do not rotate here: fprintf(psfile,"gs\n10800 16200 tr\n%f rot\n-10800 -16200 tr\n", rot_deg); */
          xc = 10800. + scale*ye;
@@ -824,24 +915,28 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
       	    "  n 0 0 100 0 360 arc cp gs yellow s gr gr\n",
 	    (int)xc, (int)yc, angle, 0.01*scale*xs, 0.01*scale*ys,
 	    (int)xc, (int)yc, angle, 0.005*scale*xs, 0.005*scale*ys);
+      }
 
-         if ( hsdata->event.shower.known )
-         {
-            angles_to_offset(hsdata->event.shower.Az, 
-	       hsdata->event.shower.Alt, 
-	       hsdata->event.trackdata[itel].azimuth_raw,
-	       hsdata->event.trackdata[itel].altitude_raw,
-	       flen, &axs, &ays);
+      if ( hsdata->event.shower.known && !without_reco )
+      {
+         double axs=0., ays=0.;
+         angles_to_offset(hsdata->event.shower.Az, 
+	    hsdata->event.shower.Alt, 
+	    hsdata->event.trackdata[itel].azimuth_raw,
+	    hsdata->event.trackdata[itel].altitude_raw,
+	    flen, &axs, &ays);
 
-      	    xc = 10800. + scale*ays;
-      	    yc = 16200. - scale*axs;
+      	 xc = 10800. + scale*ays;
+      	 yc = 16200. - scale*axs;
 
-	    fprintf(psfile,
-	       "%% Reconstructed shower direction:\n"
-	       "n %d %d 150 0 360 arc cp gs 30 slw red s gr\n",
-	       (int)xc, (int)yc);
-         }
+	 fprintf(psfile,
+	    "%% Reconstructed shower direction:\n"
+	    "n %d %d 150 0 360 arc cp gs 30 slw red s gr\n",
+	    (int)xc, (int)yc);
+      }
 
+      {
+         double axs=0., ays=0.;
          angles_to_offset(hsdata->mc_shower.azimuth, 
 	    hsdata->mc_shower.altitude, 
 	    hsdata->event.trackdata[itel].azimuth_raw,
@@ -857,8 +952,6 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
 	    "n %d %d m %d %d l cp gs 30 slw red s gr\n",
 	    (int)(xc-100.), (int)(yc-100.), (int)(xc+100.), (int)(yc+100.),
 	    (int)(xc-100.), (int)(yc+100.), (int)(xc+100.), (int)(yc-100.));
-
-         /* // Not rotated: fprintf(psfile,"gr\n"); */
       }
 
       fputs(ps_end_page,psfile);
@@ -866,6 +959,439 @@ void hesscam_ps_plot(const char *image_fname, AllHessData *hsdata, int itel,
    }
    fileclose(psfile);
 }
+
+/* ------------------------- hesscam_type_sum_plot ----------------------- */
+
+void hesscam_type_sum_plot(const char *image_fname, AllHessData *hsdata, int teltype);
+
+void hesscam_type_sum_plot(const char *image_fname, AllHessData *hsdata, int teltype)
+{
+   int run = hsdata->run_header.run;
+   int event = hsdata->event.central.glob_count;
+   int itel, itel_pe=-1, ktel=-1, ntel = hsdata->run_header.ntel;
+   int nteltype = 0, iteltype, itlist[H_MAX_TEL];
+   double npe_reco[H_MAX_PIX], npe_true[H_MAX_PIX], sum_npe_reco=0., sum_npe_true=0.;
+   int npix, ipix;
+
+   for ( itel=0; itel<ntel; itel++ )
+   {
+      TelEvent *teldata;
+      int itype = user_get_type(itel);
+      if ( itype != teltype )
+         continue;
+      teldata = &hsdata->event.teldata[itel];
+      if ( !teldata->known )
+         continue;
+      if ( teldata->raw == NULL && teldata->pixcal == NULL )
+         continue;
+      itlist[nteltype] = itel;
+      nteltype++;
+   }
+   if ( nteltype < 2 )
+      return;
+
+   ktel=itlist[0];
+   npix = hsdata->camera_set[ktel].num_pixels;
+   for ( ipix=0; ipix<npix; ipix++ )
+      npe_reco[ipix] = npe_true[ipix] = 0.;
+   
+   for ( iteltype=0; iteltype<nteltype; iteltype++ )
+   {
+      int i;
+      itel = itlist[iteltype];
+      itel_pe = itel;
+      if ( itel < 0 || itel >= H_MAX_TEL )
+         continue;
+      TelEvent *teldata = &hsdata->event.teldata[itel];
+      if ( hsdata->camera_set[itel].num_pixels != npix )
+         continue;
+      for (i=0; i<npix; i++)
+      {
+         double npe = hsdata->mc_event.mc_pe_list[itel_pe].pe_count[i];
+         npe_true[i] += npe;
+         sum_npe_true += npe;
+      }
+      if ( (teldata->raw != NULL && teldata->raw->known) ||
+           (teldata->pixcal != NULL && teldata->pixcal->known) )
+      {
+         for (i=0; i<npix; i++)
+         {
+            /* Calibration the standard way. */
+            double npe = calibrate_pixel_amplitude(hsdata,itel,i,0,-1,0.);
+            npe_reco[i] += npe;
+            sum_npe_reco += npe;
+         }
+      }
+   }
+   itel = ktel;
+   // int show_true_pe = (getenv("SHOW_TRUE_PE")==NULL)?0:atoi(getenv("SHOW_TRUE_PE"));
+   int show_true_pe = 1;
+   if ( sum_npe_true == 0. )
+      show_true_pe = 0;
+
+   double flen = hsdata->camera_set[itel].flen;
+   double *x = &hsdata->camera_set[itel].xpix[0];
+   double *y = &hsdata->camera_set[itel].ypix[0];
+   // TelEvent *teldata = &hsdata->event.teldata[itel];
+   FILE *psfile;
+   // int ngt;
+   int i, j, n;
+   double xc, yc;
+   double scale = 150.;
+   double body_diameter = 0.;
+   double gamma_coeff = (getenv("GAMMA_COEFF")==NULL)?0.65:atof(getenv("GAMMA_COEFF"));
+   double img_gamma = (getenv("GRAY_IMAGE")==NULL)?gamma_coeff:-0.85*gamma_coeff;
+   double img_range = (getenv("IMAGE_RANGE")==NULL)?20.:atof(getenv("IMAGE_RANGE"));
+   double img_off = (getenv("IMAGE_OFFSET")==NULL)?4.:atof(getenv("IMAGE_OFFSET"));
+   int with_id = (getenv("PLOT_WITH_PIXEL_ID")==NULL)?0:atoi(getenv("PLOT_WITH_PIXEL_ID"));
+   int with_amp = (getenv("PLOT_WITH_PIXEL_AMP")==NULL)?0:atoi(getenv("PLOT_WITH_PIXEL_AMP"));
+   int with_npe = (getenv("PLOT_WITH_PIXEL_PE")==NULL)?0:atoi(getenv("PLOT_WITH_PIXEL_PE"));
+   int without_reco = (getenv("PLOT_WITHOUT_RECO")==NULL)?0:atoi(getenv("PLOT_WITHOUT_RECO"));
+   double range;
+   double hex_dx[6] = { 1.155, 0.577, -0.577, -1.155, -0.577, 0.577 };
+   double hex_dy[6] = { 0.0, 1.0, 1.0, 0., -1.0, -1.0 };
+   double sqr_dx[4] = { 1.0, -1.0, -1.0, 1.0 };
+   double sqr_dy[4] = { 1.0, 1.0, -1.0, -1.0 };
+   double showval[] = { 0., 0.2, 0.5, 1.0, 2.0, 5.0, 10., 20., 50. };
+   char primary[40];
+   double r, rs = 0.;
+   double rot_deg = hsdata->camera_set[itel].cam_rot * (180./M_PI);
+# ifdef CTA
+   const char *default_title = "CTA Telescope Simulation";
+# else
+   const char *default_title = "H.E.S.S. Telescope Simulation";
+# endif
+   const char *title = (getenv("PLOT_WITH_TITLE")==NULL) ? default_title : getenv("PLOT_WITH_TITLE");
+   int its = (npix < 1000) ? 125 : ( (npix < 3000) ? 100 : ((npix < 5000) ? 80 : (( npix < 10000) ? 60 : 50)));
+
+   if ( strcmp(image_fname,"none") == 0 ||
+      	strcmp(image_fname,"/dev/null") == 0 )
+      return;
+
+   if ( itel < 0 || itel >= H_MAX_TEL )
+      return;
+   if ( itel_pe < 0 || itel_pe >= H_MAX_TEL )
+   {
+      show_true_pe = with_npe = 0;
+   }
+
+   for ( i=0; i<npix; i++ )
+   {
+      r = sqrt(x[i]*x[i] + y[i]*y[i]);
+      rs += r;
+   }
+
+   body_diameter = 4.4*rs/(npix+0.1);
+   scale *= 170./body_diameter;
+
+   range = (img_range >= 1. ? img_range : 1.);
+   gamma_coeff = (img_gamma != 0. ? img_gamma : 0.65);
+
+   if ( image_fname[0] == '+' )
+      psfile = fileopen(image_fname+1,"a");
+   else if ( ps_num_page == 0 )
+      psfile = fileopen(image_fname,"w");
+   else
+      psfile = fileopen(image_fname,"a");
+   if ( psfile == NULL )
+   {
+      perror(image_fname);
+      return;
+   }
+
+   if ( ps_num_page == 0 )
+   {
+      pid_t p = getpid();
+      char prog[1024], proc[128];
+      FILE *fproc;
+      char date[60];
+      time_t t = time(NULL);
+      struct tm *ttm = localtime(&t);
+      const char *bsnm = strrchr(image_fname,'/');
+
+      if ( bsnm == NULL )
+         bsnm = image_fname;
+      else
+         bsnm++;
+      
+      fputs(ps_head1a,psfile);
+      fprintf(psfile," (%s)",bsnm);
+      fputs(ps_head1b,psfile);
+      sprintf(proc,"/proc/%d/cmdline",p);
+      strcpy(prog,"program");
+      if ( (fproc = fopen(proc,"r")) != NULL )
+      {
+         fgets(prog,sizeof(prog)-1,fproc);
+         fclose(fproc);
+      }
+      fprintf(psfile," %s", prog);
+      if ( getlogin() != NULL )
+      {
+      	 char host[60];
+      	 fprintf(psfile," run by %s",getlogin());
+	 if ( gethostname(host,sizeof(host)-1) == 0 )
+	    fprintf(psfile," on %s",host);
+      }
+      fprintf(psfile,"\n");
+      
+      strftime(date,sizeof(date)-1,"%Y-%m-%d %T %Z",ttm);
+      fprintf(psfile,"%%%%CreationDate: %s\n",date);
+      fputs(ps_head2,psfile);
+      fputs(ps_head3,psfile);
+   }
+
+   {
+    int ixtrue;
+    for ( ixtrue=(show_true_pe?1:0); ixtrue>=0; ixtrue-- )
+    {
+      ps_num_page++;
+      fputs(ps_begin_page1,psfile);
+      fprintf(psfile,"%s%d.%d:T%d %d\n",
+         1?"+":"-",event/100,event%100,teltype,ps_num_page);
+      fputs(ps_begin_page2,psfile);
+
+      if ( ixtrue )
+         img_off = 0.;
+
+      for (i=0; i<1; i++)
+      {
+         // Only works if all pixels are of the same type.
+         double hs = hsdata->camera_set[itel].size[0] / 2.;
+         int pixel_shape = guessed_pixel_shape_type(&hsdata->camera_set[itel],itel);
+         if ( pixel_shape < 0 )
+            pixel_shape = 0;
+
+         switch ( pixel_shape )
+         {
+      	    int idx, idy, ndx, ndy;
+	    case 0:
+	       if ( hs <= 0. )
+      	          continue;
+	       fprintf(psfile,"%% Pixel type %d has shape %d\n",
+	          i, pixel_shape);
+               ndx = Nint(hs*scale);
+               fprintf(psfile,
+                  "/pt%d { %d 0 rm currentpoint exch %d add exch %d 0 360 arc cp gs} def\n",
+                  i, ndx, -ndx, ndx);
+	       break;
+      	    case 1:
+	       ndx = idx = Nint(hs*scale*hex_dx[0]);
+	       ndy = idy = Nint(hs*scale*hex_dy[0]);
+	       fprintf(psfile,"/pt%d { %d %d rm", i, idx, idy);
+	       for ( j=1; j<6; j++ )
+	       {
+	          idx = Nint(hs*scale*hex_dx[j]) - ndx;
+	          idy = Nint(hs*scale*hex_dy[j]) - ndy;
+	          ndx += idx;
+	          ndy += idy;
+	          fprintf(psfile," %d %d rl",idx,idy);
+	       }
+	       fprintf(psfile," cp gs } def\n");
+	       break;
+      	    case 2: /* square */
+	       ndx = idx = Nint(hs*scale*sqr_dx[0]);
+	       ndy = idy = Nint(hs*scale*sqr_dy[0]);
+	       fprintf(psfile,"/pt%d { %d %d rm", i, idx, idy);
+	       for ( j=1; j<4; j++ )
+	       {
+	          idx = Nint(hs*scale*sqr_dx[j]) - ndx;
+	          idy = Nint(hs*scale*sqr_dy[j]) - ndy;
+	          ndx += idx;
+	          ndy += idy;
+	          fprintf(psfile," %d %d rl",idx,idy);
+	       }
+	       fprintf(psfile," cp gs } def\n");
+	       break;
+      	    case 3:
+	       ndx = idx = Nint(hs*scale*hex_dy[0]);
+	       ndy = idy = Nint(hs*scale*hex_dx[0]);
+	       fprintf(psfile,"/pt%d { %d %d rm", i, idx, idy);
+	       for ( j=1; j<6; j++ )
+	       {
+	          idx = Nint(hs*scale*hex_dy[j]) - ndx;
+	          idy = Nint(hs*scale*hex_dx[j]) - ndy;
+	          ndx += idx;
+	          ndy += idy;
+	          fprintf(psfile," %d %d rl",idx,idy);
+	       }
+	       fprintf(psfile," cp gs } def\n");
+	       break;
+	    default:
+	       if ( hs <= 0. )
+      	          continue;
+	       fprintf(psfile,"%% Pixel type %d has shape %d\n",
+	          i, pixel_shape);
+         }
+      }
+      fprintf(psfile,"/pxe { srgb 1.00 shd ef gr gs black s gr } def\n");
+
+       /* Rotate all pixels and pixel-related symbols by given camera rotation */
+       fprintf(psfile,"gs\n10800 16200 tr\n%f rot\n-10800 -16200 tr\n", rot_deg);
+
+       for (i=0; i<npix; i++)
+       {
+         /* Calibration the standard way. */
+         double npe = (ixtrue ? npe_true[i] : npe_reco[i] ) + img_off;
+
+         xc = 10800. + scale*y[i];
+         yc = 16200. - scale*x[i];
+
+         fprintf(psfile,"n %ld %ld m pt%d ",
+      	    Nint(xc),Nint(yc),/*pixtype*/ 0);
+
+         print_pix_col(npe/range,psfile,gamma_coeff);
+
+
+         if ( with_id )
+         {
+            /* Print the pixel ID on top of each pixel in very small font size. */
+            fprintf(psfile,"txt%d %ld %ld mtxt (%d) tblack\n", its, Nint(xc), Nint(yc), i);
+         }
+         else if ( with_amp>1 && !ixtrue )
+         {
+           /* Print the pixel amplitude on top of each pixel in very small font size. */
+            fprintf(psfile,"txt%d %ld %ld mtxt (%3.1f) tblack\n", its, Nint(xc), Nint(yc), 
+               npe_reco[i]);
+         }
+         else if ( with_npe>1 || (with_amp>1 && show_true_pe) )
+         {
+           /* Print the pixel amplitude on top of each pixel in very small font size. */
+            fprintf(psfile,"txt%d %ld %ld mtxt (%1.0f) tblack\n", its, Nint(xc), Nint(yc), 
+               npe_true[i]);
+         }
+
+       }
+       /* End of camera rotation */
+       fprintf(psfile,"gr\n");
+
+#ifdef LANG_DE
+       fprintf(psfile,
+# ifdef CTA
+         "txt10 10800 2200 mtxt (CTA-Teleskop-Simulation) tblue\n");
+# else
+         "txt10 10800 2200 mtxt (H.E.S.S. Teleskop-Simulation) tblue\n");
+# endif
+      fprintf(psfile,
+         "txt4 10800 3400 mtxt (Nr. %d, Ereignis %d, System %d, Summe von %d Teleskopen vom Typ %d) tblack\n",
+         run,event/100,event%100, nteltype, teltype);
+
+         switch ( hsdata->mc_shower.primary_id )
+         {
+            case 1:
+	       strcpy(primary,"Gamma"); break;
+            case 2:
+            case 3:
+	       strcpy(primary,"Elektron"); break;
+            case 5:
+            case 6:
+	       strcpy(primary,"Myon"); break;
+            case 14:
+	       strcpy(primary,"Proton"); break;
+            default:
+	       sprintf(primary,"Typ %d",hsdata->mc_shower.primary_id);
+         }
+         fprintf(psfile,
+            "txt6 10800 27800 mtxt\n"
+            " (Prim\\344rteilchen: %s von %5.3f TeV Energie) tred\n",
+            primary, hsdata->mc_shower.energy);
+#else
+       fprintf(psfile,
+         "txt10 10800 2200 mtxt (%s) tblue\n", title);
+      fprintf(psfile,
+         "txt4 10800 3400 mtxt (Run %d, event %d, array %d, sum of %d telescopes of type %d) tblack\n",
+         run,event/100,event%100,nteltype,teltype);
+
+         switch ( hsdata->mc_shower.primary_id )
+         {
+            case 0:
+	       strcpy(primary,"gamma"); break;
+            case -1:
+	       strcpy(primary,"positron"); break;
+            case 1:
+	       strcpy(primary,"electron"); break;
+            case -2:
+            case 2:
+	       strcpy(primary,"muon"); break;
+            case 101:
+	       strcpy(primary,"proton"); break;
+            default:
+	       sprintf(primary,"type %d",hsdata->mc_shower.primary_id);
+         }
+         fprintf(psfile,
+            "txt6 10800 27800 mtxt\n"
+            " (Primary: %s of %5.3f TeV energy) tred\n",
+            primary, hsdata->mc_shower.energy);
+#endif
+
+         n = sizeof(showval)/sizeof(showval[0]);
+         for (i=0; i<n; i++)
+         {
+            double npe = range * showval[i] + img_off;
+            // double hs;
+
+            // hs = hsdata->camera_set[itel].size[0] / 2.;
+
+            xc = 10800 + 1000.*(i-0.5*n);
+            yc = 26000;
+
+            fprintf(psfile,"n %ld %ld m pt%d ",
+      	       Nint(xc),Nint(yc),0);
+
+            print_pix_col(npe/range,psfile,gamma_coeff);
+
+            fprintf(psfile, "txt5 %d %d mtxt (%1.0f) tblue\n",
+      	       (int)(xc),(int)(yc+800.),range * showval[i]);
+         }
+         fprintf(psfile, "txt5 %d %d mtxt (p.e.) tblue\n",
+            (int)(xc+1000.),(int)(yc+800.));
+
+      /* Plot Az/Alt coordinate arrows (with x/y arrows rotated, if necessary) */
+      fprintf(psfile,alt_az_arrow, rot_deg);
+
+      if ( hsdata->event.shower.known && !without_reco )
+      {
+         double axs=0., ays=0.;
+         angles_to_offset(hsdata->event.shower.Az, 
+	    hsdata->event.shower.Alt, 
+	    hsdata->event.trackdata[itel].azimuth_raw,
+	    hsdata->event.trackdata[itel].altitude_raw,
+	    flen, &axs, &ays);
+
+      	 xc = 10800. + scale*ays;
+      	 yc = 16200. - scale*axs;
+
+	 fprintf(psfile,
+	    "%% Reconstructed shower direction:\n"
+	    "n %d %d 150 0 360 arc cp gs 30 slw red s gr\n",
+	    (int)xc, (int)yc);
+      }
+
+      {
+         double axs=0., ays=0.;
+         angles_to_offset(hsdata->mc_shower.azimuth, 
+	    hsdata->mc_shower.altitude, 
+	    hsdata->event.trackdata[itel].azimuth_raw,
+	    hsdata->event.trackdata[itel].altitude_raw,
+	    flen, &axs, &ays);
+
+         xc = 10800. + scale*ays;
+         yc = 16200. - scale*axs;
+
+         fprintf(psfile,
+	    "%% Simulated shower direction:\n"
+	    "n %d %d m %d %d l cp gs 30 slw red s gr\n"
+	    "n %d %d m %d %d l cp gs 30 slw red s gr\n",
+	    (int)(xc-100.), (int)(yc-100.), (int)(xc+100.), (int)(yc+100.),
+	    (int)(xc-100.), (int)(yc+100.), (int)(xc+100.), (int)(yc-100.));
+      }
+
+      fputs(ps_end_page,psfile);
+      fputs(ps_trailer,psfile);
+    }
+   }
+   fileclose(psfile);
+}
+
 /* --------------------------- find_neighbours ---------------------------- */
 
 #define H_MAX_NB1 8
@@ -1004,6 +1530,14 @@ static int guessed_pixel_shape_type(CameraSettings *camset, int itel)
          fprintf(stderr, "Cannot guess the pixel type of telescope #%d yet.\n",
             itel);
          return 0;
+      }
+      if ( camset != NULL && camset->pixel_shape[0] >= 0 && 
+           px_shape_type[itel] != camset->pixel_shape[0] )
+      {
+         fprintf(stderr,
+            "Warning: configured pixel shape (%d) does not match neighbour geometry (%d)!\n",
+            camset->pixel_shape[0], px_shape_type[itel]);
+         return camset->pixel_shape[0];
       }
       return px_shape_type[itel];
    }

@@ -25,8 +25,8 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    2014
- *  @date    CVS $Date: 2014/06/03 16:19:44 $
- *  @version CVS $Revision: 1.3 $
+ *  @date    CVS $Date: 2018/09/19 12:11:36 $
+ *  @version CVS $Revision: 1.5 $
  */
 
 #include "initial.h"
@@ -55,7 +55,7 @@ struct ev_reg_entry *new_reg_entry(unsigned long t, const char *n, const char *d
    struct ev_reg_entry *e;
    if ( t<=0 || n==NULL )
       return NULL;
-   if ( (e = malloc(sizeof(struct ev_reg_entry))) == NULL )
+   if ( (e = (struct ev_reg_entry *) malloc(sizeof(struct ev_reg_entry))) == NULL )
       return NULL;
    e->type = t;
    e->name = strdup(n);
@@ -147,7 +147,7 @@ int read_eventio_registry(const char *fname)
       e = new_reg_entry(type,np,dp);
       if ( e == NULL )
          continue;
-      if ( (ev_reg_next = calloc(sizeof(struct ev_reg_chain),1)) == NULL )
+      if ( (ev_reg_next = (struct ev_reg_chain *) calloc(sizeof(struct ev_reg_chain),1)) == NULL )
          break;
       if ( ev_reg_start == NULL )
       {
@@ -190,7 +190,7 @@ static void read_default_registry()
       else
       {
          fprintf(stderr,"No eventIO types registry\n");
-         ev_reg_start = calloc(sizeof(struct ev_reg_chain),1);
+         ev_reg_start = (struct ev_reg_chain *) calloc(sizeof(struct ev_reg_chain),1);
       }
    }
 }
@@ -198,7 +198,7 @@ static void read_default_registry()
 /** Find an entry for a given type number in the registry */
 /** This is the standard implementation being used by default where available. */
 
-// struct ev_reg_entry *find_ev_reg_std(unsigned long t);
+/* struct ev_reg_entry *find_ev_reg_std(unsigned long t); */
 
 struct ev_reg_entry *find_ev_reg_std(unsigned long t)
 {

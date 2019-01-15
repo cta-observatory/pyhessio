@@ -1,6 +1,6 @@
 /* ============================================================================
 
-   Copyright (C) 2000, 2003, 2008, 2009, 2010, 2011, 2013, 2014  Konrad Bernloehr
+   Copyright (C) 2000, 2003, 2008, 2009, 2010, 2011, 2013, 2014, 2017  Konrad Bernloehr
 
    This file is part of the eventio/hessio library.
 
@@ -34,8 +34,8 @@
  *  @author  Konrad Bernl&ouml;hr
  *  @date July 2000 (initial version)
  *
- *  @date    @verbatim CVS $Date: 2016/05/25 16:04:53 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.96 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/08/22 15:12:48 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.104 $ @endverbatim
  */
 
 /* ================================================================== */
@@ -81,6 +81,37 @@ void show_hessio_max()
    printf("   H_MAX_D_TEMP: %d\n", H_MAX_D_TEMP);
    printf("   H_MAX_C_TEMP: %d\n", H_MAX_C_TEMP);
    printf("   H_MAX_GAINS: %d\n\n", H_MAX_GAINS);
+}
+
+static int hs_verbose = -1; /**< Should hessio print_... functions be verbose? */
+static int hs_maxprt = -1;  /**< What is the maximum number of per pixel outputs? */
+static int hs_dynamic = -1; /**< Should be check environment variables each time? */
+
+/** @short Allow user to override MAX_PRINT_ARRAY and PRINT_VERBOSE settings at a later time */
+
+void hs_reset_env()
+{
+   hs_verbose = -1;
+   hs_maxprt = -1;
+   hs_dynamic = -1;
+}
+
+static void hs_check_env(void);
+
+/** @short Get settings on how much information to print from environment */
+
+static void hs_check_env()
+{
+   char *s;
+   if ( hs_dynamic == 0 )
+      return;
+
+   hs_verbose = (getenv("PRINT_VERBOSE")!=NULL) ? 1 : 0;
+   if ( (s = getenv("MAX_PRINT_ARRAY")) != NULL )
+      hs_maxprt = atoi(s);
+   else
+      hs_maxprt = 20;
+   hs_dynamic = (getenv("PRINT_DYNAMIC")!=NULL) ? 1 : 0;
 }
 
 static void put_time_blob (HTime *t, IO_BUFFER *iobuf);
@@ -658,7 +689,7 @@ int print_hess_mcrunheader (IO_BUFFER *iobuf)
       printf("  Low energy model: %d (%s)\n", m_low_E,
          m_low_E==1 ? "GHEISHA" :  m_low_E==2 ? "URQMD" : m_low_E==3 ? "FLUKA" : "other");
       m_high_E = get_int32(iobuf);
-      printf("  High energy model: %d (%s)\n", m_low_E,
+      printf("  High energy model: %d (%s)\n", m_high_E,
          m_high_E==1 ? "VENUS" :  m_high_E==2 ? "Sibyll" : m_high_E==3 ? "QGSJET" :
          m_high_E==4 ? "DPMJET" : m_high_E==5 ? "NeXus" : m_high_E==6 ? "EPOS" : "other");
       printf("  Maximum bunchsize: %f\n", get_real(iobuf));
@@ -717,11 +748,15 @@ int write_hess_camsettings (IO_BUFFER *iobuf, CameraSettings *cs)
    // if ( cs->cam_rot != 0. )
    //    item_header.version = 3;
    item_header.version = 4;  /* Need version 4 for pixel inclination */
+   if ( cs->eff_flen != 0. )
+      item_header.version = 5;
    item_header.ident = cs->tel_id;
    put_item_begin(iobuf,&item_header);
 
    put_int32(cs->num_pixels,iobuf);
    put_real(cs->flen,iobuf);
+   if ( item_header.version > 4 )
+      put_real(cs->eff_flen,iobuf);
    put_vector_of_real(cs->xpix,cs->num_pixels,iobuf);
    put_vector_of_real(cs->ypix,cs->num_pixels,iobuf);
    /* Data only written since version 4 or format changed with version 4: */
@@ -788,7 +823,7 @@ int read_hess_camsettings (IO_BUFFER *iobuf, CameraSettings *cs)
    item_header.type = IO_TYPE_HESS_CAMSETTINGS;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version > 4 )
+   if ( item_header.version > 5 )
    {
       fprintf(stderr,"Unsupported camera definition version: %d.\n",
          item_header.version);
@@ -814,6 +849,9 @@ int read_hess_camsettings (IO_BUFFER *iobuf, CameraSettings *cs)
       return -1;
    }
    cs->flen = get_real(iobuf);
+   cs->eff_flen = 0.;
+   if ( item_header.version > 4 )
+      cs->eff_flen = get_real(iobuf);
    get_vector_of_real(cs->xpix,cs->num_pixels,iobuf);
    get_vector_of_real(cs->ypix,cs->num_pixels,iobuf);
    if ( item_header.version >= 4 )
@@ -917,7 +955,7 @@ int print_hess_camsettings (IO_BUFFER *iobuf)
 {
    IO_ITEM_HEADER item_header;
    int rc, i, num_pixels, pixel_shape;
-   double flen, xpix, ypix, zpix, czpix, area, size;
+   double flen, eff_flen, xpix, ypix, zpix, czpix, area, size;
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
@@ -925,7 +963,7 @@ int print_hess_camsettings (IO_BUFFER *iobuf)
    item_header.type = IO_TYPE_HESS_CAMSETTINGS;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version > 4 )
+   if ( item_header.version > 5 )
    {
       fprintf(stderr,"Unsupported camera definition version: %d.\n",
          item_header.version);
@@ -937,7 +975,13 @@ int print_hess_camsettings (IO_BUFFER *iobuf)
    num_pixels = get_int32(iobuf);
    printf("   num_pixels = %d\n", num_pixels);
    flen = get_real(iobuf);
+   eff_flen = 0.;
    printf("   flen = %f m\n", flen);
+   if ( item_header.version > 4 )
+   {
+      eff_flen = get_real(iobuf);
+      printf("   eff_flen = %f m\n", eff_flen);
+   }
    printf("   xpix = ");
    for ( i=0; i<num_pixels; i++ )
    {
@@ -1366,12 +1410,11 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
    int npix=0, ndraw=0, ngain=0, nsect=0;
    int nmax = 20;
    int w_psmx = 0, ix;
-   int verbose = (getenv("PRINT_VERBOSE")!=NULL) ? 1 : 0;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      nmax = atoi(getenv("MAX_PRINT_ARRAY"));
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+      
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_CAMORGAN;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -1398,7 +1441,7 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
    for ( i=0; i<npix; i++ )
    {
       int jd = (item_header.version<2 ? get_short(iobuf) : get_scount32(iobuf));
-      if ( i < nmax )
+      if ( i < hs_maxprt )
          printf("%d, ", jd );
       else if ( i == nmax )
          printf("...");
@@ -1410,9 +1453,9 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
    for ( i=0; i<npix*ngain; i++ )
    {
       int jc = (item_header.version<2 ? get_short(iobuf) : get_scount32(iobuf));
-      if ( i < nmax*ngain )
+      if ( i < hs_maxprt*ngain )
          printf("%d%c ", jc, ((i+1)%ngain)==0?';':',');
-      else if ( i == nmax*ngain )
+      else if ( i == hs_maxprt*ngain )
          printf("...");
    }
    printf("\n");
@@ -1422,9 +1465,9 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
    for ( i=0; i<npix*ngain; i++ )
    {
       int jc = (item_header.version<2 ? get_short(iobuf) : get_scount32(iobuf));
-      if ( i < nmax*ngain )
+      if ( i < hs_maxprt*ngain )
          printf("%d%c ", jc, ((i+1)%ngain)==0?';':',');
-      else if ( i == nmax*ngain)
+      else if ( i == hs_maxprt*ngain)
          printf("...");
    }
    printf("\n");
@@ -1434,9 +1477,9 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
    for ( i=0; i<npix*ngain; i++ )
    {
       int jc = (item_header.version<2 ? get_short(iobuf) : get_scount32(iobuf));
-      if ( i < nmax*ngain )
+      if ( i < hs_maxprt*ngain )
          printf("%d%c ", jc, ((i+1)%ngain)==0?';':',');
-      else if ( i == nmax*ngain)
+      else if ( i == hs_maxprt*ngain)
          printf("...");
    }
    printf("\n");
@@ -1452,7 +1495,7 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
       int sectors[H_MAX_PIXSECTORS+20];
       size_t nsx = sizeof(sectors)/sizeof(sectors[0]);
       n = (item_header.version<2 ? get_short(iobuf) : get_scount32(iobuf));
-      if ( verbose && i<nmax )
+      if ( hs_verbose && i<hs_maxprt )
          printf("(px=%d: n=%d) ", i, n);
       if ( (size_t) n > nsx )
       { 
@@ -1489,19 +1532,19 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
          if ( sectors[j] == 0 )
          {
             n = j;
-            if ( verbose )
+            if ( hs_verbose )
                printf("[n=%d] ", n);
             break;
          }
       for ( j=n; j<H_MAX_PIXSECTORS; j++)
       	 sectors[j] = -1;
-      if ( i < nmax )
+      if ( i < hs_maxprt )
       {
          for ( j=0; j<n; j++ )
             printf("%d%c",sectors[j],(j+1)==n?';':',');
          printf(" ");
       }
-      else if ( i == nmax )
+      else if ( i == hs_maxprt )
          printf("...");
    }
    printf("\n");
@@ -1513,7 +1556,7 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
          int sector_type = get_byte(iobuf);
          double sector_threshold = get_real(iobuf);
          double sector_pixthresh = get_real(iobuf);
-         if ( i < nmax )
+         if ( i < hs_maxprt )
          {
             printf("   Sector %d is of type %d (%s)", i, sector_type,
               sector_type==0 ? "majority" : 
@@ -1526,7 +1569,7 @@ int print_hess_camorgan (IO_BUFFER *iobuf)
                printf(" with clipping at %f p.e. and threshold at %f p.e.\n",
                   sector_pixthresh, sector_threshold);
          }
-         else if ( i == nmax )
+         else if ( i == hs_maxprt )
             printf("   ...\n");
       }
    }
@@ -1738,6 +1781,8 @@ int print_hess_pixelset (IO_BUFFER *iobuf)
 
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+      
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_PIXELSET;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -1826,7 +1871,7 @@ int print_hess_pixelset (IO_BUFFER *iobuf)
       rs = get_real(iobuf);
       printf("   Reference pulse shapes of %d (sub-) samples of %4.2f ns for %d gains.\n",
          lr, rs, nr);
-      if ( getenv("PRINT_VERBOSE") != NULL )
+      if ( hs_verbose )
       {
          for (n=0; n<nr; n++)
          {
@@ -1919,6 +1964,55 @@ int read_hess_pixeldis (IO_BUFFER *iobuf, PixelDisabled *pd)
       return -1;
    }
    get_vector_of_int32(pd->HV_disabled,pd->num_HV_disabled,iobuf);
+
+   return get_item_end(iobuf,&item_header);
+}
+
+/* -------------------- read_hess_pixeldis ------------------- */
+/**
+ *  Print which pixels are disabled in HV and/or trigger in eventio format.
+*/  
+
+int print_hess_pixeldis (IO_BUFFER *iobuf)
+{
+   IO_ITEM_HEADER item_header;
+   int rc, i;
+   int num_trig_disabled = 0, num_HV_disabled = 0;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_PIXELDISABLE;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version != 0 )
+   {
+      fprintf(stderr,"Unsupported disabled pixels version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+   
+   printf("\nPixels disabled in telescope %ld:\n", item_header.ident);
+
+   num_trig_disabled = get_int32(iobuf);
+   if ( num_trig_disabled == 0 )
+      printf("   Trigger disabled: none  /");
+   else
+   {
+      printf("   Trigger disabled in %d pixels\n", num_trig_disabled);
+      for ( i=0; i<num_trig_disabled; i++)
+         (void) get_int32(iobuf);
+   }
+   num_HV_disabled = get_int32(iobuf);
+   if ( num_HV_disabled == 0 )
+      printf("%s  HV disabled: none\n", num_trig_disabled?" ":"");
+   else
+   {
+      printf("\n   HV disabled in %d pixels\n", num_HV_disabled);
+      for ( i=0; i<num_HV_disabled; i++)
+         (void) get_int32(iobuf);
+   }
 
    return get_item_end(iobuf,&item_header);
 }
@@ -2106,6 +2200,62 @@ int read_hess_trackset (IO_BUFFER *iobuf, TrackingSetup *ts)
    return get_item_end(iobuf,&item_header);
 }
 
+/* -------------------- print_hess_trackset ------------------- */
+/**
+ *  Print the settings for tracking of a telescope in eventio format.
+*/  
+
+int print_hess_trackset (IO_BUFFER *iobuf)
+{
+   IO_ITEM_HEADER item_header;
+   int rc, taz=0, talt=0;
+
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_TRACKSET;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version != 0 )
+   {
+      fprintf(stderr,"Unsupported tracking settings version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+   
+   printf("\nTracking setup to telescope %ld:\n", item_header.ident);
+   
+   taz = get_short(iobuf);
+   talt = get_short(iobuf);
+   if ( taz != 0 || talt != 0 ) /* Not the usual Alt-Az mount ... */
+   {
+      printf("   Drive type: ");
+      printf(" az = %d", taz);
+      printf(", alt = %d\n", talt);
+   }
+   printf("   Zero point: ");
+   printf(" az = %f deg.", get_real(iobuf)*(180./M_PI));
+   printf(", alt = %f deg.\n", get_real(iobuf)*(180./M_PI));
+   printf("   Sign: ");
+   printf(" az = %f", get_real(iobuf));
+   printf(", alt = %f\n", get_real(iobuf));
+   printf("   Resolution: ");
+   printf(" az = %f deg.", get_real(iobuf)*(180./M_PI));
+   printf(", alt = %f deg.\n", get_real(iobuf)*(180./M_PI));
+   printf("   Range low: ");
+   printf(" az = %f deg.", get_real(iobuf)*(180./M_PI));
+   printf(", alt = %f deg.\n", get_real(iobuf)*(180./M_PI));
+   printf("   Range high: ");
+   printf(" az = %f deg.", get_real(iobuf)*(180./M_PI));
+   printf(", alt = %f deg.\n", get_real(iobuf)*(180./M_PI));
+   printf("   Park position: ");
+   printf(" az = %f deg.", get_real(iobuf)*(180./M_PI));
+   printf(", alt = %f deg.\n", get_real(iobuf)*(180./M_PI));
+
+   return get_item_end(iobuf,&item_header);
+}
+
 /* -------------------- write_hess_pointingcor ------------------- */
 /**
  *  Write the parameters of a telescope's pointing correction in eventio format.
@@ -2175,6 +2325,44 @@ int read_hess_pointingcor (IO_BUFFER *iobuf, PointingCorrection *pc)
    return get_item_end(iobuf,&item_header);
 }
 
+/* -------------------- print_hess_pointingcor ------------------- */
+/**
+ *  Print the parameters of a telescope's pointing correction in eventio format.
+*/  
+
+int print_hess_pointingcor (IO_BUFFER *iobuf)
+{
+   IO_ITEM_HEADER item_header;
+   int rc, i;
+   int function_type=0, num_param=0;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_POINTINGCOR;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version != 0 )
+   {
+      fprintf(stderr,"Unsupported pointing correction version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+
+   function_type = get_int32(iobuf);
+   num_param = get_int32(iobuf);
+   if ( function_type == 0 && num_param == 0 )
+      printf("\nPointing correction for telescope %ld: none\n", item_header.ident);
+   else
+      printf("\nPointing correction for telescope %ld with %d parameters for function %d:\n  ",
+         item_header.ident, num_param, function_type);
+   for ( i=0; i<num_param; i++ )
+      printf(" %g", get_real(iobuf));
+
+   return get_item_end(iobuf,&item_header);
+}
+
 
 /* -------------------- write_hess_centralevent ------------------- */
 /**
@@ -2214,7 +2402,7 @@ int write_hess_centralevent (IO_BUFFER *iobuf, CentralEvent *ce)
       for ( itel=0; itel<ce->num_teltrg; itel++ )
       {
          ntt = 0;
-         for ( itrg=0; itrg<3; itrg++ )
+         for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
          {
             if ( (ce->teltrg_type_mask[itel] & (1<<itrg)) )
             {
@@ -2223,7 +2411,7 @@ int write_hess_centralevent (IO_BUFFER *iobuf, CentralEvent *ce)
          }
          if ( ntt > 1 ) // Need type-specific trigger times only with more than one type
          {
-            for ( itrg=0; itrg<3; itrg++ )
+            for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
             {
                if ( (ce->teltrg_type_mask[itel] & (1<<itrg)) )
                   put_real(ce->teltrg_time_by_type[itel][itrg], iobuf);
@@ -2304,7 +2492,7 @@ int read_hess_centralevent (IO_BUFFER *iobuf, CentralEvent *ce)
       for ( itel=0; itel< ce->num_teltrg; itel++ )
       {
          ntt = 0;
-         for ( itrg=0; itrg<3; itrg++ )
+         for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
          {
             if ( (ce->teltrg_type_mask[itel] & (1<<itrg)) )
             {
@@ -2316,7 +2504,7 @@ int read_hess_centralevent (IO_BUFFER *iobuf, CentralEvent *ce)
          }
          if ( ntt > 1 ) // Need type-specific trigger times only with more than one type
          {
-            for ( itrg=0; itrg<3; itrg++ )
+            for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
             {
                if ( (ce->teltrg_type_mask[itel] & (1<<itrg)) )
                   ce->teltrg_time_by_type[itel][itrg] = get_real(iobuf);
@@ -2330,7 +2518,8 @@ int read_hess_centralevent (IO_BUFFER *iobuf, CentralEvent *ce)
       {
          ce->teltrg_type_mask[itel] = 1; // Older data was always majority trigger
          ce->teltrg_time_by_type[itel][0] = ce->teltrg_time[itel];
-         ce->teltrg_time_by_type[itel][1] = ce->teltrg_time_by_type[itel][2] = 9999.;
+         for ( itrg=1; itrg<H_MAX_TRG_TYPES; itrg++ )
+            ce->teltrg_time_by_type[itel][itrg] = 9999.;
       }
    }
 
@@ -2421,25 +2610,31 @@ int print_hess_centralevent (IO_BUFFER *iobuf)
             printf("%sdsum",lt?", ":"");
             lt = 1;
          }
+         if ( (teltrg_type_mask[i] & 8) != 0 )
+         {
+            printf("%sdtrg",lt?", ":"");
+            lt = 1;
+         }
          printf(")\n");
       }
-      for ( itrg=0; itrg<3; itrg++ )
+      for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
          if ( ((all_mask) & (1<<itrg)) )
             all_mask_bits++;
       if ( all_mask_bits > 1 )
          printf("    Trigger-type specific times of central trigger:\n");
       for ( i=0; i< num_teltrg; i++ )
       {
-         double teltrg_time_by_type[3] = { teltrg_time[i], teltrg_time[i], teltrg_time[i] };
+         double teltrg_time_by_type[H_MAX_TRG_TYPES];
          ntt = 0;
-         for ( itrg=0; itrg<3; itrg++ )
+         for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
          {
+            teltrg_time_by_type[itrg] = teltrg_time[i];
             if ( (teltrg_type_mask[i] & (1<<itrg)) )
                ntt++;
          }
          if ( ntt > 1 ) // Type-specific trigger times only with more than one type per tel.
          {
-            for ( itrg=0; itrg<3; itrg++ )
+            for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
                if ( (teltrg_type_mask[i] & (1<<itrg)) )
                   teltrg_time_by_type[itrg] = get_real(iobuf);
          }
@@ -2449,7 +2644,7 @@ int print_hess_centralevent (IO_BUFFER *iobuf)
          {
             printf("      #%d (tel. %d): type mask %d, times:", 
                i, teltrg_list[i], teltrg_type_mask[i]);
-            for ( itrg=0; itrg<3; itrg++ )
+            for ( itrg=0; itrg<H_MAX_TRG_TYPES; itrg++ )
             {
                if ( (teltrg_type_mask[i] & (1<<itrg)) )
                   printf(" %f", teltrg_time_by_type[itrg]);
@@ -2967,6 +3162,10 @@ int write_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
    // if ( raw->num_pixels > 4095 ) /* Strictly needed for large no. of pixels. */
    //   item_header.version = 2;             /* Version 2 (revised again) */
    item_header.version = 3;             /* Version 3 (compatible with 32-bit adc_sum) */
+   if ( raw->num_pixels > 32767 && raw->zero_sup_mode >= 2 )
+      item_header.version = 4;
+   if ( raw->num_pixels > 8191 && raw->zero_sup_mode >= 2 && raw->data_red_mode != 0 )
+      item_header.version = 4;
 
    /* If threshold is zero there cannot be any data reduction. */
    if ( raw->threshold == 0 )
@@ -2978,8 +3177,11 @@ int write_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
    //   if ( raw->num_gains != 2 || (raw->num_pixels>=8192 && zero_sup_mode==2) )
    //      zero_sup_mode = data_red_mode = 0;
    /* Zero suppression mode 2 is at format version 3 definitely not compatible with 32768 or more pixels */
-   if ( (raw->num_pixels>=32768 && zero_sup_mode>=2) )
+   if ( (raw->num_pixels>=32768 && zero_sup_mode>=2 && item_header.version<4) )
        zero_sup_mode = 1;
+   /* Data reduction even has a problem with more than 8191 pixels, later shifted to 2 mio. */
+   if ( (raw->num_pixels>=8192 && data_red_mode>0 && item_header.version<4) )
+       data_red_mode = 0;
 
    /* Check if the combination of active options is reasonable */
    if ( raw->list_known < 0 || raw->list_known > 2 ||
@@ -3041,6 +3243,13 @@ int write_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
 
    item_header.ident = flags;
    put_item_begin(iobuf,&item_header);
+
+   if ( item_header.version >= 4 && raw->data_red_mode == 2 )
+   {
+      put_scount32(raw->threshold,iobuf);
+      put_scount32(raw->offset_hg8,iobuf);
+      put_scount32(raw->scale_hg8,iobuf);
+   }
 
    if ( item_header.version >= 2 )
    {
@@ -3106,7 +3315,8 @@ m_tot = raw->num_pixels;
 	       while ( n-- > 0 )
 	       {
 #if ( H_MAX_GAINS >= 2 )
-		  if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold && 
+		  if ( /* (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold && */
+                       (raw->adc_known[LO_GAIN][k] & 0x01) && 
                        raw->num_gains >= 2 )
 		  {
 		     lgval[mlg++] = raw->adc_sum[LO_GAIN][k];
@@ -3148,7 +3358,7 @@ mhg16_tot += j;
 	       while ( n-- > 0 )
 	       {
 #if ( H_MAX_GAINS >= 2 )
-		  if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold && 
+		  if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold &&
                         raw->num_gains >= 2 )
 		  {
 		     lgval[mlg++] = raw->adc_sum[LO_GAIN][k];
@@ -3229,6 +3439,7 @@ m_tot++;
 #endif
 		     zbits |= 1 << j;
 #if (H_MAX_GAINS >= 2)
+                     /* Copying probably faster than checking if raw->num_gains > 1 */
 		     lgval[m] = raw->adc_sum[LO_GAIN][k]; /* Possible overflow */
 #else
                      lgval[m] = 0;
@@ -3280,7 +3491,8 @@ mhg16_tot += m;
 m_tot++;
 #endif
 		     zbits |= 1 << j;
-		     if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold &&
+		     if ( /* (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold && */
+                          (raw->adc_known[LO_GAIN][k] & 0x01) &&
                           raw->num_gains >= 2 )
 		     {
 		     	cflags |= (uint16_t)1 << j;
@@ -3336,7 +3548,7 @@ mhg16_tot += m;
 m_tot++;
 #endif
 		     zbits |= 1 << j;
-		     if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold &&
+		     if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold && 
                           raw->num_gains >= 2 )
 		     {
 		     	cflags |= (uint16_t)1 << j;
@@ -3416,19 +3628,27 @@ mhg8_tot += mhg8;
 	    uint8_t adc_hg8[H_MAX_PIX];
       	    int adc_list_l[H_MAX_PIX];
 
-	    case 0: /* No data reduction */
+	    case 0: /* No data reduction; copy ADC sums to contiguous array(s) */
 	       for ( j=0; j<raw->list_size; j++ )
 	       {
 	          k = raw->adc_list[j];
 		  adc_sum_l[HI_GAIN][j] = raw->adc_sum[HI_GAIN][k];
 #if (H_MAX_GAINS >= 2)
+                  /* Always copying probably faster than checking if raw->num_gains > 1 */
 		  adc_sum_l[LO_GAIN][j] = raw->adc_sum[LO_GAIN][k];
 #endif
 	       }
-	       put_short(raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
-	       put_vector_of_int(raw->adc_list,raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
-	       // put_vector_of_uint16(adc_sum_l[LO_GAIN],raw->list_size,iobuf);
-	       // put_vector_of_uint16(adc_sum_l[HI_GAIN],raw->list_size,iobuf);
+               /* Same list applies to both HG and LG, if there is any LG */
+               if ( item_header.version >= 4 )
+               {
+                  put_count(raw->list_size,iobuf);
+	          put_vector_of_int_scount(raw->adc_list,raw->list_size,iobuf);
+               }
+               else
+               {
+	          put_short(raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
+	          put_vector_of_int(raw->adc_list,raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
+               }
                if ( item_header.version <= 2 )
                {
 #if (H_MAX_GAINS >= 2)
@@ -3457,21 +3677,35 @@ m_tot += raw->list_size;
 	       {
 	          k = raw->adc_list[j];
 #if ( H_MAX_GAINS >= 2 )
-	          if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold &&
+	          if ( /* (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold && */
+                        (raw->adc_known[LO_GAIN][k] & 0x01) &&
                         raw->num_gains >= 2 )
 		  {
-		     adc_list_l[j] = raw->adc_list[j];
+		     adc_list_l[mlg] = k;
 		     adc_sum_l[LO_GAIN][mlg++] = raw->adc_sum[LO_GAIN][k];
 		  }
 		  else
 #endif
-		     adc_list_l[j] = raw->adc_list[j] | 0x2000; /* suppressed */
+                  {
+                     /* Mark LG-suppressed pixels in pixel list by bit 13 (old) or 21 (new) */
+                     if ( item_header.version >= 4 )
+		        adc_list_l[j] = raw->adc_list[j] | 0x200000; /* suppressed (note: #pixels < 2097152) */
+                     else
+		        adc_list_l[j] = raw->adc_list[j] | 0x2000; /* suppressed (note: #pixels < 8192) */
+                  }
 		  adc_sum_l[HI_GAIN][j] = raw->adc_sum[HI_GAIN][k];
 	       }
-	       put_short(raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
-	       put_vector_of_int(adc_list_l,raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
-	       // put_vector_of_uint16(adc_sum_l[LO_GAIN],mlg,iobuf);
-	       // put_vector_of_uint16(adc_sum_l[HI_GAIN],raw->list_size,iobuf);	  
+               /* We still save only one list, but the one with markup bits. */
+               if ( item_header.version >= 4 )
+               {
+                  put_count(raw->list_size,iobuf);
+	          put_vector_of_int_scount(adc_list_l,raw->list_size,iobuf);
+               }
+               else
+               {
+	          put_short(raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
+	          put_vector_of_int(adc_list_l,raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
+               }
                if ( item_header.version <= 2 )
                {
                   if ( raw->num_gains >= 2 )
@@ -3500,6 +3734,7 @@ m_tot += raw->list_size;
 	          if ( (int) raw->adc_sum[HI_GAIN][k] >= raw->threshold &&
                         raw->num_gains >= 2 )
 		  {
+                     /* Big signal: preserve full quality LG and HG signals */
 		     adc_list_l[j] = raw->adc_list[j];
 		     adc_sum_l[LO_GAIN][mlg++] = raw->adc_sum[LO_GAIN][k];
 		     adc_sum_l[HI_GAIN][mhg16++] = raw->adc_sum[HI_GAIN][k];
@@ -3514,22 +3749,35 @@ m_tot += raw->list_size;
 			if ( v8 < 255 )
 			   f8 = 1;
 		     }
-		     if ( f8 )
+		     if ( f8 ) /* Reduced signal fits into 8 bits */
 		     {
-		     	adc_list_l[j] = raw->adc_list[j] | 0x6000;
+                        if ( item_header.version >= 4 )
+		     	   adc_list_l[j] = raw->adc_list[j] | 0x600000;
+                        else
+		     	   adc_list_l[j] = raw->adc_list[j] | 0x6000; /* suppressed (note: #pixels < 8192) */
 			adc_hg8[mhg8++] = (uint8_t) v8;
 		     }
-		     else
+		     else /* We need more than 8 bits anyway, so keep original signal */
 		     {
-		     	adc_list_l[j] = raw->adc_list[j] | 0x2000;
+                        if ( item_header.version >= 4 )
+		     	   adc_list_l[j] = raw->adc_list[j] | 0x200000;
+                        else
+		     	   adc_list_l[j] = raw->adc_list[j] | 0x2000; /* suppressed (note: #pixels < 8192) */
 		     	adc_sum_l[HI_GAIN][mhg16++] = raw->adc_sum[HI_GAIN][k];
 		     }
 		  }
 	       }
-	       put_short(raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
-	       put_vector_of_int(adc_list_l,raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
-	       // put_vector_of_uint16(adc_sum_l[LO_GAIN],mlg,iobuf);
-	       // put_vector_of_uint16(adc_sum_l[HI_GAIN],mhg16,iobuf);
+               /* Again write only one list, with two possible markup bits */
+               if ( item_header.version >= 4 )
+               {
+                  put_count(raw->list_size,iobuf);
+	          put_vector_of_int_scount(adc_list_l,raw->list_size,iobuf);
+               }
+               else
+               {
+	          put_short(raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
+	          put_vector_of_int(adc_list_l,raw->list_size,iobuf); // FIXME: fails with >= 32768 pixels
+               }
                if ( item_header.version <= 2 )
                {
                   if ( raw->num_gains >= 2 )
@@ -3542,7 +3790,8 @@ m_tot += raw->list_size;
 	             put_adcsum_differential(adc_sum_l[LO_GAIN],mlg,iobuf);
 	          put_adcsum_differential(adc_sum_l[HI_GAIN],mhg16,iobuf);
                }
-	       put_vector_of_uint8(adc_hg8,mhg8,iobuf);
+               if ( mhg8 > 0 )
+	          put_vector_of_uint8(adc_hg8,mhg8,iobuf);
 #ifdef XXDEBUG
 mlg_tot += mlg;
 mhg16_tot += mhg16;
@@ -3593,7 +3842,7 @@ int read_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
    item_header.type = IO_TYPE_HESS_TELADCSUM;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version > 3 )
+   if ( item_header.version > 4 )
    {
       fprintf(stderr,"Unsupported ADC sums version: %d.\n",
          item_header.version);
@@ -3605,6 +3854,14 @@ int read_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
    flags = (uint32_t) item_header.ident;
    raw->zero_sup_mode = flags & 0x1f;
    raw->data_red_mode = (flags >> 5) & 0x1f;
+
+   if ( item_header.version >= 4 && raw->data_red_mode == 2 )
+   {
+      raw->threshold = get_scount32(iobuf);
+      raw->offset_hg8 = get_scount32(iobuf);
+      raw->scale_hg8 = get_scount32(iobuf);
+   }
+
    raw->list_known = (flags >> 10) & 0x01;
    if ( item_header.version == 0 )
    {
@@ -3660,14 +3917,30 @@ int read_hess_teladc_sums (IO_BUFFER *iobuf, AdcData *raw)
       k = 1;
    else
       k = 0;
-   for ( j=0; j<raw->num_pixels; j++ )
-      raw->significant[j] = k;
-   for (i=0; i<raw->num_gains; i++)
+
+   if ( k != 0 )
+   {
+      /* Initialize values one by one */
       for ( j=0; j<raw->num_pixels; j++ )
+         raw->significant[j] = k;
+      for (i=0; i<raw->num_gains; i++)
       {
-	 raw->adc_known[i][j] = k;
-	 raw->adc_sum[i][j] = 0;
+         for ( j=0; j<raw->num_pixels; j++ )
+         {
+	    raw->adc_known[i][j] = k;
+	    /* raw->adc_sum[i][j] = 0; now done with memset below */
+         }
       }
+   }
+   else
+   {
+      /* Memset should be faster for setting all to zero */
+      memset(raw->significant,0,(size_t)raw->num_pixels*sizeof(raw->significant[0]));
+      for (i=0; i<raw->num_gains; i++)
+         memset(raw->adc_known[i],0,(size_t)raw->num_pixels*sizeof(raw->adc_known[0][0]));
+   }
+   for (i=0; i<raw->num_gains; i++)
+      memset(raw->adc_sum[i],0,(size_t)raw->num_pixels*sizeof(raw->adc_sum[0][0]));
 
 #ifdef XXDEBUG
 printf("### z = %d, d = %d\n", raw->zero_sup_mode, raw->data_red_mode);
@@ -3990,26 +4263,47 @@ m_tot++;
 	    case 0: /* No data reduction */
 	    case 1: /* Low low-gain channels were skipped (for two gains) */
  	    case 2: /* Width of high-gain channel can be reduced */
-	       raw->list_size = get_short(iobuf);
-	       get_vector_of_int(adc_list_l,raw->list_size,iobuf);
+               if ( item_header.version >= 4 )
+               {
+                  raw->list_size = get_count(iobuf);
+	          get_vector_of_int_scount(adc_list_l,raw->list_size,iobuf);
+               }
+               else
+               {
+	          raw->list_size = get_short(iobuf);
+	          get_vector_of_int(adc_list_l,raw->list_size,iobuf);
+               }
 	       mlg = mhg16 = mhg8 = 0;
       	       for ( j=0; j<raw->list_size; j++ )
 	       {
-	          raw->adc_list[j] = k = adc_list_l[j] & 0x1fff;
-		  without_lg[j] = ((adc_list_l[j] & 0x2000) != 0);
-		  reduced_width[j] = ((adc_list_l[j] & 0x4000) != 0);
+                  if ( item_header.version >= 4 )
+                  {
+	             raw->adc_list[j] = k = adc_list_l[j] & 0x1fffff;
+		     without_lg[j] = ((adc_list_l[j] & 0x200000) != 0);
+		     reduced_width[j] = ((adc_list_l[j] & 0x400000) != 0);
+                  }
+                  else
+                  {
+	             raw->adc_list[j] = k = adc_list_l[j] & 0x1fff;
+		     without_lg[j] = ((adc_list_l[j] & 0x2000) != 0);
+		     reduced_width[j] = ((adc_list_l[j] & 0x4000) != 0);
+                  }
 		  if ( reduced_width[j] )
 		     mhg8++;
-		  else if ( without_lg[j] )
+#if ( H_MAX_GAINS >= 2 )
+		  else if ( raw->num_gains<2 || without_lg[j] )
 		     mhg16++;
 		  else
 		  {
 		     mlg++;
 		     mhg16++;
 		  }
+#else
+                  else
+                     mhg16++;
+#endif
 	       }
-	       // get_vector_of_uint16(adc_sum_l[LO_GAIN],mlg,iobuf);
-	       // get_vector_of_uint16(adc_sum_l[HI_GAIN],mhg16,iobuf);
+
                if ( item_header.version < 2 )
                {
 #if ( H_MAX_GAINS >= 2 )
@@ -4026,7 +4320,8 @@ m_tot++;
 #endif
 	          get_adcsum_differential(adc_sum_l[HI_GAIN],mhg16,iobuf);
                }
-	       get_vector_of_uint8(adc_hg8,mhg8,iobuf);
+               if ( mhg8 > 0 )
+	          get_vector_of_uint8(adc_hg8,mhg8,iobuf);
 #ifdef XXDEBUG
 printf("#++ %d %d %d\n", mlg, mhg16, mhg8);
 m_tot += raw->list_size;
@@ -4034,7 +4329,7 @@ mlg_tot += mlg;
 mhg16_tot += mhg16;
 mhg8_tot += mhg8;
 #endif
-	       mlg = mhg16 = mhg8 = 0;
+	       mlg = mhg16 = mhg8 = 0; /* Start from the beginning of each array */
       	       for ( j=0; j<raw->list_size; j++ )
 	       {
 	          k = raw->adc_list[j];
@@ -4045,7 +4340,9 @@ mhg8_tot += mhg8;
 		     raw->adc_sum[HI_GAIN][k] = adc_sum_l[HI_GAIN][mhg16++];
 		  raw->adc_known[HI_GAIN][k] = 1;
 #if ( H_MAX_GAINS >= 2 )
-		  if ( without_lg[j] )
+                  if ( raw->num_gains <= 1 )
+                     raw->adc_known[LO_GAIN][k] = 0;
+		  else if ( without_lg[j] )
 		  {
 		     raw->adc_sum[LO_GAIN][k] = 0;
 		     raw->adc_known[LO_GAIN][k] = 0;
@@ -4088,18 +4385,18 @@ int print_hess_teladc_sums (IO_BUFFER *iobuf)
    IO_ITEM_HEADER item_header;
    uint32_t flags, zero_sup_mode, data_red_mode, list_known;
    uint32_t num_pixels, num_gains, tel_id;
+   int threshold = 0, offset_hg8 = 0, scale_hg8 = 0;
    int rc;
-   int maxprt = 20;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
    
    item_header.type = IO_TYPE_HESS_TELADCSUM;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version > 3 )
+   if ( item_header.version > 4 )
    {
       fprintf(stderr,"Unsupported ADC samples version: %d.\n",
          item_header.version);
@@ -4112,6 +4409,13 @@ int print_hess_teladc_sums (IO_BUFFER *iobuf)
    zero_sup_mode = flags & 0x1f;
    data_red_mode = (flags >> 5) & 0x1f;
    list_known = (flags >> 10) & 0x01;
+
+   if ( item_header.version >= 4 && data_red_mode == 2 )
+   {
+      threshold = get_scount32(iobuf);
+      offset_hg8 = get_scount32(iobuf);
+      scale_hg8 = get_scount32(iobuf);
+   }
 
    if ( item_header.version == 0 )
    {
@@ -4139,14 +4443,16 @@ int print_hess_teladc_sums (IO_BUFFER *iobuf)
    }
 
    if ( item_header.version < 2 )
-      printf("    Sum mode data for telescope (modulo 32) %u:\n",tel_id);
+      printf("    Sum mode data version %d for telescope (modulo 32) %u:\n",item_header.version,tel_id);
    else
-      printf("    Sum mode data for telescope %u:\n",tel_id);
+      printf("    Sum mode data version %d for telescope %u:\n",item_header.version,tel_id);
    printf("      With %u gains for %u pixels\n", num_gains, num_pixels);
    printf("      Zero suppression: %u, data reduction: %d, pixel list: %d\n",
       zero_sup_mode, data_red_mode, list_known);
+   if ( data_red_mode == 2 )
+      printf("      Threshold for reduction: %d, offset: %d, scale: %d\n", threshold, offset_hg8, scale_hg8);
 
-   if ( getenv("PRINT_VERBOSE") != NULL )
+   if ( hs_verbose )
    {
       size_t igain, ipix;
       if ( zero_sup_mode == 0 && data_red_mode == 0 )
@@ -4158,9 +4464,9 @@ int print_hess_teladc_sums (IO_BUFFER *iobuf)
             {
                if ( item_header.version < 3 )
                {
-                  if ( (int) ipix < maxprt )
+                  if ( (int) ipix < hs_maxprt )
                      printf("        Pixel %zu, ch. %zu: %d\n", ipix, igain, get_short(iobuf));
-                  else if ( (int) ipix == maxprt )
+                  else if ( (int) ipix == hs_maxprt )
                   {  printf("        ...\n"); (void) get_short(iobuf); }
                   else
                      (void) get_short(iobuf);
@@ -4169,9 +4475,9 @@ int print_hess_teladc_sums (IO_BUFFER *iobuf)
                {
                   this_sum = get_scount32(iobuf) + prev_sum;
                   prev_sum = this_sum;
-                  if ( (int) ipix < maxprt )
+                  if ( (int) ipix < hs_maxprt )
                      printf("        Pixel %zu, ch. %zu: %d\n", ipix, igain, this_sum);
-                  else if ( (int) ipix == maxprt )
+                  else if ( (int) ipix == hs_maxprt )
                   {  printf("        ...\n"); }
                }
             }
@@ -4201,7 +4507,11 @@ int write_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw)
    uint32_t flags;
    int ipix, igain, ilist;
    int zero_sup_mode = ((raw->zero_sup_mode & 0x20) >> 5); /* More bits reserved */
+   int data_red_mode = ((raw->data_red_mode & 0x20) != 0 && zero_sup_mode != 0 ? 1 : 0); /* Only 0 and 1 supported, only together with zero-sup. */
    int pixel_list[H_MAX_PIX][2], list_size = 0;
+#if ( H_MAX_GAINS >= 2 )
+   int pixel_list_lg[H_MAX_PIX][2], list_size_lg = 0;
+#endif
 
    if ( iobuf == (IO_BUFFER *) NULL || raw == NULL )
       return -1;
@@ -4215,6 +4525,9 @@ int write_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw)
    // if ( raw->num_pixels > 4095 && item_header.version == 1 ) /* Strictly needed for large no. of pixels */
    //   item_header.version = 2;             /* Version 2 (revised again) */
    item_header.version = 3;                  /* Version 3 (starting with differential mode) */
+   
+   if ( data_red_mode > 0 )
+      item_header.version = 4;               /* Start support for low-gain suppressed sample-mode data */
 
    if ( raw->num_pixels < 0 || 
         (raw->num_pixels > 4095 && item_header.version < 2) ||
@@ -4235,6 +4548,8 @@ int write_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw)
    if ( item_header.version < 3 ) /* Zero-suppression only implemented for differential mode */
       zero_sup_mode = 0; 
    flags |= (zero_sup_mode & 0x1f);
+   if ( data_red_mode )
+      flags |= 0x20;
 
    item_header.ident = flags;
    put_item_begin(iobuf,&item_header);
@@ -4250,7 +4565,12 @@ int write_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw)
    if ( zero_sup_mode ) /* only with version 3 and up */
    {
       int sl=-1, s;
+#if ( H_MAX_GAINS >= 2 )
+      int slx=-1, sx;
+      list_size_lg = 0;
+#endif
       list_size = 0;
+
       for (ipix=0; ipix<raw->num_pixels; ipix++)
       {
          s = (raw->significant[ipix] & 0x20 ); /* Special bit for sample mode zero suppression ? */
@@ -4262,7 +4582,25 @@ int write_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw)
             pixel_list[list_size-1][1] = pixel_list[list_size-1][0] = ipix;
          }
          sl = s;
+#if ( H_MAX_GAINS >= 2 )
+         if ( data_red_mode && raw->num_gains > 1 )
+         {
+            sx = s;
+            if ( sx != 0 && !(raw->adc_known[LO_GAIN][ipix] & 0x02) )
+               sx = 0;
+            if ( sx != 0 && sx == slx && list_size_lg > 0 )
+               pixel_list_lg[list_size_lg-1][1] = ipix;
+            else if ( sx != 0 )
+            {
+               list_size_lg++;
+               pixel_list_lg[list_size_lg-1][1] = pixel_list_lg[list_size_lg-1][0] = ipix;
+            }
+            slx = sx;
+         }
+#endif
       }
+
+      /* Write common (no data red.) or high-gain (with data red.) pixel list */
       put_scount32(list_size,iobuf);
       for ( ilist=0; ilist<list_size; ilist++ )
       {
@@ -4274,20 +4612,60 @@ int write_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw)
             put_scount(pixel_list[ilist][1],iobuf);
          }
       }
-      for (igain=0; igain<raw->num_gains; igain++)
+
+#if ( H_MAX_GAINS >= 2 )
+      /* Write low-gain pixel list if needed. */
+      if ( data_red_mode && raw->num_gains > 1 )
+      {
+         put_scount32(list_size_lg,iobuf);
+         for ( ilist=0; ilist<list_size_lg; ilist++ )
+         {
+            if ( pixel_list_lg[ilist][0] == pixel_list_lg[ilist][1] ) /* single pixel */
+               put_scount(-pixel_list_lg[ilist][0]-1,iobuf);
+            else /* pixel range */
+            {
+               put_scount(pixel_list_lg[ilist][0],iobuf);
+               put_scount(pixel_list_lg[ilist][1],iobuf);
+            }
+         }
+      }
+#endif
+
+      if ( raw->data_red_mode ) /* Data reduction mode (requires also zero suppression) enabled */
+      {
+         /* First write high-gain channel data for all significant pixels */
+         /* (which is actually the other way around than for sum data, never mind). */
          for ( ilist=0; ilist<list_size; ilist++ )
             for ( ipix=pixel_list[ilist][0]; ipix<=pixel_list[ilist][1]; ipix++ )
-               put_adcsample_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
+               put_adcsample_differential(raw->adc_sample[HI_GAIN][ipix],raw->num_samples,iobuf);
+         
+#if ( H_MAX_GAINS >= 2 )
+         if ( raw->num_gains > 1 )
+         {
+            /* If necessary write low-gain channel data for high-amplitude significant pixels */
+            for ( ilist=0; ilist<list_size_lg; ilist++ )
+               for ( ipix=pixel_list_lg[ilist][0]; ipix<=pixel_list_lg[ilist][1]; ipix++ )
+                  put_adcsample_differential(raw->adc_sample[LO_GAIN][ipix],raw->num_samples,iobuf);
+         }
+#endif
+      }
+      else /* No low-gain data reduction; same list applies for high-gain and low-gain, if there is any. */
+      {
+         for (igain=0; igain<raw->num_gains; igain++) /* Also here first HG (0), then LG (1) if there is any */
+            for ( ilist=0; ilist<list_size; ilist++ )
+               for ( ipix=pixel_list[ilist][0]; ipix<=pixel_list[ilist][1]; ipix++ )
+                  put_adcsample_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
+      }
    }
-   else if ( item_header.version < 3 )
+   else if ( item_header.version < 3 ) /* No zero-sup (and no data red.), old version) */
    {
-      for (igain=0; igain<raw->num_gains; igain++)
+      for (igain=0; igain<raw->num_gains; igain++) /* First HG (0), then LG (1) if there is any */
          for (ipix=0; ipix<raw->num_pixels; ipix++)
       	    put_vector_of_uint16(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
    }
-   else
+   else /* No zero-sup (and no data red.), newer version) */
    {
-      for (igain=0; igain<raw->num_gains; igain++)
+      for (igain=0; igain<raw->num_gains; igain++) /* First HG (0), then LG (1) if there is any */
          for (ipix=0; ipix<raw->num_pixels; ipix++)
       	    put_adcsample_differential(raw->adc_sample[igain][ipix],raw->num_samples,iobuf);
    }
@@ -4330,7 +4708,7 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
    flags = (uint32_t) item_header.ident;
    zero_sup_mode = flags & 0x1f;
    data_red_mode = (flags >> 5) & 0x1f;
-   list_known = (flags >> 10) & 0x01;
+   list_known = (flags >> 10) & 0x01; /* Bit 10 was never set, thus zero */
    if ( (zero_sup_mode != 0 && item_header.version < 3) || 
         data_red_mode != 0 ||
 	list_known )
@@ -4339,9 +4717,18 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
       get_item_end(iobuf,&item_header);
       return -1;
    }
+   /* Sample-mode zero suppression and data reduction separated from sum data */
    raw->zero_sup_mode |= zero_sup_mode << 5;
-   // raw->data_red_mode |= data_red_mode << 5; 
-   raw->list_known = list_known;
+   raw->data_red_mode |= data_red_mode << 5;
+   /* If there was a list for sum data, it gets lost now - but do we want that? */
+   /* The problem is there is only place for one list but zero suppression for
+      sum data and samples may well be different. Without known list, the
+      application processing the data should loop over all pixels and test for
+      significant bits and adc_known bits. With known list it only needs to 
+      loop over pixels included in the list but still test significant and adc_known. */
+   /* As long as pixels with samples are a subset of pixels with sums,
+      we could preserve the sum data pixel list. */
+   raw->list_known = 0; /* Since list_known here is always zero. */
    if ( item_header.version == 0 )
    {
       raw->tel_id = (flags >> 25) & 0x1f;
@@ -4379,8 +4766,19 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
    {
       int ilist, ipix1, ipix2;
       int pixel_list[H_MAX_PIX][2], list_size = 0;
+#if ( H_MAX_GAINS >= 2 )
+      int pixel_list_lg[H_MAX_PIX][2], list_size_lg = 0;
+#endif
       for (ipix=0; ipix<raw->num_pixels; ipix++)
-         raw->significant[ipix] &= ~0xe0; /* Clear sample mode significance bits */
+      {
+         raw->significant[ipix] &= ~0xe0; /* Clear sample mode significance bits. */
+         raw->adc_known[0][ipix] &= 0x01; /* Same for adc_known sample-mode bits; */
+#if ( H_MAX_GAINS >= 2 )
+         raw->adc_known[1][ipix] &= 0x01; /* bit 0 is for sum, bit 1 for samples. */
+#endif
+      }
+
+      /* Common or high-gain pixel list */
       list_size = get_scount32(iobuf);
       if ( list_size > H_MAX_PIX )
       {
@@ -4388,6 +4786,7 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
          get_item_end(iobuf,&item_header);
          return -1;
       }
+
       for ( ilist=0; ilist<list_size; ilist++ )
       {
          ipix1 = get_scount(iobuf);
@@ -4401,8 +4800,57 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
          pixel_list[ilist][0] = ipix1;
          pixel_list[ilist][1] = ipix2;
       }
-      for (igain=0; igain<raw->num_gains; igain++)
+
+#if ( H_MAX_GAINS >= 2 )
+      /* Read low-gain pixel list if needed. */
+      if ( data_red_mode && raw->num_gains > 1 )
+      {
+         list_size_lg = get_scount32(iobuf);
+         if ( list_size_lg > H_MAX_PIX )
+         {
+            Warning("Pixel list too large in low-gain zero-suppressed sample-mode data.\n");
+            get_item_end(iobuf,&item_header);
+            return -1;
+         }
+         for ( ilist=0; ilist<list_size_lg; ilist++ )
+         {
+            ipix1 = get_scount(iobuf);
+            if ( ipix1 < 0 ) /* Single pixel */
+            {
+               ipix2 = -ipix1 - 1;
+               ipix1 = ipix2;
+            }
+            else /* pixel range */
+               ipix2 = get_scount(iobuf);
+            pixel_list_lg[ilist][0] = ipix1;
+            pixel_list_lg[ilist][1] = ipix2;
+         }
          for ( ilist=0; ilist<list_size; ilist++ )
+         {
+            for ( ipix=pixel_list[ilist][0]; ipix<=pixel_list[ilist][1]; ipix++ )
+            {
+               get_vector_of_uint16_scount_differential(raw->adc_sample[HI_GAIN][ipix],raw->num_samples,iobuf);
+               raw->significant[ipix] |= 0x20;
+               raw->adc_known[HI_GAIN][ipix] |= 2;
+            }
+         }
+         for ( ilist=0; ilist<list_size_lg; ilist++ )
+            for ( ipix=pixel_list_lg[ilist][0]; ipix<=pixel_list_lg[ilist][1]; ipix++ )
+            {
+               get_vector_of_uint16_scount_differential(raw->adc_sample[LO_GAIN][ipix],raw->num_samples,iobuf);
+               raw->adc_known[LO_GAIN][ipix] |= 2;
+            }
+         if ( (what & RAWSUM_FLAG) )
+         {
+         }
+      }
+      else
+#endif
+      {
+       for (igain=0; igain<raw->num_gains; igain++)
+       {
+         for ( ilist=0; ilist<list_size; ilist++ )
+         {
             for ( ipix=pixel_list[ilist][0]; ipix<=pixel_list[ilist][1]; ipix++ )
             {
 #ifdef OLD_CODE
@@ -4434,9 +4882,13 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
                   else
                      raw->adc_sum[igain][ipix] = 0;
                }
+               raw->adc_known[igain][ipix] |= 2;
             }
+         }
+      }
+    }
    }
-   else
+   else /* No (sample data) zero suppression, no data reduction, no pixel lists. */
    {
       for (igain=0; igain<raw->num_gains; igain++)
       {
@@ -4475,6 +4927,7 @@ int read_hess_teladc_samples (IO_BUFFER *iobuf, AdcData *raw, int what)
                   raw->adc_sum[igain][ipix] = 0;
 	       raw->adc_known[igain][ipix] = 1;
             }
+            raw->adc_known[igain][ipix] |= 2;
          }
       }
       for (ipix=0; ipix<raw->num_pixels; ipix++)
@@ -4497,17 +4950,16 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
    uint32_t flags, zero_sup_mode, data_red_mode, list_known;
    uint32_t num_pixels, num_gains, num_samples, tel_id;
    int rc;
-   int maxprt = 20;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
 
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
 
+   hs_check_env();
+
    item_header.type = IO_TYPE_HESS_TELADCSAMP;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
       return rc;
-   if ( item_header.version > 3 )
+   if ( item_header.version > 4 )
    {
       fprintf(stderr,"Unsupported ADC samples version: %d.\n",
          item_header.version);
@@ -4556,7 +5008,7 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
    printf("      Zero suppression: %u, data reduction: %d, pixel list: %d\n",
       zero_sup_mode, data_red_mode, list_known);
 
-   if ( getenv("PRINT_VERBOSE") != NULL && num_samples <= H_MAX_SLICES )
+   if ( hs_verbose && num_samples <= H_MAX_SLICES )
    {
       size_t ipix, igain, isamp;
       uint16_t adc_sample[H_MAX_SLICES];
@@ -4594,7 +5046,7 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
 #else
                   get_vector_of_uint16_scount_differential(adc_sample,num_samples,iobuf);
 #endif
-                  if ( kpix < maxprt )
+                  if ( kpix < hs_maxprt )
                   {
                      printf("        Pixel %zu, ch. %zu:",ipix,igain);
                      for ( isamp=0; isamp<num_samples; isamp++ )
@@ -4603,7 +5055,7 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
                   }
                   else
                   {
-                     if ( kpix == maxprt )
+                     if ( kpix == hs_maxprt )
                         printf("        ...\n");
                   }
                   kpix++;
@@ -4623,7 +5075,7 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
                   get_vector_of_uint16_scount_differential(adc_sample,num_samples,iobuf);
 #endif
 
-               if ( (int) ipix < maxprt )
+               if ( (int) ipix < hs_maxprt )
                {
                   printf("        Pixel %zu, ch. %zu:",ipix,igain);
                   for ( isamp=0; isamp<num_samples; isamp++ )
@@ -4632,7 +5084,7 @@ int print_hess_teladc_samples (IO_BUFFER *iobuf)
                }
                else
                {
-                  if ( (int) ipix == maxprt )
+                  if ( (int) ipix == hs_maxprt )
                      printf("        ...\n");
                }
             }
@@ -4672,6 +5124,469 @@ static void adc_reset (AdcData *raw)
          memset(&raw->adc_sample[igain][ipix][0],0,nb);
       }
    }
+}
+
+/* -------------------- write_hess_aux_trace_digital ----------------- */
+/**
+ *  @short Write auxilliary digitized traces.
+ *
+ *  There is no data reduction for auxilliary traces.
+ *  
+*/  
+
+int write_hess_aux_trace_digital (IO_BUFFER *iobuf, AuxTraceD *auxd)
+{
+   IO_ITEM_HEADER item_header;
+   size_t it;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   if ( auxd == NULL )
+      return -1;
+   if ( ! auxd->known || auxd->trace_data == NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_AUX_DIGITAL_TRACE;  /* Data type */
+   item_header.version = 0;
+   item_header.ident = auxd->trace_type;
+
+   put_item_begin(iobuf,&item_header);
+
+   put_long(auxd->tel_id,iobuf);
+   put_real(auxd->time_scale,iobuf);
+   put_count(auxd->num_traces,iobuf);
+   put_count(auxd->len_traces,iobuf);
+   
+   for ( it=0; it<auxd->num_traces; it++ )
+      put_vector_of_uint16_scount_differential(auxd->trace_data+it*auxd->len_traces,auxd->len_traces,iobuf);
+
+   return put_item_end(iobuf,&item_header);
+}
+
+/* -------------------- read_hess_aux_trace_digital ----------------- */
+/**
+ *  @short Read auxilliary digitized traces.
+ *
+*/  
+
+int read_hess_aux_trace_digital (IO_BUFFER *iobuf, AuxTraceD *auxd)
+{
+   IO_ITEM_HEADER item_header;
+   size_t it, nt, lt;
+   int rc;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   if ( auxd == NULL )
+      return -1;
+   auxd->known = 0;
+
+   item_header.type = IO_TYPE_HESS_AUX_DIGITAL_TRACE;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version > 0 )
+   {
+      fprintf(stderr,"Unsupported auxilliary digitzed traces version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+
+   auxd->trace_type = item_header.ident;
+
+   auxd->tel_id = get_long(iobuf);
+   auxd->time_scale = get_real(iobuf);
+   nt = get_count(iobuf);
+   lt = get_count(iobuf);
+   
+   if ( nt != auxd->num_traces || lt != auxd->len_traces || auxd->trace_data == NULL )
+   {
+      if ( auxd->trace_data != NULL )
+         free(auxd->trace_data);
+      auxd->trace_data = malloc(nt*lt*sizeof(auxd->trace_data[0]));
+      if ( auxd->trace_data == NULL )
+      {
+         fprintf(stderr,
+            "Failed to allocate memory for %zu * %zu auxilliary digitized trace values.\n",
+            nt, lt);
+         get_item_end(iobuf,&item_header);
+         return -1;
+      }
+      auxd->num_traces = nt;
+      auxd->len_traces = lt;
+   }
+   
+   for ( it=0; it<auxd->num_traces; it++ )
+      get_vector_of_uint16_scount_differential(auxd->trace_data+it*auxd->len_traces,auxd->len_traces,iobuf);
+
+   auxd->known = 1;
+
+   return get_item_end(iobuf,&item_header);
+}
+
+
+/* -------------------- print_hess_aux_trace_digital ----------------- */
+/**
+ *  @short Print auxilliary digitized traces.
+ *
+*/  
+
+int print_hess_aux_trace_digital (IO_BUFFER *iobuf)
+{
+   IO_ITEM_HEADER item_header;
+   int tel_id;             ///< Must match the expected telescope ID when reading.
+   int trace_type;         ///< Indicate what type of trace we have (1: DigitalSum trigger trace)
+   float time_scale;       ///< Time per auxilliary sample over time per normal FADC sample (typ.: 1.0)
+   size_t num_traces;      ///< The number of traces coming from the camera.
+   size_t len_traces;      ///< The length of each trace in FADC samples.
+   int rc;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_AUX_DIGITAL_TRACE;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version > 0 )
+   {
+      fprintf(stderr,"Unsupported auxilliary digitzed traces version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+
+   trace_type = item_header.ident;
+
+   tel_id = get_long(iobuf);
+   time_scale = get_real(iobuf);
+   num_traces = get_count(iobuf);
+   len_traces = get_count(iobuf);
+   
+   printf("   Auxilliary digitized trace data (version %d) for telescope %d:\n", item_header.version, tel_id);
+   printf("      Type %d with %ju traces of length %ju (time scale %f).\n",
+      trace_type, num_traces, len_traces, time_scale);
+
+   if ( hs_verbose && len_traces <= H_MAX_SLICES )
+   {
+      size_t it, isamp;
+      uint16_t trace_data[H_MAX_SLICES];
+
+      for ( it=0; it<num_traces; it++ )
+      {
+         get_vector_of_uint16_scount_differential(trace_data,len_traces,iobuf);
+         if ( it < hs_maxprt )
+         {
+            printf("        Trace %zu:", it);
+            for ( isamp=0; isamp<len_traces; isamp++ )
+               printf(" %d", trace_data[isamp]);
+            printf("\n");
+         }
+         else
+         {
+            if ( it == hs_maxprt )
+               printf("        ...\n");
+         }
+      }
+   }
+
+   return get_item_end(iobuf,&item_header);
+}
+   
+
+/* -------------------- write_hess_aux_trace_analog ----------------- */
+/**
+ *  @short Write auxilliary analog traces.
+ *
+*/  
+
+int write_hess_aux_trace_analog (IO_BUFFER *iobuf, AuxTraceA *auxa)
+{
+   IO_ITEM_HEADER item_header;
+   size_t it;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   if ( auxa == NULL )
+      return -1;
+   if ( ! auxa->known || auxa->trace_data == NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_AUX_ANALOG_TRACE;  /* Data type */
+   item_header.version = 0;
+   item_header.ident = auxa->trace_type;
+
+   put_item_begin(iobuf,&item_header);
+
+   put_long(auxa->tel_id,iobuf);
+   put_real(auxa->time_scale,iobuf);
+   put_count(auxa->num_traces,iobuf);
+   put_count(auxa->len_traces,iobuf);
+   
+   for ( it=0; it<auxa->num_traces; it++ )
+      put_vector_of_float(auxa->trace_data+it*auxa->len_traces,auxa->len_traces,iobuf);
+
+   return put_item_end(iobuf,&item_header);
+}
+
+/* -------------------- read_hess_aux_trace_analog ----------------- */
+/**
+ *  @short Read auxilliary analog traces.
+ *
+*/  
+
+int read_hess_aux_trace_analog (IO_BUFFER *iobuf, AuxTraceA *auxa)
+{
+   IO_ITEM_HEADER item_header;
+   size_t it, nt, lt;
+   int rc;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   if ( auxa == NULL )
+      return -1;
+   auxa->known = 0;
+
+   item_header.type = IO_TYPE_HESS_AUX_ANALOG_TRACE;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version > 0 )
+   {
+      fprintf(stderr,"Unsupported auxilliary analog traces version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+
+   auxa->trace_type = item_header.ident;
+
+   auxa->tel_id = get_long(iobuf);
+   auxa->time_scale = get_real(iobuf);
+   nt = get_count(iobuf);
+   lt = get_count(iobuf);
+   
+   if ( nt != auxa->num_traces || lt != auxa->len_traces || auxa->trace_data == NULL )
+   {
+      if ( auxa->trace_data != NULL )
+         free(auxa->trace_data);
+      auxa->trace_data = malloc(nt*lt*sizeof(auxa->trace_data[0]));
+      if ( auxa->trace_data == NULL )
+      {
+         fprintf(stderr,
+            "Failed to allocate memory for %zu * %zu auxilliary analog trace values.\n",
+            nt, lt);
+         get_item_end(iobuf,&item_header);
+         return -1;
+      }
+      auxa->num_traces = nt;
+      auxa->len_traces = lt;
+   }
+   
+   for ( it=0; it<auxa->num_traces; it++ )
+      get_vector_of_float(auxa->trace_data+it*auxa->len_traces,auxa->len_traces,iobuf);
+
+   auxa->known = 1;
+
+   return get_item_end(iobuf,&item_header);
+}
+
+
+/* -------------------- print_hess_aux_trace_analog ----------------- */
+/**
+ *  @short Print auxilliary analog traces.
+ *
+*/  
+
+int print_hess_aux_trace_analog (IO_BUFFER *iobuf)
+{
+   IO_ITEM_HEADER item_header;
+   int tel_id;             ///< Must match the expected telescope ID when reading.
+   int trace_type;         ///< Indicate what type of trace we have 
+   float time_scale;       ///< Time per auxilliary sample over time per normal FADC sample (typ.: 0.25)
+   size_t num_traces;      ///< The number of traces coming from the camera.
+   size_t len_traces;      ///< The length of each trace in FADC samples.
+   int rc;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_AUX_ANALOG_TRACE;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version > 0 )
+   {
+      fprintf(stderr,"Unsupported auxilliary digitzed traces version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+
+   trace_type = item_header.ident;
+
+   tel_id = get_long(iobuf);
+   time_scale = get_real(iobuf);
+   num_traces = get_count(iobuf);
+   len_traces = get_count(iobuf);
+   
+   printf("   Auxilliary digitized trace data (version %d) for telescope %d:\n", item_header.version, tel_id);
+   printf("      Type %d with %ju traces of length %ju (time scale %f).\n",
+      trace_type, num_traces, len_traces, time_scale);
+
+   if ( hs_verbose && len_traces <= H_MAX_SLICES )
+   {
+      size_t it, isamp;
+      float trace_data[H_MAX_SLICES];
+
+      for ( it=0; it<num_traces; it++ )
+      {
+         get_vector_of_float(trace_data,len_traces,iobuf);
+         if ( it < hs_maxprt )
+         {
+            printf("        Trace %zu:", it);
+            for ( isamp=0; isamp<len_traces; isamp++ )
+               printf(" %f", trace_data[isamp]);
+            printf("\n");
+         }
+         else
+         {
+            if ( it == hs_maxprt )
+               printf("        ...\n");
+         }
+      }
+   }
+
+   return get_item_end(iobuf,&item_header);
+}
+
+
+/* ------------------- write_hess_pixeltrg_time ------------------ */
+
+int write_hess_pixeltrg_time (IO_BUFFER *iobuf, PixelTrgTime *dt)
+{
+   IO_ITEM_HEADER item_header;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   if ( dt == NULL )
+      return -1;
+   if ( ! dt->known || dt->num_times <= 0 )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_PIXELTRG_TM;  /* Data type */
+   item_header.version = 0;
+   item_header.ident = dt->tel_id;
+
+   put_item_begin(iobuf,&item_header);
+
+   put_real(dt->time_step,iobuf);
+   put_scount(dt->num_times,iobuf);
+   put_vector_of_int_scount(dt->pixel_list,dt->num_times,iobuf);
+   put_vector_of_int_scount(dt->pixel_time,dt->num_times,iobuf);
+
+   return put_item_end(iobuf,&item_header);
+}
+
+/* ------------------- read_hess_pixeltrg_time ------------------- */
+
+int read_hess_pixeltrg_time (IO_BUFFER *iobuf, PixelTrgTime *dt)
+{
+   IO_ITEM_HEADER item_header;
+   int rc;
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   if ( dt == NULL )
+      return -1;
+   dt->known = 0;
+
+   item_header.type = IO_TYPE_HESS_PIXELTRG_TM;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version > 0 )
+   {
+      fprintf(stderr,"Unsupported pixel trigger time version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+   if ( item_header.ident != dt->tel_id )
+   {
+      fprintf(stderr,"Pixel trigger time data for wrong telescope.\n");
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+      
+   dt->time_step = get_real(iobuf);
+   dt->num_times = get_scount(iobuf);
+   if ( dt->num_times < 0 || dt->num_times > H_MAX_PIX )
+   {
+      fprintf(stderr,"Number of pixel trigger times is out of range.\n");
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+   get_vector_of_int_scount(dt->pixel_list,dt->num_times,iobuf);
+   get_vector_of_int_scount(dt->pixel_time,dt->num_times,iobuf);
+
+   dt->known = 1;
+
+   return get_item_end(iobuf,&item_header);
+}
+
+/* ------------------- print_hess_pixeltrg_time ------------------ */
+
+
+int print_hess_pixeltrg_time (IO_BUFFER *iobuf)
+{
+   IO_ITEM_HEADER item_header;
+   int rc;
+   double time_step;
+   int num_times, tel_id;
+   int pixel_list[H_MAX_PIX], pixel_time[H_MAX_PIX];
+   
+   if ( iobuf == (IO_BUFFER *) NULL )
+      return -1;
+
+   item_header.type = IO_TYPE_HESS_PIXELTRG_TM;  /* Data type */
+   if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
+      return rc;
+   if ( item_header.version > 0 )
+   {
+      fprintf(stderr,"Unsupported pixel trigger time version: %d.\n",
+         item_header.version);
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+
+   tel_id = item_header.ident;
+   time_step = get_real(iobuf);
+   num_times = get_scount(iobuf);
+   if ( num_times < 0 || num_times > H_MAX_PIX )
+   {
+      fprintf(stderr,"Number of pixel trigger times is out of range.\n");
+      get_item_end(iobuf,&item_header);
+      return -1;
+   }
+   get_vector_of_int_scount(pixel_list,num_times,iobuf);
+   get_vector_of_int_scount(pixel_time,num_times,iobuf);
+
+   printf("    Pixel trigger time data (version %d) for telescope %d:\n", item_header.version, tel_id);
+   printf("      With times for %d pixels in steps of %f ns.\n", num_times, time_step);
+
+   if ( hs_verbose  )
+   {
+      size_t it;
+      for ( it=0; it<hs_maxprt && it<num_times; it++ )
+         printf("      Pixel %d: %d (T=%f ns)\n", pixel_list[it], 
+            pixel_time[it], pixel_time[it]*time_step);
+      if ( num_times > hs_maxprt)
+         printf("      ...\n");
+   }
+   return get_item_end(iobuf,&item_header);
 }
 
 /* ---------------- build_list_for_hess_pixtime -------------- */
@@ -5037,14 +5952,12 @@ int print_hess_pixtime (IO_BUFFER *iobuf)
    double granularity;
    int rc, i, j, bp, ap, with_sum = 0, thr=0;
    int glob_only_selected = 0;
-   int maxprt = 20;
    int v0 = 0;
-
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
 
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_PIXELTIMING;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -5116,7 +6029,7 @@ int print_hess_pixtime (IO_BUFFER *iobuf)
    printf("      Camera-wide mean/global peak position is at %4.2f time slices"
        " from start of read-out window.\n", get_real(iobuf));
 
-   if ( getenv("PRINT_VERBOSE") != NULL )
+   if ( hs_verbose )
    {
       int iprt = 0;
       printf("      Timing data for selected pixels:\n");
@@ -5132,7 +6045,7 @@ int print_hess_pixtime (IO_BUFFER *iobuf)
          }
          for ( ipix=k1; ipix<=k2; ipix++ )
          {
-            if ( iprt < maxprt )
+            if ( iprt < hs_maxprt )
             {
                printf("        Pixel %d:",ipix);
                /* Positions of peak and threshold, or width. */
@@ -5159,7 +6072,7 @@ int print_hess_pixtime (IO_BUFFER *iobuf)
             }
             else
             {
-               if ( (int) iprt == maxprt )
+               if ( (int) iprt == hs_maxprt )
                   printf("        ...\n");
                for ( j=0; j<num_types; j++ )
                   (void) get_short(iobuf);
@@ -5190,9 +6103,9 @@ int print_hess_pixtime (IO_BUFFER *iobuf)
             for ( ipix=0; ipix<num_pixels; ipix++ )
             {
                int adc = (v0 ? get_short(iobuf) : get_scount32(iobuf));
-               if ( iprt < maxprt )
+               if ( iprt < hs_maxprt )
                   printf(" %d", adc);
-               else if ( iprt == maxprt )
+               else if ( iprt == hs_maxprt )
                   printf(" ...");
                iprt++;
             }
@@ -5374,18 +6287,16 @@ int print_hess_pixcalib (IO_BUFFER *iobuf)
 {
    IO_ITEM_HEADER item_header;
    int rc;
-   int maxprt = 20;
    int list_known = 0, list_size = 0;
    int pixel_list[H_MAX_PIX];
    int i, ipix, npix;
    uint8_t significant[H_MAX_PIX];
    int im = 0;
 
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
-
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_PIXELCALIB;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -5427,11 +6338,11 @@ int print_hess_pixcalib (IO_BUFFER *iobuf)
       for (i=0; i<list_size; i++)
       {
          ipix = pixel_list[i];
-         if ( i<maxprt )
+         if ( i < hs_maxprt )
             printf(" %d: %f,", ipix, get_sfloat(iobuf));
          else
          {
-            if ( i==maxprt )
+            if ( i == hs_maxprt )
                printf(" ...");
             (void) get_sfloat(iobuf);
          }
@@ -5446,11 +6357,11 @@ int print_hess_pixcalib (IO_BUFFER *iobuf)
       {
          if ( significant[ipix] )
          {
-            if ( (i++)<maxprt )
+            if ( (i++) < hs_maxprt )
                printf(" %d: %f,", ipix, get_sfloat(iobuf));
             else
             {
-               if ( i==maxprt )
+               if ( i == hs_maxprt )
                   printf(" ...");
                (void) get_sfloat(iobuf);
             }
@@ -5463,11 +6374,11 @@ int print_hess_pixcalib (IO_BUFFER *iobuf)
       printf("      Pixel intensities:");
       for (ipix=0; ipix<npix; ipix++)
       {
-         if ( ipix<maxprt )
+         if ( ipix < hs_maxprt )
             printf(" %f,", get_sfloat(iobuf));
          else
          {
-            if ( ipix==maxprt )
+            if ( ipix == hs_maxprt )
                printf(" ...");
             (void) get_sfloat(iobuf);
          }
@@ -5867,7 +6778,7 @@ int print_hess_telimage (IO_BUFFER *iobuf)
 int write_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
 {
    IO_ITEM_HEADER item_header;
-   int rc=0, ipix;
+   int rc=0, ipix, iaux;
    AdcData *raw;
    ImgData *img;
    
@@ -6016,6 +6927,23 @@ int write_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
    if ( te->image_pixels.pixels > 0 )
       write_hess_pixel_list(iobuf,&te->image_pixels,te->tel_id);
 
+   /* Pixel trigger (discriminator/comparator) times w.r.t. telescope trigger */
+   if ( te->pixeltrg_time.known && te->pixeltrg_time.num_times > 0 )
+      write_hess_pixeltrg_time(iobuf,&te->pixeltrg_time);
+
+   /* Auxiliary signal traces for, debugging and demonstration purposes mainly */
+   for ( iaux=0; iaux < MAX_AUX_TRACE_D; iaux++ )
+   {
+      if ( te->aux_trace_d[iaux].known )
+         write_hess_aux_trace_digital(iobuf,&te->aux_trace_d[iaux]);
+   }
+
+   for ( iaux=0; iaux < MAX_AUX_TRACE_A; iaux++ )
+   {
+      if ( te->aux_trace_a[iaux].known )
+         write_hess_aux_trace_analog(iobuf,&te->aux_trace_a[iaux]);
+   }
+
    return put_item_end(iobuf,&item_header);
 }
 
@@ -6032,6 +6960,7 @@ int read_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
    ImgData *img;
    int tel_id;
    int tel_img = 0;
+   int iaux;
    static int w_sum=0, w_samp=0, w_pixtm=0, w_pixcal=0;
 
    if ( iobuf == (IO_BUFFER *) NULL || te == NULL )
@@ -6071,6 +7000,7 @@ int read_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
       for (j=0; j<te->num_image_sets; j++)
       	 img[j].known = 0;
    }
+   te->pixeltrg_time.known = 0;
 
    /* Telescope-specific event header is always used */
    if ( (rc = read_hess_televt_head(iobuf,te)) < 0 )
@@ -6213,6 +7143,39 @@ int read_hess_televent (IO_BUFFER *iobuf, TelEvent *te, int what)
          }
             break;
 
+         case IO_TYPE_HESS_PIXELTRG_TM:
+            te->pixeltrg_time.tel_id = te->tel_id;
+            if ( ( rc = read_hess_pixeltrg_time(iobuf,&te->pixeltrg_time) ) < 0 )
+            {
+	       get_item_end(iobuf,&item_header);
+	       return rc;
+            }
+            break;
+
+         case IO_TYPE_HESS_AUX_DIGITAL_TRACE:
+            iaux = item_header.ident;
+            if ( iaux >= 0 && iaux < MAX_AUX_TRACE_D )
+            {
+               if ( (rc = read_hess_aux_trace_digital(iobuf,&te->aux_trace_d[iaux])) < 0 )
+               {
+	          get_item_end(iobuf,&item_header);
+	          return rc;
+               }
+            }
+            break;
+
+         case IO_TYPE_HESS_AUX_ANALOG_TRACE:
+            iaux = item_header.ident;
+            if ( iaux >= 0 && iaux < MAX_AUX_TRACE_A )
+            {
+               if ( (rc = read_hess_aux_trace_analog(iobuf,&te->aux_trace_a[iaux])) < 0 )
+               {
+	          get_item_end(iobuf,&item_header);
+	          return rc;
+               }
+            }
+            break;
+
          default:
             if ( nt > 0 )
             {
@@ -6309,6 +7272,16 @@ int print_hess_televent (IO_BUFFER *iobuf)
          case IO_TYPE_HESS_PIXELLIST:
             rc = print_hess_pixel_list(iobuf);
             break;
+
+         case IO_TYPE_HESS_PIXELTRG_TM:
+            print_hess_pixeltrg_time(iobuf);
+            break;
+
+         case IO_TYPE_HESS_AUX_DIGITAL_TRACE:
+            print_hess_aux_trace_digital(iobuf);
+
+         case IO_TYPE_HESS_AUX_ANALOG_TRACE:
+            print_hess_aux_trace_analog(iobuf);
 
          default:
             if ( nt > 0 )
@@ -7310,10 +8283,13 @@ int print_hess_mc_shower (IO_BUFFER *iobuf)
      printf("  Starting depth: %f g/cm^2\n",get_real(iobuf));
    hint = get_real(iobuf);
    printf("  First interaction at: %f km\n",fabs(hint)*0.001);
-   if ( hint < 0. )
+   if ( hint < 0. ) /* Only with sim_telarray up to 2004-10-08 */
       printf("  Tracking started at injection into atmosphere\n");
+   /* Note: hint > 0 is always the case since 2004, so this cannot actually 
+      tell us anymore if CORSIKA had TSTART on or off. 
    else
-      printf("  Tracking started at first interaction\n");
+      printf("  Tracking either started at first interaction or at injection\n");
+   */
    printf("  Xmax: %f g/cm^2\n",get_real(iobuf));
    if ( item_header.version >= 1 )
    {
@@ -7448,6 +8424,7 @@ int read_hess_mc_event (IO_BUFFER *iobuf, MCEvent *mce)
          mce->mc_pesum.photons_atm_3_6[itel] = 
          mce->mc_pesum.photons_atm_400[itel] = 
          mce->mc_pesum.photons_atm_qe[itel] = 0.;
+      mce->mc_phot_list[itel].nphot = 0;
    }
 
    /* Version 0 did have more data here which we just ignore now. */
@@ -7656,13 +8633,12 @@ int print_hess_mc_pe_sum (IO_BUFFER *iobuf)
    IO_ITEM_HEADER item_header;
    int rc, i, ntel;
    int num_pe[H_MAX_TEL], num_pixels[H_MAX_TEL];
-   int maxprt = 20;
    int nwp = 0, nw = 0;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_MC_PE_SUM;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -7723,9 +8699,9 @@ int print_hess_mc_pe_sum (IO_BUFFER *iobuf)
       	 if ( list[j] < 0 || list[j] >= H_MAX_PIX )
 	    continue;
          printf("    Pixel %d:  %d p.e.\n",list[j],pe[j]);
-         if ( j >= maxprt )
+         if ( j >= hs_maxprt )
          {
-            if ( j == maxprt )
+            if ( j == hs_maxprt )
                printf("...\n");
             break;
          }
@@ -8131,12 +9107,11 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
    int what, rc, ns, np, nd, ng;
    int known = 0, new_parts = 0, i;
    HTime mtime;
-   int maxprt = 20;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_TEL_MONI;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -8196,9 +9171,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
       printf("      sector rates: ");
       for (i=0; i<ns; i++)
       {
-         if ( i<maxprt )
+         if ( i < hs_maxprt )
             printf(" %f,",get_real(iobuf));
-         else if ( i==maxprt )
+         else if ( i == hs_maxprt )
          {  printf(" ..."); (void) get_real(iobuf); }
          else
             (void) get_real(iobuf);
@@ -8219,9 +9194,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
          printf("      Pedestals gain %d: ",j);
          for (i=0; i<np; i++)
          {
-            if ( i<maxprt )
+            if ( i < hs_maxprt )
                printf(" %f,", get_real(iobuf));
-            else if ( i==maxprt )
+            else if ( i == hs_maxprt )
             {  printf(" ..."); (void) get_real(iobuf); }
             else
                (void) get_real(iobuf);
@@ -8233,9 +9208,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
          printf("      Noise gain %d: ",j);
          for (i=0; i<np; i++)
          {
-            if ( i<maxprt )
+            if ( i < hs_maxprt )
                printf(" %f,", get_real(iobuf));
-            else if ( i==maxprt )
+            else if ( i == hs_maxprt )
             {  printf(" ..."); (void) get_real(iobuf); }
             else
                (void) get_real(iobuf);
@@ -8255,9 +9230,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
       printf("       hv_dac: ");
       for ( i=0; i<np; i++ )
       {
-         if ( i<maxprt )
+         if ( i < hs_maxprt )
             printf(" %u,", get_uint16(iobuf));
-         else if ( i==maxprt )
+         else if ( i == hs_maxprt )
          {  printf(" ..."); (void) get_uint16(iobuf); }
          else
             (void) get_uint16(iobuf);
@@ -8265,9 +9240,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
       printf("\n       thresh_dac: ");
       for ( i=0; i<nd; i++ )
       {
-         if ( i<maxprt )
+         if ( i < hs_maxprt )
             printf(" %u,", get_uint16(iobuf));
-         else if ( i==maxprt )
+         else if ( i == hs_maxprt )
          {  printf(" ..."); (void) get_uint16(iobuf); }
          else
             (void) get_uint16(iobuf);
@@ -8275,9 +9250,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
       printf("\n       hv_set: ");
       for ( i=0; i<nd; i++ )
       {
-         if ( i<maxprt )
+         if ( i < hs_maxprt )
             printf(" %u,", (unsigned char) get_byte(iobuf));
-         else if ( i==maxprt )
+         else if ( i == hs_maxprt )
          {  printf(" ..."); (void) get_byte(iobuf); }
          else
             (void) get_byte(iobuf);
@@ -8285,9 +9260,9 @@ int print_hess_tel_monitor (IO_BUFFER *iobuf)
       printf("\n       trig_set: ");
       for ( i=0; i<nd; i++ )
       {
-         if ( i<maxprt )
+         if ( i < hs_maxprt )
             printf(" %u,", (unsigned char) get_byte(iobuf));
-         else if ( i==maxprt )
+         else if ( i == hs_maxprt )
          {  printf(" ..."); (void) get_byte(iobuf); }
          else
             (void) get_byte(iobuf);
@@ -8464,12 +9439,11 @@ int print_hess_laser_calib (IO_BUFFER *iobuf)
 {
    IO_ITEM_HEADER item_header;
    int j, np, ng, rc;
-   int maxprt = 20;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_LASCAL;  /* Data type */
    if ( (rc = get_item_begin(iobuf,&item_header)) < 0 )
@@ -8495,9 +9469,9 @@ int print_hess_laser_calib (IO_BUFFER *iobuf)
       printf("   Gain %d: ",j);
       for ( i=0; i<np; i++ )
       {
-         if ( i < maxprt )
+         if ( i < hs_maxprt )
             printf(" %f,",get_real(iobuf));
-         else if ( i == maxprt )
+         else if ( i == hs_maxprt )
          {  printf(" ..."); (void) get_real(iobuf); }
          else
             (void) get_real(iobuf);
@@ -8525,9 +9499,9 @@ int print_hess_laser_calib (IO_BUFFER *iobuf)
          printf("   Time %d: ",j);
          for ( i=0; i<np; i++ )
          {
-            if ( i < maxprt )
+            if ( i < hs_maxprt )
                printf(" %f,",get_real(iobuf));
-            else if ( i == maxprt )
+            else if ( i == hs_maxprt )
             {  printf(" ..."); (void) get_real(iobuf); }
             else
                (void) get_real(iobuf);
@@ -8748,7 +9722,7 @@ int print_hess_mc_run_stat (IO_BUFFER *iobuf)
  
 int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
 {
-   int iarray=0, itel=0, jtel=0, type, nbunches=0, max_bunches=0, flags=0;
+   int iarray=0, itel=0, itel_pe=0, tel_id=0, jtel=0, type, nbunches=0, max_bunches=0, flags=0;
    int npe=0, pixels=0, max_npe=0;
    int rc;
    double photons=0.;
@@ -8761,16 +9735,18 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
       {
       	 case IO_TYPE_MC_PHOTONS:
             /* The purpose of this first call to read_tel_photons is only
-               to retrieve the array and telescope numbers (yes the offset
-               number, not the telescope ID) etc. */
+               to retrieve the array and telescope numbers (the original offset
+               number without ignored telescopes, basically telescope ID minus one), etc. */
 	    /* With a NULL pointer argument, we expect rc = -10 */
-      	    rc = read_tel_photons(iobuf, 0, &iarray, &itel, &photons,
+      	    rc = read_tel_photons(iobuf, 0, &iarray, &itel_pe, &photons,
 	          NULL, &nbunches);
 	    if ( rc != -10 )
 	    {
       	       get_item_end(iobuf,&item_header);
 	       return -1;
 	    }
+            tel_id = itel_pe + 1;
+            itel = find_tel_idx(tel_id);
 	    if ( itel < 0 || itel >= H_MAX_TEL )
 	    {
 	       Warning("Invalid telescope number in MC photons");
@@ -8818,16 +9794,23 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
 	    break;
 	 case IO_TYPE_MC_PE:
             /* The purpose of this first call to read_photo_electrons is only
-               to retrieve the array and telescope offset numbers (yes the offset
-               number, not the telescope ID), the number of p.e.s and pixels etc. */
+               to retrieve the array and telescope offset numbers (the original offset
+               number without ignored telescopes, basically telescope ID minus one), 
+               the number of p.e.s and pixels etc. */
 	    /* Here we expect as well rc = -10 */
-	    rc = read_photo_electrons(iobuf, H_MAX_PIX, 0, &iarray,&itel,
+	    rc = read_photo_electrons(iobuf, H_MAX_PIX, 0, &iarray, &itel_pe,
 	          &npe, &pixels, &flags, NULL, NULL, NULL, NULL, NULL);
 	    if ( rc != -10 )
 	    {
       	       get_item_end(iobuf,&item_header);
 	       return -1;
 	    }
+            /* The itel_pe value may differ from the itel index value that we
+               are looking for if the telescope simulation had ignored telescopes.
+               This can be fixed but still assumes that base_telescope_number = 1
+               was used - as all known simulations do. */
+            tel_id = itel_pe + 1; /* Also note: 1 <= tel_id <= 1000 */
+            itel = find_tel_idx(tel_id);
 	    if ( itel < 0 || itel >= H_MAX_TEL )
 	    {
 	       Warning("Invalid telescope number in MC photons");
@@ -8879,7 +9862,7 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
 
 #ifdef STORE_PHOTO_ELECTRONS
 	    rc = read_photo_electrons(iobuf, H_MAX_PIX, max_npe, 
-	          &iarray, &itel, &npe, &pixels, &mce->mc_pe_list[itel].flags,
+	          &iarray, &jtel, &npe, &pixels, &mce->mc_pe_list[itel].flags,
 		  mce->mc_pe_list[itel].pe_count, 
 		  mce->mc_pe_list[itel].itstart, 
 		  mce->mc_pe_list[itel].atimes,
@@ -8887,7 +9870,7 @@ int read_hess_mc_phot (IO_BUFFER *iobuf, MCEvent *mce)
                   mce->mc_pe_list[itel].photon_count);
 #else
 	    rc = read_photo_electrons(iobuf, H_MAX_PIX, max_npe, 
-	          &iarray, &itel, &npe, &pixels, &mce->mc_pe_list[itel].flags,
+	          &iarray, &jtel, &npe, &pixels, &mce->mc_pe_list[itel].flags,
 		  mce->mc_pe_list[itel].pe_count, 
 		  mce->mc_pe_list[itel].itstart, 
 		  mce->mc_pe_list[itel].atimes,
@@ -9051,12 +10034,11 @@ int print_hess_pixel_list (IO_BUFFER *iobuf)
 {
    IO_ITEM_HEADER item_header;
    int i, rc, code, pixels;
-   int maxprt = 20;
-   if ( getenv("MAX_PRINT_ARRAY") != NULL )
-      maxprt = atoi(getenv("MAX_PRINT_ARRAY"));
    
    if ( iobuf == (IO_BUFFER *) NULL )
       return -1;
+
+   hs_check_env();
 
    item_header.type = IO_TYPE_HESS_PIXELLIST;  /* Data type */
 
@@ -9077,10 +10059,10 @@ int print_hess_pixel_list (IO_BUFFER *iobuf)
       code, item_header.ident % 1000000, pixels);
    for (i=0; i<pixels; i++)
    {
-      if ( i<maxprt )
+      if ( i < hs_maxprt )
          printf("\t%d", (item_header.version < 1 ? 
                get_short(iobuf) : get_scount32(iobuf)) );
-      else if ( i==maxprt )
+      else if ( i == hs_maxprt )
       {  
          printf(" ..."); 
          if ( item_header.version < 1 )

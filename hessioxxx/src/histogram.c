@@ -34,8 +34,8 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    1991 - 2010
- *  @date    CVS $Date: 2014/02/20 10:53:06 $
- *  @version CVS $Revision: 1.21 $
+ *  @date    CVS $Date: 2018/09/19 12:11:36 $
+ *  @version CVS $Revision: 1.22 $
  */
 
 #include "initial.h"
@@ -2026,7 +2026,7 @@ _CLEAR_BUSY_(histo)
    /* After the unlocking because locate_histogram_fraction has its own locking */
 
    if ( is_2d || (histo->type != 'I' && histo->type != 'R') )
-      stbuf->median_2d = stbuf->median = 0.; // Not implemented for 2-D or 'F'/'D' type.
+      stbuf->median_2d = stbuf->median = 0.; /* Not implemented for 2-D or 'F'/'D' type. */
    else
       stbuf->median = locate_histogram_fraction(histo,0.5);
 

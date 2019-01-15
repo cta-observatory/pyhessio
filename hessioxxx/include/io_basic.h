@@ -24,8 +24,8 @@
     
     @author  Konrad Bernloehr
     @date    1991 to 2014
-    @date    @verbatim CVS $Date: 2016/03/14 13:34:52 $ @endverbatim
-    @version @verbatim CVS $Revision: 1.25 $ @endverbatim
+    @date    @verbatim CVS $Date: 2018/09/19 12:11:37 $ @endverbatim
+    @version @verbatim CVS $Revision: 1.26 $ @endverbatim
 
 
     Header file for structures and function prototypes for
@@ -47,11 +47,11 @@ extern "C" {
 #include "initial.h"
 #endif
 
-//#ifndef __cplusplus
+/* #ifndef __cplusplus */
 #ifndef WARNING_H__LOADED
 #include "warning.h"
 #endif
-//#endif
+/* #endif */
 
 #define MAX_IO_ITEM_LEVEL 20
 

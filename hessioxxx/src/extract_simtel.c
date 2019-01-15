@@ -1,6 +1,6 @@
 /* ============================================================================
 
-Copyright (C) 2013, 2014, 2015  Konrad Bernloehr
+Copyright (C) 2015  Konrad Bernloehr
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,21 +17,21 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 ============================================================================ */
 
-/** @file merge_simtel.c
- *  @short A program for merging events from separate telescope simulations
- *     of the same showers.
+/** @file extract_simtel.c
+ *  @short A program for extracting data for a subset of simulated telescopes.
  *
- *  The program will read sim_telarray raw or DST data on two input files,
- *  map telescope ID according to a mapping file and write the merged
- *  blocks to an output file.
+ *  The program will read sim_telarray raw or DST data from one input file,
+ *  map telescope ID according to how they appear in the list of
+ *  selected telescopes and write the re-mapped blocks to an output file.
+ *  It behaves basically like 'merge_simtel' with only one input file.
  *
  *  Inputs expected - and the action to be performed:
  *     Type
  *   Once per run:
- *       70 (history)    -  Write as-is, impossible to merge
- *     2000 (run_header) -  Merging needed for telescope list and positions
- *     2001 (MC run header)  -  Only one of two MC run-headers needed (should be identical)
- *     1212 (input config = CORSIKA inputs) -  Only one needed (should be identical, duplicate)
+ *       70 (history)    -  Write as-is, no attempt to identify which part is relevant for which telescope
+ *     2000 (run_header) -  Re-write as needed for telescope list and positions
+ *     2001 (MC run header)  -  Write as-is, nothing telescope-specific
+ *     1212 (input config = CORSIKA inputs) -  Write as-is, nothing telescope-specific
  *   Once per telescope (and per run for raw & DST levels 0-2; just once for DST level 3):
  *     2002 (camera settings) - Write after mapping of telescope ID (if mapped)
  *     2003 (camera organization)  - Write after mapping of telescope ID (if mapped)
@@ -44,35 +44,36 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *     2023 (Laser calibration)  - Write after mapping of telescope ID (if mapped)
  *   Per shower:
  *    once:
- *     2020 (MC shower) -  Only one of two MC run-headers needed (should be identical)
+ *     2020 (MC shower) -  Write as-is, nothing telescope-specific
  *    per array:
- *     2021 (MC event) - Only one of two blocks needed (anything to get merged?)
+ *     2021 (MC event) - Write as-is, nothing telescope-specific
  *   Optional per event; not immediately written but delayed until next MC etc. block:
  *     2026 (MC pe sum) - ???
  *     1204 (photo-electrons individually) - ???
- *     2010 (event) - Needs remapping and merging at all levels
+ *     2010 (event) - Needs remapping at all levels
  *   At end of run:
  *     2024 (run statistics - usually not present)
  *     2025 (MC run statistics - usually not present)
- *      100 (histograms) - Cannot be merged properly. Histograms of generated showers
- *            should agree, but for triggered showers we cannot tell how many are common.
+ *      100 (histograms) - Cannot be remapped properly (but few histograms are telescope-specific)
  *
  *   FIXME: Ignoring 'trgmask' files initially - include them later on.
  *
 @verbatim
-Syntax:  merge_simtel [ options ] map-file input1 input2 output
+Syntax:  extract_simtel [ options ] input output
 Options:
+     --map-file      : Load the telescope ID mapping from a file.
+     --only-telescope: List of telescopes on command line rather than map file.
      --auto-trgmask  : Load trgmask.gz files for each input file where available.
-     --min-trg-tel n : Require at least n telescopes in merged event (default: 2).
-     --verbose       : Show events being merged.
+     --min-trg-tel n : Require at least n telescopes in extracted event (default: 2).
+     --verbose       : Show events being extracted.
 @endverbatim
  *
  *  @author  Konrad Bernloehr
- *  @date    @verbatim CVS $Date: 2017/05/16 12:31:52 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.11 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2017/10/10 15:18:34 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.4 $ @endverbatim
  */
 
-/** @defgroup merge_simtel_c The merge_simtel program */
+/** @defgroup extract_simtel_c The extract_simtel program */
 /** @{ */
 
 #include "initial.h"      /* This file includes others as required. */
@@ -129,7 +130,37 @@ void stop_signal_function (int isig)
 }
 
 
-/* ------------------------------------------------------------------------------ */
+/* --------------------------- syntax -------------------------------- */
+
+/** Show program syntax */
+
+static void syntax (const char *program);
+
+static void syntax (const char *program)
+{
+   printf("Syntax: %s [ options ] input output\n",program);
+   printf("Options:\n");
+   printf("     --map-file      : Load the telescope ID mapping from a file.\n");
+   printf("     --only-telescope: List of telescopes on command line rather than map file.\n");
+   printf("     --auto-trgmask  : Load trgmask.gz files for each input file where available.\n");
+   printf("     --min-trg-tel n : Require at least n telescopes in extracted event (default: 2).\n");
+   printf("     --verbose       : Show events being extracted.\n");
+   printf("\nCompiled for a maximum of %d telescopes before and after extracting.\n", H_MAX_TEL);
+   printf("Linked against eventIO/hessio library\n");
+#ifdef EVENTIO_VERSION
+         printf("   version %s\n", EVENTIO_VERSION);
+#endif
+#ifdef EVENTIO_RELEASE
+         printf("   release %s\n", EVENTIO_RELEASE);
+#else
+# ifdef EVENTIO_BASE_RELEASE
+         printf("   based on release %s\n", EVENTIO_BASE_RELEASE);
+# endif
+#endif
+   show_hessio_max();
+   H_CHECK_MAX();
+   exit(1);
+}
 
 /**
  *  Structure with per output telescope information keeping track of prerequisites.
@@ -138,7 +169,7 @@ void stop_signal_function (int isig)
 struct map_tel_struct
 {
    int tel_id;              ///< Telescope ID on output
-   int ifn;                 ///< Input file number (1 or 2)
+   int ifn;                 ///< Input file number (1 only in this program)
    int inp_id;              ///< Telescope ID on input
    int inp_itel;            ///< Sequential telescope count on input
    int have_camset;         ///< Have camera_settings for this telescope
@@ -173,7 +204,6 @@ long event1 = -1, event2 = 0;
 long ev_hess_event = 0, ev_pe_sum = 0; /**< For delayed writing */
 int run1 = -1, run2 = -1;
 int min_trg = 2;
-double distinct_sep = 1.0;
 
 /**
  *   Offset of an input telescope of given ID within the input structures.
@@ -181,7 +211,7 @@ double distinct_sep = 1.0;
 
 int find_in_tel_idx(int tel_id, int ifile)
 {
-   if ( tel_id >= 0 && tel_id <= H_MAX_TEL && ifile > 0 && ifile <= 2 )
+   if ( tel_id >= 0 && tel_id <= H_MAX_TEL && ifile > 0 && ifile <= 1 )
       return tel_idx[ifile-1][tel_id];
    else
       return -1;
@@ -194,7 +224,7 @@ int find_in_tel_idx(int tel_id, int ifile)
 int find_out_tel_idx(int tel_id, int ifile)
 {
    int itel_in, itel_out, tel_id_out;
-   if ( tel_id >= 0 && tel_id <= H_MAX_TEL && ifile > 0 && ifile <= 2 )
+   if ( tel_id >= 0 && tel_id <= H_MAX_TEL && ifile > 0 && ifile <= 1 )
    {
       /* First check that the telescope is present in the input */
       itel_in = tel_idx[ifile-1][tel_id];
@@ -218,7 +248,7 @@ int find_out_tel_idx(int tel_id, int ifile)
 
 int find_mapped_telescope (int tel_id, int ifile)
 {
-   if ( tel_id >= 0 && tel_id <= H_MAX_TEL && ifile > 0 && ifile <= 2 )
+   if ( tel_id >= 0 && tel_id <= H_MAX_TEL && ifile > 0 && ifile <= 1 )
       return map_to[ifile-1][tel_id];
    else
       return -1;
@@ -242,77 +272,6 @@ int write_io_block_to_file (IO_BUFFER *iobuf, FILE *f)
       iobuf->output_file = t;
    }
    return rc;
-}
-
-/* ----------------------------------------------------------------------- */
-
-int has_min_trg_tel (AllHessData *hsdata_out, int mtrg, double rtm);
-
-int has_min_trg_tel (AllHessData *hsdata_out, int mtrg, double rtm)
-{
-   double xtel_trg[H_MAX_TEL], ytel_trg[H_MAX_TEL], xtel, ytel, r2;
-#ifdef DEBUG_MERGE
-   int tel_id_trg[H_MAX_TEL];
-#endif
-
-   if ( hsdata_out->event.num_teldata >= mtrg ||
-        hsdata_out->event.central.num_teltrg >= mtrg ||
-        hsdata_out->event.central.num_teldata >= mtrg )
-   {
-      int ntrg=0, itel, jtel, ktel, tel_id;
-      for ( itel=0; itel<hsdata_out->event.central.num_teldata; itel++ )
-      {
-         int distinct = 1;
-         tel_id = hsdata_out->event.central.teldata_list[itel];
-         if ( tel_id < 0 || tel_id > H_MAX_TEL )
-            continue;
-         ktel = tel_idx_out[tel_id];
-         if ( ktel < 0 || ktel >= H_MAX_TEL )
-            continue;
-         xtel = hsdata_out->run_header.tel_pos[ktel][0];
-         ytel = hsdata_out->run_header.tel_pos[ktel][1];
-         for ( jtel=0; jtel<itel; jtel++ )
-         {
-            r2 = (xtel-xtel_trg[jtel])*(xtel-xtel_trg[jtel]) +
-                 (ytel-ytel_trg[jtel])*(ytel-ytel_trg[jtel]);
-            if ( r2 < rtm*rtm )
-            {
-#ifdef DEBUG_MERGE
-               printf("Trigger in telescope ID %d is not distinct from ID %d.\n", tel_id, tel_id_trg[jtel]);
-#endif
-               distinct = 0;
-               break;
-            }
-         }
-         if ( distinct )
-            ntrg++;
-#ifndef DEBUG_MERGE
-         if ( ntrg >= mtrg )
-            return 1; /* No need to check any further; we are good. */
-#endif
-         xtel_trg[itel] = xtel;
-         ytel_trg[itel] = ytel;
-#ifdef DEBUG_MERGE
-         tel_id_trg[itel] = tel_id;
-#endif
-      }
-      
-      if ( ntrg >= mtrg )
-      {
-#ifdef DEBUG_MERGE
-         printf("From %d telescopes with data %d distinct trigger(s) remained, passing minimum of %d.\n",
-            hsdata_out->event.central.num_teldata, ntrg, mtrg);
-#endif
-         return 1;
-      }
-// #ifdef DEBUG_MERGE
-      else if ( ntrg > 0 )
-         printf("From %d telescopes with data only %d distinct trigger(s) remained. Event %d gets ignored.\n",
-            hsdata_out->event.central.num_teldata, ntrg, hsdata_out->event.central.glob_count);
-// #endif
-   }
-   
-   return 0;
 }
 
 /* ----------------------------------------------------------------------- */
@@ -344,7 +303,7 @@ printf("Unexpected check_for_delayed_write(): type: %d, id: %ld)\n", type, id);
    
    if ( type != IO_TYPE_HESS_EVENT && type != IO_TYPE_HESS_MC_PE_SUM )
    {
-      if ( ev_pe_sum > 0 && ev_pe_sum < event ) /* p.e. sums from preceding event */
+      if ( ev_pe_sum > 0 && ev_pe_sum < event )
       {
 #ifdef DEBUG_MERGE
 printf("Delayed writing of pe sums for event %ld (current data block type: %d, id: %ld)\n", ev_pe_sum, type, id);
@@ -354,17 +313,14 @@ printf("Delayed writing of pe sums for event %ld (current data block type: %d, i
          if ( rc != 0 )
             return rc;
       }
-      if ( ev_hess_event > 0 && ev_hess_event < event ) /* event data from preceding event ? */
+      if ( ev_hess_event > 0 && ev_hess_event < event )
       {
 #ifdef DEBUG_MERGE
 printf("Delayed writing of data event %ld (current data block type: %d, id: %ld)\n", ev_hess_event, type, id);
 #endif
-/*
          if ( hsdata_out->event.num_teldata >= min_trg ||
               hsdata_out->event.central.num_teltrg >= min_trg ||
               hsdata_out->event.central.num_teldata >= min_trg )
-*/
-         if ( has_min_trg_tel(hsdata_out, min_trg, distinct_sep) )
          {
             set_tel_idx_ref(0);
             rc = write_hess_event(iobuf_out,&hsdata_out->event,-1);
@@ -375,8 +331,6 @@ printf("Delayed writing of data event %ld (current data block type: %d, id: %ld)
    else if ( type == IO_TYPE_HESS_EVENT )
    {
       if ( ev_pe_sum > 0 && ev_pe_sum <= event ) /* p.e. sums for this or any preceding event */
-                                   /*  ^--- only this case with <=, including this event, */
-                                   /*       to make sure p.e. sums come before event data. */
       {
 #ifdef DEBUG_MERGE
 printf("Delayed writing of pe sums for event %ld (current data block type: %d, id: %ld)\n", ev_pe_sum, type, id);
@@ -391,12 +345,9 @@ printf("Delayed writing of pe sums for event %ld (current data block type: %d, i
 #ifdef DEBUG_MERGE
 printf("Delayed writing of data event %ld (current data block type: %d, id: %ld)\n", ev_hess_event, type, id);
 #endif
-/*
          if ( hsdata_out->event.num_teldata >= min_trg ||
               hsdata_out->event.central.num_teltrg >= min_trg ||
               hsdata_out->event.central.num_teldata >= min_trg )
-*/
-         if ( has_min_trg_tel(hsdata_out, min_trg, distinct_sep) )
          {
             set_tel_idx_ref(0);
             rc = write_hess_event(iobuf_out,&hsdata_out->event,-1);
@@ -406,7 +357,7 @@ printf("Delayed writing of data event %ld (current data block type: %d, id: %ld)
    }
    else if ( type == IO_TYPE_HESS_MC_PE_SUM )
    {
-      if ( ev_pe_sum > 0 && ev_pe_sum < event ) /* p.e. sums from preceding event ? Still delays a current one. */
+      if ( ev_pe_sum > 0 && ev_pe_sum < event ) /* p.e. sums from preceding event ? */
       {
 #ifdef DEBUG_MERGE
 printf("Delayed writing of pe sums for event %ld (current data block type: %d, id: %ld)\n", ev_pe_sum, type, id);
@@ -421,12 +372,9 @@ printf("Delayed writing of pe sums for event %ld (current data block type: %d, i
 #ifdef DEBUG_MERGE
 printf("Delayed writing of data event %ld (current data block type: %d, id: %ld)\n", ev_hess_event, type, id);
 #endif
-/*
          if ( hsdata_out->event.num_teldata >= min_trg ||
               hsdata_out->event.central.num_teltrg >= min_trg ||
               hsdata_out->event.central.num_teldata >= min_trg )
-*/
-         if ( has_min_trg_tel(hsdata_out, min_trg, distinct_sep) )
          {
             set_tel_idx_ref(0);
             rc = write_hess_event(iobuf_out,&hsdata_out->event,-1);
@@ -447,8 +395,7 @@ static int mcevents[2] = { 0, 0 };
 static int max_list = 999;
 
 /**
- *  Processing and merging of I/O blocks from the two input files,
- *  hopefully presented in the right order.
+ *  Processing of I/O blocks from the input file.
  */
 
 int merge_data_from_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header, 
@@ -462,10 +409,10 @@ int merge_data_from_io_block (IO_BUFFER *iobuf, IO_ITEM_HEADER *item_header,
    int tel_id, itel;
    int tel_id3, itel3;
    int rc = -9;
-   static int nlist = 0, prev_run_header_from = -1;
+   static int nlist = 0;
 
    if ( iobuf == NULL || item_header == NULL || hsdata == NULL || 
-         hsdata_out == NULL || iobuf_out == NULL || ifile < 1 || ifile > 2 )
+         hsdata_out == NULL || iobuf_out == NULL || ifile < 1 || ifile > 1 )
    {
       fprintf(stderr,"Invalid parameter in merge_data_from_io_block()\n");
       exit(1);
@@ -552,17 +499,7 @@ printf("Now processing item type %d (ID=%ld) from file %d ...\n",
                hsdata->run_header.run, hsdata->run_header.ntel,
                (long) hsdata->run_header.time);
          }
-         if ( ifile == 2 && hsdata->run_header.run != hsdata_out->run_header.run &&
-              hsdata_out->run_header.run != 0 )
-         {
-            fflush(stdout);
-            fprintf(stderr,"Run numbers do not match: file2 has %d, output has run %d !\n",
-               hsdata->run_header.run, hsdata_out->run_header.run);
-            exit(1);
-         }
-         else if ( ifile == 2 && hsdata_out->run_header.run == 0 )
-            hsdata_out->run_header.run = hsdata->run_header.run;
-         else if ( ifile == 1 )
+         if ( ifile == 1 )
             hsdata_out->run_header.run = hsdata->run_header.run;
          if ( hsdata->run_header.ntel > H_MAX_TEL )
          {
@@ -571,7 +508,7 @@ printf("Now processing item type %d (ID=%ld) from file %d ...\n",
                hsdata->run_header.ntel, H_MAX_TEL);
             exit(1);
          }
-         if ( prev_run_header_from == -1 )
+         if ( ifile == 1 )
          {
             hsdata_out->run_header.time = hsdata->run_header.time;
             hsdata_out->run_header.run_type = hsdata->run_header.run_type;
@@ -597,82 +534,6 @@ printf("Now processing item type %d (ID=%ld) from file %d ...\n",
             hsdata_out->run_header.max_len_target = hsdata->run_header.max_len_target;
             hsdata_out->run_header.max_len_observer = hsdata->run_header.max_len_observer;
             hsdata_out->event.num_tel = hsdata->run_header.ntel;
-            prev_run_header_from = ifile;
-         }
-         else
-         {
-            nrtel2 = hsdata->run_header.ntel;
-            hsdata_out->event.num_tel = hsdata_out->run_header.ntel = ntel;
-            rc = 0;
-            if ( hsdata->run_header.time != hsdata_out->run_header.time )
-               printf("Simulation in file %d at time %ld, in file %d at time %ld.\n",
-                  prev_run_header_from, hsdata_out->run_header.time, 
-                  ifile, hsdata->run_header.time);
-            if ( hsdata->run_header.run_type != hsdata_out->run_header.run_type )
-            {
-               printf("File %d has run type %d, file %d has run type %d.\n",
-                  prev_run_header_from, hsdata_out->run_header.run_type, 
-                  ifile, hsdata->run_header.run_type);
-               rc = 1;
-            }
-            if ( hsdata->run_header.tracking_mode != hsdata_out->run_header.tracking_mode )
-            {
-               printf("File %d has tracking mode %d, file %d has tracking mode %d.\n",
-                  prev_run_header_from, hsdata_out->run_header.tracking_mode, 
-                  ifile, hsdata->run_header.tracking_mode);
-               rc = 1;
-            }
-            if ( hsdata->run_header.reverse_flag != hsdata_out->run_header.reverse_flag )
-            {
-               printf("File %d has reverse flag %d, file %d has reverse flag %d.\n",
-                  prev_run_header_from, hsdata_out->run_header.reverse_flag, 
-                  ifile, hsdata->run_header.reverse_flag);
-               rc = 1;
-            }
-            if ( hsdata->run_header.direction[0] != hsdata_out->run_header.direction[0] ||
-                 hsdata->run_header.direction[1] != hsdata_out->run_header.direction[1] )
-            {
-               printf("File %d has direction %f, %f, file %d has %f, %f.\n",
-                  prev_run_header_from, hsdata_out->run_header.direction[0], hsdata_out->run_header.direction[1], 
-                  ifile, hsdata->run_header.direction[0], hsdata->run_header.direction[1]);
-               rc = 1;
-            }
-            if ( hsdata->run_header.offset_fov[0] != hsdata_out->run_header.offset_fov[0] ||
-                 hsdata->run_header.offset_fov[1] != hsdata_out->run_header.offset_fov[1] )
-            {
-               printf("File %d has FoV offset %f, %f, file %d has %f, %f.\n",
-                  prev_run_header_from, hsdata_out->run_header.offset_fov[0], hsdata_out->run_header.offset_fov[1], 
-                  ifile, hsdata->run_header.offset_fov[0], hsdata->run_header.offset_fov[1]);
-               rc = 1;
-            }
-            if ( hsdata->run_header.conv_depth != hsdata_out->run_header.conv_depth )
-            {
-               printf("File %d has convergence depth %f, file %d has %f.\n",
-                  prev_run_header_from, hsdata_out->run_header.conv_depth, 
-                  ifile, hsdata->run_header.conv_depth);
-               rc = 1;
-            }
-            if ( hsdata->run_header.conv_ref_pos[0] != hsdata_out->run_header.conv_ref_pos[0] ||
-                 hsdata->run_header.conv_ref_pos[1] != hsdata_out->run_header.conv_ref_pos[1] )
-            {
-               printf("File %d has convergence reference position %f, %f, file %d has %f, %f.\n",
-                  prev_run_header_from, hsdata_out->run_header.conv_ref_pos[0], hsdata_out->run_header.conv_ref_pos[1], 
-                  ifile, hsdata->run_header.conv_ref_pos[0], hsdata->run_header.conv_ref_pos[1]);
-               rc = 1;
-            }
-            if ( hsdata->run_header.min_tel_trig != hsdata_out->run_header.min_tel_trig )
-            {
-               printf("File %d requires by default %d for an array trigger, file %d by default %d.\n",
-                  prev_run_header_from, hsdata_out->run_header.min_tel_trig, 
-                  ifile, hsdata->run_header.min_tel_trig);
-               /* No error */
-            }
-            if ( rc != 0 )
-            {
-               fflush(stdout);
-               fprintf(stderr,"Run headers do not match. Giving up now.\n");
-               exit(1);
-            }
          }
          /* Reset telescope ID to index number lookup */
          for (itel=0; itel<=H_MAX_TEL; itel++)
@@ -801,13 +662,20 @@ printf("Now processing item type %d (ID=%ld) from file %d ...\n",
                hsdata_out->run_header.tel_pos[itel3][2] = hsdata->run_header.tel_pos[itel][2];
             }
 
-            events[ifile-1] = mcshowers[ifile-1] = mcevents[ifile-1] = 0;
-         }
-         if ( ifile == 2 )
+         } /* Loop over telescopes */
+
+         events[ifile-1] = mcshowers[ifile-1] = mcevents[ifile-1] = 0;
+
+         set_tel_idx_ref(0);
+
+         if ( (rc = write_hess_runheader(iobuf_out,&hsdata_out->run_header)) < 0 )
          {
-            set_tel_idx_ref(0);
-            write_hess_runheader(iobuf_out,&hsdata_out->run_header);
+            fprintf(stderr,"Writing new run header failed.\n");
+            exit(1);
          }
+#ifdef DEBUG_MERGE
+printf("Run header written\n");
+#endif
          break;
 
       /* =================================================== */
@@ -827,14 +695,19 @@ printf("Now processing item type %d (ID=%ld) from file %d ...\n",
          /* pretty much everything should be identical. */
          /* Nevertheless, record both MC run headers as they came in. */
          rc = write_io_block_to_file (iobuf,iobuf_out->output_file);
+#ifdef DEBUG_MERGE
+printf("MC run header written\n");
+#endif
          break;
-
       /* =================================================== */
       case IO_TYPE_MC_INPUTCFG: /* 1212 */
          /* Copy to output buffer without unpacking it, if possible ... */
          rc = write_io_block_to_file(iobuf, iobuf_out->output_file);
 	 if ( rc != 0 || verbose )
             printf("writing input cfg to output, rc=%d\n", rc);
+#ifdef DEBUG_MERGE
+printf("MC input configuration written\n");
+#endif
          break;
 
       /* =================================================== */
@@ -843,6 +716,9 @@ printf("Now processing item type %d (ID=%ld) from file %d ...\n",
          rc = write_io_block_to_file(iobuf, iobuf_out->output_file);
 	 if ( rc != 0 || verbose )
             printf("writing history to output, rc=%d\n", rc);
+#ifdef DEBUG_MERGE
+printf("History written\n");
+#endif
          break;
 
       /* =================================================== */
@@ -872,6 +748,9 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->camera_set[itel3].tel_id = tel_id3;
          /* Write the modified camera settings to output */
          rc = write_hess_camsettings(iobuf_out, &hsdata_out->camera_set[itel3]);
+#ifdef DEBUG_MERGE
+printf("Camera settings written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
          break;
 
       /* =================================================== */
@@ -901,6 +780,9 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->camera_org[itel3].tel_id = tel_id3;
          /* Write the modified camera organisation to output */
          rc = write_hess_camorgan(iobuf_out, &hsdata_out->camera_org[itel3]);
+#ifdef DEBUG_MERGE
+printf("Camera organization written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
          break;
 
       /* =================================================== */
@@ -930,7 +812,10 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->pixel_set[itel3].tel_id = tel_id3;
          /* Write the modified camera organisation to output */
          rc = write_hess_pixelset(iobuf_out, &hsdata_out->pixel_set[itel3]);
-         break;
+#ifdef DEBUG_MERGE
+printf("Pixel setting written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
+          break;
 
       /* =================================================== */
       case IO_TYPE_HESS_PIXELDISABLE:  /* 2005: Per-telescope block */
@@ -959,6 +844,9 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->pixel_disabled[itel3].tel_id = tel_id3;
          /* Write the modified camera organisation to output */
          rc = write_hess_pixeldis(iobuf_out, &hsdata_out->pixel_disabled[itel3]);
+#ifdef DEBUG_MERGE
+printf("Disabled pixel list written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
          break;
 
       /* =================================================== */
@@ -988,6 +876,9 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->cam_soft_set[itel3].tel_id = tel_id3;
          /* Write the modified camera organisation to output */
          rc = write_hess_camsoftset(iobuf_out, &hsdata_out->cam_soft_set[itel3]);
+#ifdef DEBUG_MERGE
+printf("Camera software settings written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
          break;
 
       /* =================================================== */
@@ -1017,6 +908,9 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->point_cor[itel3].tel_id = tel_id3;
          /* Write the modified camera organisation to output */
          rc = write_hess_pointingcor(iobuf_out, &hsdata_out->point_cor[itel3]);
+#ifdef DEBUG_MERGE
+printf("Pointing corrections written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
          break;
 
       /* =================================================== */
@@ -1046,6 +940,9 @@ printf("itel = %d, tel_id = %d;  itel3 = %d, tel_id3 = %d\n", itel, tel_id, itel
          hsdata_out->tracking_set[itel3].tel_id = tel_id3;
          /* Write the modified camera organisation to output */
          rc = write_hess_trackset(iobuf_out, &hsdata_out->tracking_set[itel3]);
+#ifdef DEBUG_MERGE
+printf("Tracking setup written for tel. ID %d -> %d\n", tel_id, tel_id3);
+#endif
         break;
 
       /* =================================================== */
@@ -1363,7 +1260,7 @@ nlist++;
          rc = read_hess_calib_event(iobuf,&hsdata->event,-1,&type);
 	 if ( rc != 0 || verbose )
             printf("read_hess_calib_event(), rc = %d, type=%d\n",rc,type);
-printf("Not merging calibration event data yet. Stopping here.\n");
+printf("Not extracting calibration event data yet. Stopping here.\n");
 exit(1);
       }
          break;
@@ -1658,11 +1555,28 @@ if ( ev_pe_sum > 0 && ev_pe_sum < item_header->ident )
       /* (End-of-job or DST) histograms */
       case 100:
          check_for_delayed_write(item_header, ifile, hsdata_out, iobuf_out);
-         /* The processing loop should just offer the histogram block from one file, */
-         /* typically from file 2, if available. But if file 2 has no histogram */
-         /* block at a matching position, it could be from file 1.  */
-         /* Thus no extra check here. */
-         rc = write_io_block_to_file(iobuf, iobuf_out->output_file);
+         /* Only preserving histograms with thrown core positions and angles (1, 3, and 6). */
+         { 
+            HISTOGRAM *h_list[5] = { NULL, NULL, NULL, NULL, NULL };
+            HISTOGRAM *h;
+            int nhist;
+            free_all_histograms();
+            nhist = read_histograms(h_list,-1,iobuf);
+            nhist = 0;
+            if ( (h = get_histogram_by_ident(1)) )
+               h_list[nhist++] = h;
+            if ( (h = get_histogram_by_ident(3)) )
+               h_list[nhist++] = h;
+            if ( (h = get_histogram_by_ident(6)) )
+               h_list[nhist++] = h;
+            if ( (h = get_histogram_by_ident(12000)) )
+               h_list[nhist++] = h;
+            if ( (h = get_histogram_by_ident(11000)) )
+               h_list[nhist++] = h;
+            if ( nhist > 0 )
+               write_histograms(h_list,nhist,iobuf_out);
+         }
+         // rc = write_io_block_to_file(iobuf, iobuf_out->output_file);
          break;
 
       /* =================================================== */
@@ -1751,16 +1665,13 @@ int check_autoload_trgmask(const char *input_fname, IO_BUFFER *iobuf, int ifile)
 
 /* ---------------------- print_process_status --------------------------- */
 
-void print_process_status (int prev_type1, int this_type1, int prev_type2, int this_type2);
+void print_process_status (int prev_type1, int this_type1);
 
-void print_process_status (int prev_type1, int this_type1, int prev_type2, int this_type2)
+void print_process_status (int prev_type1, int this_type1)
 {
    printf("Last processed data type from file 1: %d\n", prev_type1);
    if ( this_type1 != 0 )
       printf("Not yet processed data type from file 1: %d\n", this_type1);
-   printf("Last processed data type from file 2: %d\n", prev_type2);
-   if ( this_type2 != 0 )
-      printf("Not yet processed data type from file 2: %d\n", this_type2);
 }
 
 /* ----------------------------- read_map -------------------------------- */
@@ -1885,10 +1796,15 @@ int read_map(const char *map_fname)
 
    fileclose(map_file);
 
-   printf("Mapping for %d telescopes (%d from input 1, %d from input 2)\n", ntel, ntel1, ntel2);
-   if ( ntel1 == 0 || ntel2 == 0 )
+   printf("Mapping for %d telescopes\n", ntel);
+   if ( ntel1 == 0 )
    {
-      fprintf(stderr,"No event merging needed.\n");
+      fprintf(stderr,"No event extraction needed.\n");
+      exit(1);
+   }
+   else if ( ntel2 != 0 )
+   {
+      fprintf(stderr,"Logic error.\n");
       exit(1);
    }
    
@@ -1906,43 +1822,6 @@ int read_map(const char *map_fname)
    return 0;
 }
 
-/* --------------------------- syntax -------------------------------- */
-
-/** Show program syntax */
-
-static void syntax (const char *program);
-
-static void syntax (const char *program)
-{
-   printf("Syntax: %s [ options ] map-file input1 input2 output\n",program);
-   printf("Options:\n");
-   printf("     --auto-trgmask  : Load trgmask.gz files for each input file where available.\n");
-   printf("     --min-trg-tel n : Require at least n telescopes in merged event (default: 2).\n");
-   printf("     --dist-sep d    : Telescope must be more than d apart in order to\n");
-   printf("                       count triggers in them as separate.\n");
-   printf("     --max-list n    : All of the first n events are reported (default: 999).\n");
-   printf("     --verbose       : Show events being merged.\n");
-   printf("     --clean-history : Drop previous history data blocks.\n");
-   printf("     --clean-history-after n : Similar but keep first n blocks.\n");
-   printf("     --no-stray-mc-runheader : Ignore MC runheaders before the main run header.\n");
-   printf("     --single-corsika-inputs : Keep only the first CORSIKA inputs block.\n");
-   printf("\nCompiled for a maximum of %d telescopes before and after merging.\n", H_MAX_TEL);
-   printf("Linked against eventIO/hessio library\n");
-#ifdef EVENTIO_VERSION
-         printf("   version %s\n", EVENTIO_VERSION);
-#endif
-#ifdef EVENTIO_RELEASE
-         printf("   release %s\n", EVENTIO_RELEASE);
-#else
-# ifdef EVENTIO_BASE_RELEASE
-         printf("   based on release %s\n", EVENTIO_BASE_RELEASE);
-# endif
-#endif
-   show_hessio_max();
-   H_CHECK_MAX();
-   exit(1);
-}
-
 /* -------------------- main program ---------------------- */
 /** 
  *  @short Main program 
@@ -1951,33 +1830,32 @@ static void syntax (const char *program)
 int main (int argc, char **argv)
 {
    const char *prg = argv[0];
-   IO_BUFFER *iobuf1 = NULL, *iobuf2 = NULL, *iobuf3 = NULL;
-   IO_ITEM_HEADER item_header1, item_header2;
+   IO_BUFFER *iobuf1 = NULL, *iobuf3 = NULL;
+   IO_ITEM_HEADER item_header1;
    const char *map_fname = NULL;
-   const char *input_fname1 = NULL, *input_fname2 = NULL;
+   const char *input_fname1 = NULL;
    const char *output_fname = NULL;
+   char *tmp_fname = NULL;
    int max_events = -1;
    int auto_trgmask = 0;
    char hl[512];
-   int clean_history = 0, clean_history_after = -1, history_count = 0;
 
    int iarg=0, jarg=0;
    char *program = argv[0];
-   int done1 = 0, done2 = 0;
+   int done1 = 0;
+   int prev_type1 = 0;
+   int this_type1 = 0;
    int read_from = 1;
-   int prev_type1 = 0, prev_type2 = 0;
-   int this_type1 = 0, this_type2 = 0;
-   int no_stray_mc = 0, single_corsika_inputs = 0, have_corsika_inputs = 0;
+   int rc = 0;
    
    H_CHECK_MAX();
 
    push_command_history(argc, argv);
 
-   AllHessData *hsdata1 = (AllHessData *) calloc(1,sizeof(AllHessData)); /* First input */
-   AllHessData *hsdata2 = (AllHessData *) calloc(1,sizeof(AllHessData)); /* Second input */
-   AllHessData *hsdata3 = (AllHessData *) calloc(1,sizeof(AllHessData)); /* Merged, output */
+   AllHessData *hsdata1 = (AllHessData *) calloc(1,sizeof(AllHessData)); /* Input */
+   AllHessData *hsdata3 = (AllHessData *) calloc(1,sizeof(AllHessData)); /* Output */
 
-   if ( hsdata1 == NULL || hsdata2 == NULL || hsdata3 == NULL )
+   if ( hsdata1 == NULL || hsdata3 == NULL )
    {
       perror("Allocating data structures");
       exit(1);
@@ -2007,38 +1885,9 @@ int main (int argc, char **argv)
             verbose = 1;
 	    continue;
          }
-         else if ( strcmp(argv[iarg],"--no-stray-mc-runheader") == 0 )
-         {
-            no_stray_mc = 1;
-	    continue;
-         }
-         else if ( strcmp(argv[iarg],"--single-corsika-inputs") == 0 )
-         {
-            single_corsika_inputs = 1;
-	    continue;
-         }
-         else if ( strcmp(argv[iarg],"--clean-history") == 0 ||
-                   strcmp(argv[iarg],"--clear-history") == 0 )
-         {
-       	    clean_history = 1;
-            clean_history_after = 0;
-	    continue;
-         }
-         else if ( strcmp(argv[iarg],"--clean-history-after") == 0 && iarg+1<argc )
-         {
-       	    clean_history_after = atoi(argv[iarg+1]);
-            iarg++;
-	    continue;
-         }
          else if ( strcmp(argv[iarg],"--min-trg-tel") == 0 && iarg+1<argc )
          {
             min_trg = atoi(argv[iarg+1]);
-            iarg++;
-            continue;
-         }
-         else if ( strcmp(argv[iarg],"--dist-sep") == 0 && iarg+1<argc )
-         {
-            distinct_sep = atof(argv[iarg+1]);
             iarg++;
             continue;
          }
@@ -2046,6 +1895,36 @@ int main (int argc, char **argv)
          {
             max_list = atoi(argv[iarg+1]);
             iarg++;
+            continue;
+         }
+         else if ( strcmp(argv[iarg],"--map-file") == 0 && iarg+1<argc )
+         {
+            map_fname = argv[iarg+1];
+            iarg++;
+            jarg = 1;
+            continue;
+         }
+         else if ( (strcmp(argv[iarg],"--only-telescope") == 0 ||
+                    strcmp(argv[iarg],"--only-telescopes") == 0) && iarg+1<argc )
+         {
+            char word[100];
+            int ipos = 0;
+            FILE *tmp_file = NULL;
+            tmp_fname = (char *) malloc(100);
+            sprintf(tmp_fname,".tmp_%d.lis", getpid());
+            if ( (tmp_file = fileopen(tmp_fname,"w")) == NULL )
+            {
+               fprintf(stderr,"Cannot open temporary map file '%s'.\n", tmp_fname);
+               exit(1);
+            }
+            map_fname = tmp_fname;
+            iarg++;
+            jarg = 1;
+            while ( getword(argv[iarg],&ipos,word,sizeof(word)-1,',','\n') > 0 )
+            {
+               fprintf(tmp_file,"1 %s\n", word);
+            }
+            fileclose(tmp_file);
             continue;
          }
          else
@@ -2061,8 +1940,6 @@ int main (int argc, char **argv)
       else if ( jarg == 1 )
          input_fname1 = argv[iarg];
       else if ( jarg == 2 )
-         input_fname2 = argv[iarg];
-      else if ( jarg == 3 )
          output_fname = argv[iarg];
       else
          syntax(program);
@@ -2076,11 +1953,12 @@ int main (int argc, char **argv)
       exit(1);
    }
 
-   snprintf(hl,sizeof(hl),"Mapping file is %s\n", map_fname);
-   push_config_history(hl,1);
-   snprintf(hl,sizeof(hl),"Input file 1 is %s\n", input_fname1);
-   push_config_history(hl,1);
-   snprintf(hl,sizeof(hl),"Input file 2 is %s\n", input_fname2);
+   if ( map_fname != NULL )
+   {
+      snprintf(hl,sizeof(hl),"Mapping file is %s\n", map_fname);
+      push_config_history(hl,1);
+   }
+   snprintf(hl,sizeof(hl),"Input file is %s\n", input_fname1);
    push_config_history(hl,1);
    snprintf(hl,sizeof(hl),"Output file is %s\n", output_fname);
    push_config_history(hl,1);
@@ -2098,7 +1976,6 @@ int main (int argc, char **argv)
 
    /* Start with quite large buffers; don't worry about wasting memory */
    if ( (iobuf1 = allocate_io_buffer(40000000L)) == NULL ||
-        (iobuf2 = allocate_io_buffer(40000000L)) == NULL ||
         (iobuf3 = allocate_io_buffer(40000000L)) == NULL )
    {
       Error("Cannot allocate I/O buffers");
@@ -2106,21 +1983,13 @@ int main (int argc, char **argv)
    }
    /* Allow buffers much larger than during simulation: most likely never exceeded */
    iobuf1->max_length = 400000000L;
-   iobuf2->max_length = 400000000L;
-   iobuf3->max_length = 800000000L;
+   iobuf3->max_length = 400000000L;
 
    if ( auto_trgmask )
       check_autoload_trgmask(input_fname1, iobuf1, 1);
    if ( (iobuf1->input_file = fileopen(input_fname1,"r")) == NULL )
    {
       perror(input_fname1);
-      exit(1);
-   }
-   if ( auto_trgmask )
-      check_autoload_trgmask(input_fname2, iobuf2, 2);
-   if ( (iobuf2->input_file = fileopen(input_fname2,"r")) == NULL )
-   {
-      perror(input_fname2);
       exit(1);
    }
    if ( (iobuf3->output_file = fileopen(output_fname,"w")) == NULL )
@@ -2132,9 +2001,7 @@ int main (int argc, char **argv)
 
    for (;;) /* Loop over all data in both input files */
    {
-      int merge_now = 0, merge_next = 0;
-
-      int rc = 0;
+      rc = 0;
       if ( interrupted )
       {
          rc = 1;
@@ -2145,41 +2012,41 @@ int main (int argc, char **argv)
          break;
 
 #ifdef DEBUG_MERGE
-printf("Processing loop: r=%d, t1=%d, t2=%d, p1=%d, p2=%d, e1=%ld, e2=%ld, d1=%d, d2=%d, mnow=%d, mnext=%d\n",
-   read_from, this_type1, this_type2, prev_type1, prev_type2, event1, event2, done1, done2, merge_now, merge_next);
+printf("Processing loop: t1=%d, p1=%d, e1=%ld, d1=%d\n",
+   this_type1, prev_type1, event1, done1);
 #endif
 
       /* Can the request to read the next data block be satisfied? */
-      if ( done1 || done2 )
+      if ( done1 )
       {
-         if ( done1 && done2 )
+         if ( done1 )
          {
-            printf("Reading from both input files completed.\n");
-            if ( this_type1 == 100 && this_type2 == 100 )
+            printf("Reading from input file completed.\n");
+            if ( this_type1 == 100 )
             {
                merge_data_from_io_block(iobuf1, &item_header1, 1, hsdata1, hsdata3, iobuf3);
                /* Ignore the histogram block from the second file */
-               this_type1 = this_type2 = 0;
+               this_type1 = 0;
             }
-            if ( this_type1 != 0 || this_type2 != 0 )
+            if ( this_type1 != 0 )
             {
                printf("There is still some unprocessed data:\n");
-               print_process_status(prev_type1,this_type1,prev_type2,this_type2);
+               print_process_status(prev_type1,this_type1);
             }
             break;
          }
-         if ( (read_from == 1 && done1) || (read_from == 2 && done2) )
+         if ( (done1) )
          {
-            printf("Should read from input file %d but no more data available.\n", read_from);
-            print_process_status(prev_type1,this_type1,prev_type2,this_type2);
+            printf("Should read from input file but no more data available.\n");
+            print_process_status(prev_type1,this_type1);
             break;
          }
       }
 
-      if ( (read_from == 1 && this_type1 != 0) || (read_from == 2 && this_type2 != 0) )
+      if ( read_from == 1 && this_type1 != 0 )
       {
-         fprintf(stderr,"Should read from input file %d but have not processed previous block yet.\n", read_from);
-         print_process_status(prev_type1,this_type1,prev_type2,this_type2);
+         fprintf(stderr,"Should read from input file but have not processed previous block of type %d yet.\n", this_type1);
+         print_process_status(prev_type1,this_type1);
          break;
       }
 
@@ -2192,7 +2059,6 @@ printf("Processing loop: r=%d, t1=%d, t2=%d, p1=%d, p2=%d, e1=%ld, e2=%ld, d1=%d
          {
             rc = 2;
             done1 = 1; /* No more data to come from the first file. */
-            read_from = 2;
             continue;
          }
          else if ( read_io_block(iobuf1,&item_header1) != 0 )
@@ -2204,38 +2070,11 @@ printf("Processing loop: r=%d, t1=%d, t2=%d, p1=%d, p2=%d, e1=%ld, e2=%ld, d1=%d
 #ifdef DEBUG_MERGE
 printf("Type1 = %d, ID = %ld\n", this_type1, item_header1.ident);
 #endif
-         if ( this_type1 == 70 )
-         {
-            history_count++;
-            if ( clean_history || 
-                 ( clean_history_after >= 0 && history_count > clean_history_after ) )
-            {
-               prev_type1 = this_type1;
-               this_type1 = 0;
-               continue;
-            }
-         }
-         if ( this_type1 == 2001 && run1 < 0 && no_stray_mc )
-         {
-            prev_type1 = this_type1;
-            this_type1 = 0;
-            printf("\nIgnoring stray MC run header before main run header in file 1.\n\n");
-            continue;
-         }
-         if ( this_type1 == 1212 && single_corsika_inputs && have_corsika_inputs )
-         {
-            prev_type1 = this_type1;
-            this_type1 = 0;
-            printf("\nIgnoring repeated CORSIKA inputs data block.\n\n");
-            continue;
-         }
-         if ( (this_type1 == 70 || this_type1 == 2000 || 
-               this_type1 == 2001 || this_type1 == 1212) && 
-              this_type2 == 0 ) /* switch to second file */
-         {
-            read_from = 2;
-            continue;
-         }
+         // if ( (this_type1 == 70 || this_type1 == 2000 || 
+         //      this_type1 == 2001 || this_type1 == 1212)  ) /* switch to second file */
+         // {
+         //    continue;
+         // }
          switch ( this_type1 )
          {
             case 70:   /* Immediate output without other actions */
@@ -2244,17 +2083,6 @@ printf("Type1 = %d, ID = %ld\n", this_type1, item_header1.ident);
             case 1212: /* IO_TYPE_MC_INPUTCFG: Immediate output (once) without other actions */
                if ( this_type1 == 2000 )
                   run1 = item_header1.ident;
-               merge_now = 1;
-               if ( this_type1 == this_type2 )
-                  merge_next = 2;
-               read_from = 1;
-               if ( this_type1 == 2001 && run2 >= 0 )
-               {
-                  merge_next = 2;
-                  read_from = 2;
-               }
-               if ( this_type1 == 1212 )
-                  have_corsika_inputs = 1;
                event1 = -2;
                break;
 
@@ -2268,18 +2096,6 @@ printf("Type1 = %d, ID = %ld\n", this_type1, item_header1.ident);
             case 2008: /* IO_TYPE_HESS_TRACKSET */
             case 2022: /* IO_TYPE_HESS_TEL_MONI */
             case 2023: /* IO_TYPE_HESS_LASCAL */
-               if ( this_type2 == 70 || this_type2 == 2000 || 
-                    this_type2 == 2001 || this_type2 == 1212 )
-               {
-                  merge_now = 2;
-                  read_from = 2;
-               }
-               else
-               {
-                  merge_now = 1;
-                  // merge_next = 2;
-                  read_from = 1;
-               }
                if ( this_type1 < 2020 )
                   event1 = -1;
                break;
@@ -2293,321 +2109,43 @@ printf("Type1 = %d, ID = %ld\n", this_type1, item_header1.ident);
                   event1 = item_header1.ident * 100; /* shower number */
                else
                   event1 = item_header1.ident; /* event number */
-               if ( this_type2 == 70 || this_type2 == 1212 || 
-                    (this_type2 >= 2000 && this_type2 <= 2008 ) ||
-                    this_type2 == 2022 || this_type2 == 2023 )
-               {
-                  merge_now = 2; /* File 2 is far behind and needs to catch up */
-                  read_from = 2;
-               }
-               else if ( event2 < event1 ) /* File 2 may be behind */
-               {
-                  merge_now = 2;
-                  read_from = 2;
-               }
-               else if ( event2 > event1 ) /* File 1 is behind */
-               {
-                  merge_now = 1;
-                  read_from = 1;
-               }
-               else /* event2 == event1 */
-               {
-                  if ( this_type1 == this_type2 ) /* We caught up with file 2. Merge both. */
-                  {
-                     merge_now = 1;
-                     merge_next = 2;
-                     read_from = 1;
-                  }
-                  else if ( this_type1 == 2020 ) /* First the MC shower block */
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-                  else if ( this_type2 == 2020 ) /* First the MC shower block */
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-                  else if ( this_type1 == 2021 ) /* Next the MC event block */
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-                  else if ( this_type2 == 2021 ) /* Next the MC event block */
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-                  else if ( this_type1 == 2026 || this_type1 == 1204 ) /* then anything else than the event */
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-                  else if ( this_type2 == 2026 || this_type2 == 1204 ) /* then anything else than the event */
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-                  else
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-               }
-               break;
+                break;
 
             case 100: /* Probably the last block of file 1 */
-               merge_now = 0;
-               if ( this_type2 == 100 )
-               {
-                  merge_now = 2;
-                  this_type1 = 0;
-               }
-               else if ( done2 )
-                  merge_now = 1;
-               read_from = 2;
+               this_type1 = 100;
                break;
 
             default: /* Probably complaining about unknown block type but try anyway */
-               merge_now = 1;
-               read_from = 2;
-               break;
-         }
-      }
-      /* Or should we read a data block from the second file? */
-      else if ( read_from == 2 && !done2 && rc >= 0 )
-      {
-         /* Find and read the next block of data. */
-         /* In case of problems with the data, just give up. */
-         if ( find_io_block(iobuf2,&item_header2) != 0 )
-         {
-            rc = 2;
-            done2 = 1; /* No more data to come from the first file. */
-            continue;
-         }
-         else if ( read_io_block(iobuf2,&item_header2) != 0 )
-         {
-            rc = -1; /* An unexpected failure to read the data. We better give up. */
-            break;
-         }
-         this_type2 = item_header2.type;
-#ifdef DEBUG_MERGE
-printf("Type2 = %d, ID = %ld\n", this_type2, item_header2.ident);
-#endif
-         if ( this_type2 == 70 )
-         {
-            history_count++;
-            if ( clean_history || 
-                 ( clean_history_after >= 0 && history_count > clean_history_after ) )
-            {
-               prev_type2 = this_type2;
-               this_type2 = 0;
-               continue;
-            }
-         }
-         if ( this_type2 == 2001 && run2 < 0 && no_stray_mc )
-         {
-            prev_type2 = this_type2;
-            this_type2 = 0;
-            printf("\nIgnoring stray MC run header before main run header in file 2.\n\n");
-            continue;
-         }
-         if ( this_type2 == 1212 && single_corsika_inputs && have_corsika_inputs )
-         {
-            prev_type2 = this_type2;
-            this_type2 = 0;
-            printf("\nIgnoring repeated CORSIKA inputs data block.\n\n");
-            continue;
-         }
-         if ( (this_type2 == 2000 || 
-               this_type2 == 2001 || this_type2 == 1212) && 
-              this_type1 == 0 ) /* switch to first file */
-         {
-            read_from = 1;
-            continue;
-         }
-         switch ( this_type2 )
-         {
-            case 70:   /* Immediate output without other actions */
-            case 2000: /* IO_TYPE_HESS_RUNHEADER: Merging with immediate output (must have merged run header of file 1) */
-            case 2001: /* IO_TYPE_HESS_MCRUNHEADER: Merging without immediate output (must have MC merged run header of file 1) */
-            case 1212: /* Immediate output (once) without other actions */
-               if ( this_type2 == 2000 )
-                  run2 = item_header2.ident;
-               if ( this_type1 == this_type2 ) /* Caught up with file 1 */
-               {
-                  merge_now = 1;
-                  merge_next = 2;
-                  read_from = 1;
-               }
-               else if ( this_type1 == 70 || this_type1 == 2000 || this_type1 == 2001 ) /* First process data from file 1 */
-               {
-                  merge_now = 1;
-                  read_from = 1;
-               }
-               else
-               {
-                  merge_now = 2;
-                  read_from = 2;
-               }
-               if ( this_type2 == 1212 )
-                  have_corsika_inputs = 1;
-               event2 = -2;
-               break;
-
-            /* These can all be merged with immediate output, unless file 1 is behind: */
-            case 2002: /* IO_TYPE_HESS_CAMSETTINGS */
-            case 2003: /* IO_TYPE_HESS_CAMORGAN */
-            case 2004: /* IO_TYPE_HESS_PIXELSET */
-            case 2005: /* IO_TYPE_HESS_PIXELDISABLE */
-            case 2006: /* IO_TYPE_HESS_CAMSOFTSET */
-            case 2007: /* IO_TYPE_HESS_POINTINGCOR */
-            case 2008: /* IO_TYPE_HESS_TRACKSET */
-            case 2022: /* IO_TYPE_HESS_TEL_MONI */
-            case 2023: /* IO_TYPE_HESS_LASCAL */
-               if ( this_type1 == 70 || this_type1 == 2000 || 
-                    this_type1 == 2001 || this_type1 == 1212 ||
-                    this_type1 == 2002 || this_type1 == 2003 || this_type1 == 2004 || this_type1 == 2005 ||
-                    this_type1 == 2006 || this_type1 == 2007 || this_type1 == 2008 ||
-                    ((this_type2 == 2022 || this_type2 == 2023) && (this_type1 == 2022 || this_type1 == 2023)) )
-               {
-                  merge_now = 1; /* Process file one as far as we get */
-                  read_from = 1;
-               }
-               else
-               {
-                  merge_now = 2;
-                  read_from = 2;
-               }
-               if ( this_type2 < 2020 )
-                  event2 = -1;
-               break;
-
-            case 2020: /* IO_TYPE_HESS_MC_SHOWER */
-            case 2021: /* IO_TYPE_HESS_MC_EVENT */
-            case 2026: /* IO_TYPE_HESS_MC_PE_SUM */
-            case 1204:
-            case 2010: /* IO_TYPE_HESS_EVENT */
-               if ( this_type2 == 2020 )
-                  event2 = item_header2.ident * 100; /* shower number */
-               else
-                  event2 = item_header2.ident; /* event number */
-               if ( this_type1 == 70 || this_type1 == 1212 || 
-                    (this_type1 >= 2000 && this_type1 <= 2008 ) ||
-                    this_type1 == 2022 || this_type1 == 2023 )
-               {
-                  merge_now = 1; /* File 1 is far behind and needs to catch up */
-                  read_from = 1;
-               }
-               else if ( event1 < event2 ) /* File 1 may be behind */
-               {
-                  merge_now = 1;
-                  read_from = 1;
-               }
-               else if ( event1 > event2 ) /* File 2 is behind */
-               {
-                  merge_now = 2;
-                  read_from = 2;
-               }
-               else /* event2 == event1 */
-               {
-                  if ( this_type1 == this_type2 ) /* We caught up with file 1. Merge both. */
-                  {
-                     merge_now = 1;
-                     merge_next = 2;
-                     read_from = 1;
-                  }
-                  else if ( this_type1 == 2020 ) /* First the MC shower block */
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-                  else if ( this_type2 == 2020 ) /* First the MC shower block */
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-                  else if ( this_type1 == 2021 ) /* Next the MC event block */
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-                  else if ( this_type2 == 2021 ) /* Next the MC event block */
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-                  else if ( this_type1 == 2026 || this_type1 == 1204 ) /* then anything else than the event */
-                  {
-                     merge_now = 1;
-                     read_from = 1;
-                  }
-                  else if ( this_type2 == 2026 || this_type2 == 1204 ) /* then anything else than the event */
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-                  else
-                  {
-                     merge_now = 2;
-                     read_from = 2;
-                  }
-               }
-               break;
-
-            case 100: /* Probably the last block of file 2 */
-               merge_now = 2;
-               if ( this_type1 == 100 )
-                  this_type1 = 0;
-               read_from = 1;
-               break;
-
-            default: /* Probably complaining about unknown block type but try anyway */
-               merge_now = 2;
-               read_from = 1;
                break;
          }
       }
 
-      if ( merge_now == 1 && this_type1 != 0 )
+      if ( this_type1 != 0 )
       {
          merge_data_from_io_block(iobuf1, &item_header1, 1, hsdata1, hsdata3, iobuf3);
          prev_type1 = this_type1;
          this_type1 = 0;
-         merge_now = 0;
       }
-      else if ( merge_now == 2 && this_type2 != 0 )
-      {
-         merge_data_from_io_block(iobuf2, &item_header2, 2, hsdata2, hsdata3, iobuf3);
-         prev_type2 = this_type2;
-         this_type2 = 0;
-         merge_now = 0;
-      }
-      if ( merge_next == 1 && this_type1 != 0 )
-      {
-         merge_data_from_io_block(iobuf1, &item_header1, 1, hsdata1, hsdata3, iobuf3);
-         prev_type1 = this_type1;
-         this_type1 = 0;
-         merge_next = 0;
-      }
-      else if ( merge_next == 2 && this_type2 != 0 )
-      {
-         merge_data_from_io_block(iobuf2, &item_header2, 2, hsdata2, hsdata3, iobuf3);
-         prev_type2 = this_type2;
-         this_type2 = 0;
-         merge_next = 0;
-      }
+      // if ( this_type1 != 0 )
+      // {
+      //    merge_data_from_io_block(iobuf1, &item_header1, 1, hsdata1, hsdata3, iobuf3);
+      //    prev_type1 = this_type1;
+      //    this_type1 = 0;
+      // }
 
    }
    
    fileclose(iobuf1->input_file);
-   fileclose(iobuf2->input_file);
    fileclose(iobuf3->output_file);
    /* Avoid cppcheck false positives: */
    free(hsdata1);
-   free(hsdata2);
    free(hsdata3);
+   
+   if ( tmp_fname != NULL && *tmp_fname != '\0' )
+     unlink(tmp_fname);
 
+   if ( rc )
+      return 1;
    return 0;
 }
 

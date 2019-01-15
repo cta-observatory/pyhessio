@@ -25,8 +25,8 @@
    @brief Configuration control and procedure call interface.
 
    @author  Konrad Bernloehr
-   @date    $Date: 2016/03/03 11:26:36 $
-   @version $Revision: 1.20 $
+   @date    $Date: 2018/05/11 11:54:29 $
+   @version $Revision: 1.21 $
 
 
      This is the module controlling all configuration except
@@ -3538,13 +3538,13 @@ char *read_config_lines()
    /* Open the file if not open yet */
    if ( cfg_file == (FILE *) NULL )
    {
-      char command[4096];
+      char command[8000];
       char *fn;
 
       fn = cfg_fname;
       if ( *fn != '\0' )
       {
-	 char message[1024];
+	 char message[1060];
          snprintf(message,sizeof(message),"Configuration file is '%s'.",fn);
          Information(message);
       }
@@ -3552,7 +3552,7 @@ char *read_config_lines()
       {
          if ( (cfg_file = fopen(fn,READ_TEXT)) == (FILE *) NULL )
          {
-	    char message[1024];
+	    char message[1060];
             snprintf(message,sizeof(message),
 	       "Cannot open configuration file '%s'",fn);
             Warning(message);
@@ -3568,7 +3568,7 @@ char *read_config_lines()
             Warning("Preprocessor temporary file name is too long.");
          else
          {
-	    char message[1024];
+	    char message[4200];
             sprintf(tmp_fname,TMP_FORMAT,getpid());
             snprintf(command,sizeof(command),"%s %s %s",preprocessor,
                cfg_fname,tmp_fname);
@@ -3595,7 +3595,7 @@ char *read_config_lines()
       }
       if ( (cfg_file = fopen(fn,READ_TEXT)) == (FILE *) NULL )
       {
-	 char message[1024];
+	 char message[1060];
          snprintf(message,sizeof(message),
 	    "Cannot open configuration file '%s'",fn);
          Warning(message);

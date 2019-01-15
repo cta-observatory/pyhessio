@@ -24,8 +24,8 @@
  *
  *  @author  Konrad Bernloehr 
  *  @date    1993 to 2010
- *  @date    @verbatim CVS $Date: 2013/10/21 12:53:31 $ @endverbatim
- *  @version @verbatim CVS $Revision: 1.20 $ @endverbatim
+ *  @date    @verbatim CVS $Date: 2018/09/19 12:11:37 $ @endverbatim
+ *  @version @verbatim CVS $Revision: 1.23 $ @endverbatim
  */
 /* ================================================================ */
 
@@ -34,6 +34,12 @@
 #include "histogram.h"
 #include "io_histogram.h"
 #include "fileopen.h"
+
+#ifndef __GNUC__
+# ifndef __attribute__
+#  define __attribute__(a) /* Ignore gcc specials with other compilers */
+# endif
+#endif
 
 /* ---------------------- write_all_histograms --------------------------- */
 /**
@@ -114,7 +120,9 @@ int read_histogram_file_x (const char *fname, int add_flag, const long *xcld_ids
       list_all = 1;
    }
 
-// fprintf(stderr,"Reading histogram file %s, add_flag=%d, list_all=%d, nxcld=%d\n", fname, add_flag, list_all, nxcld);
+/*
+   fprintf(stderr,"Reading histogram file %s, add_flag=%d, list_all=%d, nxcld=%d\n", fname, add_flag, list_all, nxcld);
+*/
 
    if ( strcmp(fname,"-") == 0 )
    {
@@ -123,7 +131,7 @@ int read_histogram_file_x (const char *fname, int add_flag, const long *xcld_ids
    }
    else if ( (hdata_file = fileopen(fname,READ_BINARY)) == (FILE *) NULL )
    {
-      printf("File '%s' not opened\n",fname);
+      fprintf(stderr,"File '%s' not opened\n",fname);
       return -1;
    }
 
@@ -142,12 +150,14 @@ int read_histogram_file_x (const char *fname, int add_flag, const long *xcld_ids
       int n;
       if ( item_header.type != 100 )
       {
-      	 // char message[1024];
+      	 /* char message[1024]; */
 	 nother++;
          (void) skip_io_block(iobuf,&item_header);
+         /*
          // (void) sprintf(message,"Data in input file are not histograms but type %ld.\n",
          //     item_header.type);
          // Warning(message);
+         */
          continue;
       }
       if ( (rc=read_io_block(iobuf,&item_header)) < 0 )
@@ -180,9 +190,9 @@ int read_histogram_file_x (const char *fname, int add_flag, const long *xcld_ids
       Warning(message);
    }
    else
-      printf("Read %d histograms from %s\n",nhist,fname);
+      printf("# Read %d histograms from %s\n",nhist,fname);
    if ( nother > 0 )
-      printf("A total of %zu non-histogram data blocks were skipped.\n", nother);
+      printf("# A total of %zu non-histogram data blocks were skipped.\n", nother);
    
    free_io_buffer(iobuf);
    clearerr(hdata_file);
@@ -403,7 +413,7 @@ int read_histograms_x (HISTOGRAM **phisto, int nhisto, const long *xcld_ids, int
 {
    int mhisto, ihisto, rc, ncounts;
    char title[256];
-   char type, cdummy;
+   char type, __attribute__((unused)) cdummy;
    long ident;
    double rlower[2] = {0., 0.}, rupper[2] = {0., 0.}, 
           rsum[2] = {0., 0.}, rtsum[2] = {0., 0.};
@@ -432,7 +442,9 @@ int read_histograms_x (HISTOGRAM **phisto, int nhisto, const long *xcld_ids, int
       Warning("Wrong version no. of histogram data to be read");
       return -1;
    }
-// fprintf(stderr,"Read histograms called, with %d histograms excluded\n",nxcld);
+/*
+   fprintf(stderr,"Read histograms called, with %d histograms excluded\n",nxcld);
+*/
    mhisto = get_short(iobuf);
 
    for (ihisto=0; ihisto<mhisto; ihisto++)
@@ -440,7 +452,7 @@ int read_histograms_x (HISTOGRAM **phisto, int nhisto, const long *xcld_ids, int
       int add_this = 0, exclude_this = 0;
       type = (char) get_byte(iobuf);
       if ( get_string(title,sizeof(title)-1,iobuf) % 2 == 0 )
-         cdummy = get_byte(iobuf); // Compiler may warn about it but this is OK.
+         cdummy = get_byte(iobuf); /* Compiler may warn about it but this is OK. */
       ident = get_long(iobuf);
       nbins = (int) get_short(iobuf);
       nbins_2d = (int) get_short(iobuf);
@@ -519,7 +531,7 @@ int read_histograms_x (HISTOGRAM **phisto, int nhisto, const long *xcld_ids, int
 
       /* (Re-) Allocate the new histogram according to its type. */
       thisto = NULL;
-      // if ( ! exclude_this ) /* Would really exclude all histograms of this ID but we just don't want to add it up */
+      /* if ( ! exclude_this ) */ /* Would really exclude all histograms of this ID but we just don't want to add it up */
       {
          if ( nbins_2d > 0 )
          {
@@ -647,7 +659,9 @@ int read_histograms_x (HISTOGRAM **phisto, int nhisto, const long *xcld_ids, int
 
       if ( add_this )
       {
-// fprintf(stderr,"Adding histogram ID %ld\n", ident);
+/*
+         fprintf(stderr,"Adding histogram ID %ld\n", ident);
+*/
          add_histogram(ohisto,thisto);
          free_histogram(thisto);
       }
@@ -676,7 +690,7 @@ int print_histograms (IO_BUFFER *iobuf)
 {
    int mhisto, ihisto, rc, ncounts;
    char title[256];
-   char type, cdummy;
+   char type, __attribute__((unused)) cdummy;
    long ident;
    unsigned long entries=0, tentries=0;
    int nbins=0, nbins_2d=0, ibin;
@@ -705,7 +719,7 @@ int print_histograms (IO_BUFFER *iobuf)
    {
       type = (char) get_byte(iobuf);
       if ( (ls = get_string(title,sizeof(title)-1,iobuf)) % 2 == 0 )
-         cdummy = get_byte(iobuf); // Compiler may warn about it but this is OK.
+         cdummy = get_byte(iobuf); /* Compiler may warn about it but this is OK. */
       if ( ls < 0 )
          ls = 0;
       else if ( (size_t) ls >= sizeof(title) )
@@ -718,10 +732,10 @@ int print_histograms (IO_BUFFER *iobuf)
       tentries = (uint32_t) get_long(iobuf);
       (void) get_long(iobuf);
       (void) get_long(iobuf);
-
+/*
       // printf("   Histogram %ld of type %c with %dx%d bins and %lu/%lu entries: %s\n",
       //   ident, type,  nbins, nbins_2d, tentries, entries, title);
-
+*/
       if ( type == 'R' || type == 'r' || type == 'F' || type == 'D' )
       {
          (void) get_real(iobuf);
