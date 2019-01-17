@@ -700,7 +700,7 @@ long get_mc_num_generated_events(const char *filename)
 
     HISTOGRAM* hist = get_histogram_by_ident(6);
     if (hist)
-        clear_histogram(hist);  // In case it exists from a previous call!
+        free_histogram(hist);  // In case it exists from a previous call!
 
     // read histograms #6 from file, if more than one, add contents:
     read_histogram_file_x(filename, 1, excluded, 9);
